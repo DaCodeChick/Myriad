@@ -208,3 +208,4 @@ __marimo__/
 
 # Project Myriad - Database files (stored in data/ directory, not in codebase)
 data/
+*_log.txt
