@@ -78,7 +78,7 @@ class ToolRegistry:
                     "properties": {
                         "entity1": {
                             "type": "string",
-                            "description": "The first entity (subject) - e.g., 'Schala', 'Python', 'Coffee'",
+                            "description": "The first entity (subject) - e.g., 'Bob', 'Python', 'Coffee'",
                         },
                         "entity1_type": {
                             "type": "string",

@@ -47,7 +47,7 @@
      - `entities` - Nodes (people, concepts, objects, etc.) with id, name, type, description
      - `relationships` - Edges (source_id, target_id, relation_type)
    - **Storage Tool:** LLM can call `add_knowledge()` to store facts:
-     - Example: `add_knowledge("Schala", "User", "LIKES", "Gentle Possession", "Concept")`
+     - Example: `add_knowledge("Bob", "User", "LIKES", "Gentle Possession", "Concept")`
    - **Retrieval Pipeline:** 
      1. Extract keywords from user message
      2. Search entities table for matching names

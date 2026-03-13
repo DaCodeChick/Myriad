@@ -30,13 +30,13 @@ def test_entity_creation():
     print("\n2. Adding entities...")
     try:
         # Add some test entities
-        entity_id1 = graph.add_entity("Schala", "User", "A user who loves AI")
+        entity_id1 = graph.add_entity("Bob", "User", "A user who loves AI")
         entity_id2 = graph.add_entity(
             "Gentle Possession", "Concept", "A philosophical concept"
         )
         entity_id3 = graph.add_entity("Python", "Language", "Programming language")
 
-        print(f"   ✓ Added entity: Schala (ID: {entity_id1})")
+        print(f"   ✓ Added entity: Bob (ID: {entity_id1})")
         print(f"   ✓ Added entity: Gentle Possession (ID: {entity_id2})")
         print(f"   ✓ Added entity: Python (ID: {entity_id3})")
     except Exception as e:
@@ -45,8 +45,8 @@ def test_entity_creation():
 
     print("\n3. Testing entity retrieval...")
     try:
-        entity = graph.get_entity_by_name("Schala")
-        if entity and entity["name"] == "Schala" and entity["type"] == "User":
+        entity = graph.get_entity_by_name("Bob")
+        if entity and entity["name"] == "Bob" and entity["type"] == "User":
             print(f"   ✓ Retrieved entity: {entity['name']} ({entity['type']})")
         else:
             print("   ✗ Entity retrieval failed")
@@ -58,7 +58,7 @@ def test_entity_creation():
     print("\n4. Testing duplicate entity handling...")
     try:
         # Try to add the same entity again
-        duplicate_id = graph.add_entity("Schala", "User", "Updated description")
+        duplicate_id = graph.add_entity("Bob", "User", "Updated description")
         if duplicate_id == entity_id1:
             print(
                 f"   ✓ Duplicate entity correctly returned existing ID: {duplicate_id}"
@@ -89,18 +89,16 @@ def test_relationship_creation():
     try:
         # Add relationships
         success1 = graph.add_relationship(
-            "Schala", "User", "LIKES", "Gentle Possession", "Concept"
+            "Bob", "User", "LIKES", "Gentle Possession", "Concept"
         )
-        success2 = graph.add_relationship(
-            "Schala", "User", "KNOWS", "Python", "Language"
-        )
+        success2 = graph.add_relationship("Bob", "User", "KNOWS", "Python", "Language")
         success3 = graph.add_relationship(
             "Python", "Language", "USED_FOR", "AI", "Field"
         )
 
         if success1 and success2 and success3:
-            print("   ✓ Added relationship: Schala LIKES Gentle Possession")
-            print("   ✓ Added relationship: Schala KNOWS Python")
+            print("   ✓ Added relationship: Bob LIKES Gentle Possession")
+            print("   ✓ Added relationship: Bob KNOWS Python")
             print("   ✓ Added relationship: Python USED_FOR AI")
         else:
             print("   ✗ Some relationships failed to add")
@@ -111,10 +109,10 @@ def test_relationship_creation():
 
     print("\n3. Retrieving relationships for entity...")
     try:
-        relationships = graph.get_relationships_for_entity("Schala")
+        relationships = graph.get_relationships_for_entity("Bob")
 
         if len(relationships) >= 2:
-            print(f"   ✓ Found {len(relationships)} relationships for Schala:")
+            print(f"   ✓ Found {len(relationships)} relationships for Bob:")
             for rel in relationships:
                 print(
                     f"      • {rel['source']} ({rel['source_type']}) {rel['relation']} {rel['target']} ({rel['target_type']})"
@@ -203,9 +201,7 @@ def test_knowledge_retrieval():
 
     print("\n3. Testing full knowledge context retrieval...")
     try:
-        context = graph.get_knowledge_context(
-            "Tell me about Python and what Schala likes"
-        )
+        context = graph.get_knowledge_context("Tell me about Python and what Bob likes")
 
         if context:
             print("   ✓ Generated knowledge context:")

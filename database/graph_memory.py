@@ -5,7 +5,7 @@ This module stores factual knowledge as a graph of entities and relationships.
 When the LLM learns important facts, it can call tools to permanently store them.
 
 Example:
-    - Entity: "Schala" (type: "User")
+    - Entity: "Bob" (type: "User")
     - Relationship: "LIKES"
     - Entity: "Gentle Possession" (type: "Concept")
 
@@ -105,7 +105,7 @@ class GraphMemory:
         Add or update an entity in the knowledge graph.
 
         Args:
-            name: Entity name (e.g., "Schala", "Python", "Gentle Possession")
+            name: Entity name (e.g., "Bob", "Python", "Gentle Possession")
             entity_type: Category (e.g., "User", "Language", "Concept")
             description: Optional description of the entity
 
@@ -176,7 +176,7 @@ class GraphMemory:
             True if relationship was added/updated, False on error
 
         Example:
-            add_relationship("Schala", "User", "LIKES", "Gentle Possession", "Concept")
+            add_relationship("Bob", "User", "LIKES", "Gentle Possession", "Concept")
         """
         try:
             # Ensure both entities exist
@@ -252,7 +252,7 @@ class GraphMemory:
         Example result:
             [
                 {
-                    "source": "Schala",
+                    "source": "Bob",
                     "source_type": "User",
                     "relation": "LIKES",
                     "target": "Gentle Possession",
