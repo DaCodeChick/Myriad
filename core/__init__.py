@@ -2,5 +2,6 @@
 
 from core.agent_core import AgentCore
 from core.persona_loader import PersonaLoader, PersonaCartridge
+from core.vision_bridge import VisionBridge
 
-__all__ = ["AgentCore", "PersonaLoader", "PersonaCartridge"]
+__all__ = ["AgentCore", "PersonaLoader", "PersonaCartridge", "VisionBridge"]

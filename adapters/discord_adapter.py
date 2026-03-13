@@ -16,17 +16,21 @@ from discord.ext import commands
 from typing import Optional
 
 from core.agent_core import AgentCore
+from core.vision_bridge import VisionBridge
 
 
 class MyriadDiscordBot(commands.Bot):
     """Discord bot that wraps the AgentCore engine."""
 
-    def __init__(self, agent_core: AgentCore):
+    def __init__(
+        self, agent_core: AgentCore, vision_bridge: Optional[VisionBridge] = None
+    ):
         """
         Initialize the Discord bot.
 
         Args:
             agent_core: The platform-agnostic AI engine
+            vision_bridge: Optional vision processing bridge for image handling
         """
         # Discord bot setup with message content intent
         intents = discord.Intents.default()
@@ -36,6 +40,7 @@ class MyriadDiscordBot(commands.Bot):
 
         # Store reference to core engine
         self.agent_core = agent_core
+        self.vision_bridge = vision_bridge
 
     async def setup_hook(self):
         """Setup hook called when bot is ready."""
@@ -55,6 +60,7 @@ class MyriadDiscordBot(commands.Bot):
         Handle incoming messages.
 
         Messages that mention the bot OR are in DMs are processed by the AgentCore.
+        If image attachments are present, they are processed through the vision bridge.
         """
         # Ignore bot's own messages
         if message.author == self.user:
@@ -74,6 +80,10 @@ class MyriadDiscordBot(commands.Bot):
         # Remove bot mention from message (if present)
         content = message.content.replace(f"<@{self.user.id}>", "").strip()
 
+        # If no text content but has attachments, default to empty message
+        if not content and message.attachments:
+            content = "(no text message)"
+
         if not content:
             return
 
@@ -88,13 +98,41 @@ class MyriadDiscordBot(commands.Bot):
             )
             return
 
+        # Process image attachments if present (Split-Brain Vision Pipeline)
+        vision_description = None
+        if message.attachments and self.vision_bridge:
+            for attachment in message.attachments:
+                # Check if attachment is an image
+                if attachment.content_type and attachment.content_type.startswith(
+                    "image/"
+                ):
+                    try:
+                        # Download image bytes
+                        image_bytes = await attachment.read()
+
+                        # Extract image format from content type
+                        image_format = attachment.content_type.split("/")[-1]
+
+                        # Process through vision bridge
+                        description = self.vision_bridge.process_image_bytes(
+                            image_bytes, image_format
+                        )
+
+                        if description:
+                            vision_description = description
+                            print(f"[Vision] Processed image: {description[:100]}...")
+                            break  # Only process first image
+                    except Exception as e:
+                        print(f"[Vision] Error processing attachment: {e}")
+
         # Show typing indicator
         async with message.channel.typing():
-            # Process message through AgentCore
+            # Process message through AgentCore (with vision description if available)
             response = self.agent_core.process_message(
                 user_id=user_id,
                 message=content,
                 memory_visibility="ISOLATED",  # Default to persona-specific memories
+                vision_description=vision_description,
             )
 
         # Send response
@@ -107,17 +145,20 @@ class MyriadDiscordBot(commands.Bot):
             )
 
 
-def create_discord_bot(agent_core: AgentCore) -> MyriadDiscordBot:
+def create_discord_bot(
+    agent_core: AgentCore, vision_bridge: Optional[VisionBridge] = None
+) -> MyriadDiscordBot:
     """
     Factory function to create and configure the Discord bot.
 
     Args:
         agent_core: The platform-agnostic AI engine
+        vision_bridge: Optional vision processing bridge
 
     Returns:
         Configured MyriadDiscordBot instance
     """
-    bot = MyriadDiscordBot(agent_core)
+    bot = MyriadDiscordBot(agent_core, vision_bridge)
 
     # ========================
     # SLASH COMMANDS
@@ -250,6 +291,11 @@ def run_discord_adapter():
     model = os.getenv("LLM_MODEL", "gpt-4")
     memory_limit = int(os.getenv("MEMORY_CONTEXT_LIMIT", "50"))
 
+    # Vision API configuration (optional)
+    vision_api_key = os.getenv("VISION_API_KEY", "not-needed")
+    vision_base_url = os.getenv("VISION_BASE_URL")
+    vision_model = os.getenv("VISION_MODEL", "vision-model")
+
     # Validate environment
     if not discord_token:
         raise ValueError("DISCORD_TOKEN not found in environment")
@@ -261,8 +307,24 @@ def run_discord_adapter():
         api_key=api_key, base_url=base_url, model=model, memory_limit=memory_limit
     )
 
+    # Initialize VisionBridge if configured
+    vision_bridge = None
+    if vision_base_url:
+        try:
+            vision_bridge = VisionBridge(
+                vision_api_key=vision_api_key,
+                vision_base_url=vision_base_url,
+                vision_model=vision_model,
+            )
+            print(f"✓ Vision Bridge enabled: {vision_base_url}")
+        except Exception as e:
+            print(f"⚠ Vision Bridge initialization failed: {e}")
+            print("  Continuing without vision support...")
+    else:
+        print("ℹ Vision Bridge not configured (set VISION_BASE_URL to enable)")
+
     # Create Discord adapter
-    bot = create_discord_bot(agent_core)
+    bot = create_discord_bot(agent_core, vision_bridge)
 
     # Run bot
     print("Starting Myriad Discord Adapter...")

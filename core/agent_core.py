@@ -182,7 +182,11 @@ class AgentCore:
     # ========================
 
     def process_message(
-        self, user_id: str, message: str, memory_visibility: str = "ISOLATED"
+        self,
+        user_id: str,
+        message: str,
+        memory_visibility: str = "ISOLATED",
+        vision_description: Optional[str] = None,
     ) -> Optional[str]:
         """
         Process a user message and generate a response.
@@ -194,6 +198,7 @@ class AgentCore:
             message: The user's message text
             memory_visibility: Visibility scope for this conversation
                              ('GLOBAL' for shared memories, 'ISOLATED' for persona-specific)
+            vision_description: Optional vision model description to inject into context
 
         Returns:
             AI response string, or None if no active persona
@@ -207,20 +212,26 @@ class AgentCore:
         # Update user interaction timestamp
         self.memory_matrix.update_user_interaction(user_id)
 
-        # Save user message to memory
+        # If vision description is provided, prepend it to the message
+        full_message = message
+        if vision_description:
+            vision_injection = f"[System: The user just uploaded an image showing: {vision_description}]\n\n{message}"
+            full_message = vision_injection
+
+        # Save user message to memory (with vision description if present)
         self._save_message_to_memory(
             user_id=user_id,
             persona_id=persona.persona_id,
             role="user",
-            content=message,
+            content=full_message,
             visibility=memory_visibility,
         )
 
         # Build conversation context with memory injection
         messages = self._build_conversation_context(user_id, persona)
 
-        # Add current message (already in memory, but needed for API call)
-        messages.append({"role": "user", "content": message})
+        # Add current message (use full_message with vision injection if present)
+        messages.append({"role": "user", "content": full_message})
 
         # Call LLM API
         try:
