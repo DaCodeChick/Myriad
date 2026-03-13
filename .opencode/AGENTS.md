@@ -3,11 +3,18 @@
 ## Development Environment
 **Package Management:** This project uses `uv` for Python package management. Use `uv pip install <package>` or `uv run <command>` instead of pip directly.
 
+## Directory Structure
+- **`database/`**: Python modules for database logic (code only, no .db files)
+- **`data/`**: Runtime database files (SQLite .db files, ChromaDB vector store) - **NEVER commit to git**
+- **`personas/`**: Persona cartridge JSON files
+- **`core/`**: Platform-agnostic AI engine
+- **`adapters/`**: Platform-specific frontends (Discord, etc.)
+
 ## Architecture Rules
 
 1. **Language & Ecosystem:** All code must be written in Python 3.10+. Use `discord.py` for the bot framework. Do not use heavy ORMs like SQLAlchemy; use native `sqlite3` for absolute speed and control.
 2. **The Polymorphic Engine:** The bot does NOT have a hardcoded persona. Personas are stored as hot-swappable `.json` cartridges in a `personas/` directory.
-3. **State Management:** All state, active persona tracking, and memories MUST be stored in a local SQLite database (`database/myriad_state.db`).
+3. **State Management:** All state, active persona tracking, and memories MUST be stored in a local SQLite database (`data/myriad_state.db`). Database files live in `data/`, NOT in `database/` (which is for code).
 4. **The Memory Router:** Memory is NOT a flat text file. Every memory logged in the database must have a `visibility_scope` of either 'GLOBAL' (shared across all personas) or 'ISOLATED' (only accessible to the persona that recorded it).
 5. **Hybrid Memory Architecture (CRITICAL):** The bot uses a two-tier memory system:
    - **Short-Term Memory:** Last N messages (default: 10) in exact chronological order for immediate conversation flow

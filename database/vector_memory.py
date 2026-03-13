@@ -25,7 +25,7 @@ class VectorMemory:
     def __init__(
         self,
         embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
-        chroma_db_path: str = "database/chroma_db",
+        chroma_db_path: str = "data/chroma_db",
         collection_name: str = "myriad_memories",
     ):
         """

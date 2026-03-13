@@ -33,7 +33,7 @@ class AgentCore:
         base_url: str = "https://api.openai.com/v1",
         model: str = "gpt-4",
         short_term_limit: int = 10,
-        db_path: str = "database/myriad_state.db",
+        db_path: str = "data/myriad_state.db",
         personas_dir: str = "personas",
         vector_memory_enabled: bool = True,
         semantic_recall_limit: int = 5,

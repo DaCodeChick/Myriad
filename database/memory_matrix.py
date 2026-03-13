@@ -20,7 +20,7 @@ class MemoryMatrix:
 
     def __init__(
         self,
-        db_path: str = "database/myriad_state.db",
+        db_path: str = "data/myriad_state.db",
         vector_memory_enabled: bool = True,
     ):
         """Initialize the database connection and ensure schema exists."""

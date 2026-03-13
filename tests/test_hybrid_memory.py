@@ -22,9 +22,7 @@ def test_hybrid_memory():
     # Initialize MemoryMatrix with vector memory enabled
     print("\n1. Initializing MemoryMatrix with hybrid memory...")
     try:
-        memory = MemoryMatrix(
-            db_path="database/test_hybrid.db", vector_memory_enabled=True
-        )
+        memory = MemoryMatrix(db_path="data/test_hybrid.db", vector_memory_enabled=True)
         print("   ✓ MemoryMatrix initialized")
         print(f"   ✓ Vector memory enabled: {memory.vector_memory_enabled}")
     except Exception as e:

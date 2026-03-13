@@ -206,9 +206,5 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-# Project Myriad - Database files
-database/*.db
-database/*.db-journal
-database/*.db-wal
-database/*.db-shm
-database/chroma_db/
+# Project Myriad - Database files (stored in data/ directory, not in codebase)
+data/
