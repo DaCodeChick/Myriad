@@ -6,6 +6,7 @@ This module is the central brain of the system. It:
 2. Handles memory injection via the Automated Discretion Engine
 3. Communicates with the LLM API
 4. Processes messages and generates responses
+5. Executes tool calls (function calling)
 
 CRITICAL: This module must NEVER import discord or any platform-specific code.
 It operates purely on strings and data structures.
@@ -17,6 +18,7 @@ from openai import OpenAI
 
 from database.memory_matrix import MemoryMatrix
 from core.persona_loader import PersonaLoader, PersonaCartridge
+from core.tool_registry import ToolRegistry, parse_tool_call, format_tool_response
 
 
 class AgentCore:
@@ -37,6 +39,8 @@ class AgentCore:
         personas_dir: str = "personas",
         vector_memory_enabled: bool = True,
         semantic_recall_limit: int = 5,
+        tools_enabled: bool = True,
+        max_tool_iterations: int = 5,
     ):
         """
         Initialize the AgentCore.
@@ -50,18 +54,25 @@ class AgentCore:
             personas_dir: Directory containing persona JSON files
             vector_memory_enabled: Enable semantic vector memory (default: True)
             semantic_recall_limit: Number of semantic memories to recall from long-term storage (default: 5)
+            tools_enabled: Enable tool use / function calling (default: True)
+            max_tool_iterations: Maximum number of tool calls in a single response cycle (default: 5)
         """
         # LLM Client
         self.client = OpenAI(api_key=api_key, base_url=base_url)
         self.model = model
         self.short_term_limit = short_term_limit
         self.semantic_recall_limit = semantic_recall_limit
+        self.tools_enabled = tools_enabled
+        self.max_tool_iterations = max_tool_iterations
 
         # Core Systems
         self.memory_matrix = MemoryMatrix(
             db_path=db_path, vector_memory_enabled=vector_memory_enabled
         )
         self.persona_loader = PersonaLoader(personas_dir=personas_dir)
+
+        # Tool Registry
+        self.tool_registry = ToolRegistry() if tools_enabled else None
 
     # ========================
     # PERSONA MANAGEMENT
@@ -155,6 +166,12 @@ class AgentCore:
             )
             system_content += rules_section
 
+        # Inject tool definitions if tools are enabled
+        if self.tools_enabled and self.tool_registry:
+            tool_definitions = self.tool_registry.get_tool_definitions_text()
+            if tool_definitions:
+                system_content += tool_definitions
+
         # Start with system prompt
         messages = [{"role": "system", "content": system_content}]
 
@@ -244,7 +261,14 @@ class AgentCore:
         """
         Process a user message and generate a response.
 
-        This is the main entry point for the AI engine.
+        This is the main entry point for the AI engine with Tool Execution Loop.
+
+        TOOL EXECUTION LOOP:
+        1. LLM responds
+        2. If response is a tool call (JSON format), execute the tool
+        3. Inject tool result back into conversation
+        4. LLM reads result and responds to user
+        5. Repeat up to max_tool_iterations times
 
         Args:
             user_id: Unique user identifier
@@ -288,35 +312,99 @@ class AgentCore:
         # Add current message (use full_message with vision injection if present)
         messages.append({"role": "user", "content": full_message})
 
-        # Call LLM API
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=persona.temperature,
-                max_tokens=persona.max_tokens,
-            )
+        # ========================
+        # TOOL EXECUTION LOOP
+        # ========================
+        tool_iterations = 0
+        final_response = None
 
-            # Extract response text
-            assistant_message = response.choices[0].message.content
+        while tool_iterations < self.max_tool_iterations:
+            try:
+                # Call LLM API
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    temperature=persona.temperature,
+                    max_tokens=persona.max_tokens,
+                )
 
-            if not assistant_message:
+                # Extract response text
+                assistant_message = response.choices[0].message.content
+
+                if not assistant_message:
+                    return None
+
+                # Check if this is a tool call
+                if self.tools_enabled and self.tool_registry:
+                    tool_call = parse_tool_call(assistant_message)
+
+                    if tool_call:
+                        # This is a tool call! Execute it
+                        tool_iterations += 1
+
+                        tool_name = tool_call["tool"]
+                        tool_args = tool_call["arguments"]
+
+                        print(f"[Tool Call {tool_iterations}] {tool_name}({tool_args})")
+
+                        # Execute the tool
+                        result = self.tool_registry.execute_tool(tool_name, tool_args)
+
+                        # Format the tool response
+                        tool_response_text = format_tool_response(tool_name, result)
+
+                        print(f"[Tool Result] {result}")
+
+                        # Add tool call and result to conversation history
+                        messages.append(
+                            {"role": "assistant", "content": assistant_message}
+                        )
+                        messages.append({"role": "user", "content": tool_response_text})
+
+                        # Save tool call and result to memory
+                        self._save_message_to_memory(
+                            user_id=user_id,
+                            persona_id=persona.persona_id,
+                            role="assistant",
+                            content=assistant_message,
+                            visibility=memory_visibility,
+                        )
+
+                        self._save_message_to_memory(
+                            user_id=user_id,
+                            persona_id=persona.persona_id,
+                            role="user",
+                            content=tool_response_text,
+                            visibility=memory_visibility,
+                        )
+
+                        # Loop back to let LLM read the result and respond
+                        continue
+
+                # Not a tool call - this is the final response
+                final_response = assistant_message
+                break
+
+            except Exception as e:
+                print(f"Error calling LLM API: {e}")
                 return None
 
-            # Save assistant response to memory
-            self._save_message_to_memory(
-                user_id=user_id,
-                persona_id=persona.persona_id,
-                role="assistant",
-                content=assistant_message,
-                visibility=memory_visibility,
+        # If we exhausted iterations without a final response, use last message
+        if final_response is None:
+            final_response = (
+                "I apologize, but I encountered an issue processing your request."
             )
 
-            return assistant_message
+        # Save final assistant response to memory
+        self._save_message_to_memory(
+            user_id=user_id,
+            persona_id=persona.persona_id,
+            role="assistant",
+            content=final_response,
+            visibility=memory_visibility,
+        )
 
-        except Exception as e:
-            print(f"Error calling LLM API: {e}")
-            return None
+        return final_response
 
     # ========================
     # UTILITY METHODS

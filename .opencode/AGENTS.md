@@ -26,4 +26,17 @@
      4. Current user message
    - This prevents "Alzheimer's disease" where the bot loses track of the immediate conversation while maintaining long-term semantic recall.
 6. **Code Style:** Keep files modular. Do not dump everything into `main.py`. Separate the database logic, the Discord event loop, and the LLM API calls.
-7. **Decoupled Frontend (The Adapter Pattern):** The core intelligence, memory routing, and LLM logic MUST be completely platform-agnostic. Create an `AgentCore` class that only deals in raw text and JSON. Do not import `discord` into the core logic. Discord support must be built as a separate "Frontend Adapter" that imports `AgentCore` and bridges the platform to the engine.
+7. **Tool Use (Function Calling):** The bot supports tool/function calling where the LLM can request to execute predefined Python functions (like getting the current time or rolling dice). Tools are registered in `core/tool_registry.py` and executed through a loop in `core/agent_core.py`:
+   - **Tool Execution Loop:**
+     1. LLM receives tool definitions in the system prompt
+     2. When LLM needs a tool, it outputs JSON: `{"tool": "tool_name", "arguments": {...}}`
+     3. Python detects the JSON, executes the function, and injects the result back into conversation
+     4. LLM reads the result and provides final response to user
+   - **Configurable via environment:**
+     - `TOOLS_ENABLED=true` - Enable/disable tool use
+     - `MAX_TOOL_ITERATIONS=5` - Maximum tool calls per message (prevents infinite loops)
+   - **Built-in Tools:**
+     - `get_current_time()` - Returns current date/time
+     - `roll_dice(sides)` - Rolls a dice with N sides
+   - Tools remain platform-agnostic (no Discord imports in tool logic)
+8. **Decoupled Frontend (The Adapter Pattern):** The core intelligence, memory routing, and LLM logic MUST be completely platform-agnostic. Create an `AgentCore` class that only deals in raw text and JSON. Do not import `discord` into the core logic. Discord support must be built as a separate "Frontend Adapter" that imports `AgentCore` and bridges the platform to the engine.

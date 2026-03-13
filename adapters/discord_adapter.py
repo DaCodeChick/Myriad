@@ -297,6 +297,10 @@ def run_discord_adapter():
     vector_memory_enabled = os.getenv("VECTOR_MEMORY_ENABLED", "true").lower() == "true"
     semantic_recall_limit = int(os.getenv("SEMANTIC_RECALL_LIMIT", "5"))
 
+    # Tool use configuration
+    tools_enabled = os.getenv("TOOLS_ENABLED", "true").lower() == "true"
+    max_tool_iterations = int(os.getenv("MAX_TOOL_ITERATIONS", "5"))
+
     # Vision API configuration (optional)
     vision_api_key = os.getenv("VISION_API_KEY", "not-needed")
     vision_base_url = os.getenv("VISION_BASE_URL")
@@ -316,6 +320,8 @@ def run_discord_adapter():
         short_term_limit=short_term_limit,
         vector_memory_enabled=vector_memory_enabled,
         semantic_recall_limit=semantic_recall_limit,
+        tools_enabled=tools_enabled,
+        max_tool_iterations=max_tool_iterations,
     )
 
     # Initialize VisionBridge if configured
