@@ -127,8 +127,18 @@ class AgentCore:
         Returns:
             List of messages in OpenAI chat format
         """
+        # Build system prompt with rules of engagement if present
+        system_content = persona.system_prompt
+
+        if persona.rules_of_engagement:
+            # Append rules as a structured section
+            rules_section = "\n\n## RULES OF ENGAGEMENT:\n" + "\n".join(
+                f"- {rule}" for rule in persona.rules_of_engagement
+            )
+            system_content += rules_section
+
         # Start with system prompt
-        messages = [{"role": "system", "content": persona.system_prompt}]
+        messages = [{"role": "system", "content": system_content}]
 
         # Retrieve filtered memories using the Discretion Engine
         memories = self.memory_matrix.get_context_memories(

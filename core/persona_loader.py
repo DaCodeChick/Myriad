@@ -20,6 +20,7 @@ class PersonaCartridge:
     personality_traits: List[str]
     temperature: float
     max_tokens: int
+    rules_of_engagement: Optional[List[str]] = None
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "PersonaCartridge":
@@ -31,11 +32,12 @@ class PersonaCartridge:
             personality_traits=data.get("personality_traits", []),
             temperature=data.get("temperature", 0.7),
             max_tokens=data.get("max_tokens", 1000),
+            rules_of_engagement=data.get("rules_of_engagement"),
         )
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert persona to dictionary format."""
-        return {
+        result = {
             "persona_id": self.persona_id,
             "name": self.name,
             "system_prompt": self.system_prompt,
@@ -43,6 +45,9 @@ class PersonaCartridge:
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
         }
+        if self.rules_of_engagement:
+            result["rules_of_engagement"] = self.rules_of_engagement
+        return result
 
 
 class PersonaLoader:

@@ -111,9 +111,23 @@ Create a new JSON file in `personas/` directory:
   "system_prompt": "You are...",
   "personality_traits": ["trait1", "trait2"],
   "temperature": 0.8,
-  "max_tokens": 1000
+  "max_tokens": 1000,
+  "rules_of_engagement": [
+    "Rule 1: Always maintain...",
+    "Rule 2: Never do...",
+    "Rule 3: Respond with..."
+  ]
 }
 ```
+
+**Fields:**
+- `persona_id` (required): Unique identifier, must match filename
+- `name` (required): Display name for the persona
+- `system_prompt` (required): Core personality and behavior instructions
+- `personality_traits` (optional): List of traits for reference
+- `temperature` (optional): LLM temperature, 0.0-1.0 (default: 0.7)
+- `max_tokens` (optional): Max response length (default: 1000)
+- `rules_of_engagement` (optional): List of behavioral constraints and guardrails
 
 The bot will automatically detect new personas (no restart needed for loading, but cache may need clearing with `/swap`).
 
