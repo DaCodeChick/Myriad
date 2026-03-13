@@ -54,20 +54,24 @@ class MyriadDiscordBot(commands.Bot):
         """
         Handle incoming messages.
 
-        Messages that mention the bot are processed by the AgentCore.
+        Messages that mention the bot OR are in DMs are processed by the AgentCore.
         """
         # Ignore bot's own messages
         if message.author == self.user:
             return
 
-        # Only respond to mentions
-        if self.user not in message.mentions:
+        # Check if this is a DM or a mention
+        is_dm = isinstance(message.channel, discord.DMChannel)
+        is_mentioned = self.user in message.mentions
+
+        # Only respond to mentions in servers, or any message in DMs
+        if not is_dm and not is_mentioned:
             return
 
         # Extract user ID as string (platform-agnostic format)
         user_id = str(message.author.id)
 
-        # Remove bot mention from message
+        # Remove bot mention from message (if present)
         content = message.content.replace(f"<@{self.user.id}>", "").strip()
 
         if not content:
