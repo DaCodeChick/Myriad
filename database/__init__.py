@@ -2,5 +2,6 @@
 
 from database.memory_matrix import MemoryMatrix
 from database.vector_memory import VectorMemory
+from database.graph_memory import GraphMemory
 
-__all__ = ["MemoryMatrix", "VectorMemory"]
+__all__ = ["MemoryMatrix", "VectorMemory", "GraphMemory"]

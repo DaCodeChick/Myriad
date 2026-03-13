@@ -301,6 +301,10 @@ def run_discord_adapter():
     tools_enabled = os.getenv("TOOLS_ENABLED", "true").lower() == "true"
     max_tool_iterations = int(os.getenv("MAX_TOOL_ITERATIONS", "5"))
 
+    # Knowledge graph memory configuration
+    graph_memory_enabled = os.getenv("GRAPH_MEMORY_ENABLED", "true").lower() == "true"
+    graph_db_path = os.getenv("GRAPH_DB_PATH", "data/knowledge_graph.db")
+
     # Vision API configuration (optional)
     vision_api_key = os.getenv("VISION_API_KEY", "not-needed")
     vision_base_url = os.getenv("VISION_BASE_URL")
@@ -322,6 +326,8 @@ def run_discord_adapter():
         semantic_recall_limit=semantic_recall_limit,
         tools_enabled=tools_enabled,
         max_tool_iterations=max_tool_iterations,
+        graph_memory_enabled=graph_memory_enabled,
+        graph_db_path=graph_db_path,
     )
 
     # Initialize VisionBridge if configured

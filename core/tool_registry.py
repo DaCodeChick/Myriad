@@ -10,7 +10,10 @@ CRITICAL: This module must remain platform-agnostic (no Discord imports).
 import json
 import random
 from datetime import datetime
-from typing import Dict, Any, List, Callable, Optional
+from typing import Dict, Any, List, Callable, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from database.graph_memory import GraphMemory
 
 
 class ToolRegistry:
@@ -21,10 +24,16 @@ class ToolRegistry:
     and mapped to actual Python functions.
     """
 
-    def __init__(self):
-        """Initialize the tool registry with available tools."""
+    def __init__(self, graph_memory: Optional["GraphMemory"] = None):
+        """
+        Initialize the tool registry with available tools.
+
+        Args:
+            graph_memory: Optional GraphMemory instance for knowledge graph tools
+        """
         self.tools: Dict[str, Dict[str, Any]] = {}
         self.executors: Dict[str, Callable] = {}
+        self.graph_memory = graph_memory
 
         # Register built-in tools
         self._register_builtin_tools()
@@ -58,6 +67,46 @@ class ToolRegistry:
             },
             executor=self._roll_dice,
         )
+
+        # Tool 3: Add Knowledge (if graph_memory is available)
+        if self.graph_memory:
+            self.register_tool(
+                name="add_knowledge",
+                description="Permanently store important facts about the user, yourself, or the world as a knowledge graph relationship. Use this when you learn meaningful information that should be remembered long-term. Examples: user preferences, facts about people, relationships between concepts.",
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "entity1": {
+                            "type": "string",
+                            "description": "The first entity (subject) - e.g., 'Schala', 'Python', 'Coffee'",
+                        },
+                        "entity1_type": {
+                            "type": "string",
+                            "description": "Type/category of entity1 - e.g., 'User', 'Language', 'Beverage', 'Concept', 'Person'",
+                        },
+                        "relation": {
+                            "type": "string",
+                            "description": "The relationship type - e.g., 'LIKES', 'KNOWS', 'CREATED', 'WORKS_WITH', 'DISLIKES'",
+                        },
+                        "entity2": {
+                            "type": "string",
+                            "description": "The second entity (object) - e.g., 'Gentle Possession', 'Django', 'Morning'",
+                        },
+                        "entity2_type": {
+                            "type": "string",
+                            "description": "Type/category of entity2 - e.g., 'Concept', 'Framework', 'TimeOfDay'",
+                        },
+                    },
+                    "required": [
+                        "entity1",
+                        "entity1_type",
+                        "relation",
+                        "entity2",
+                        "entity2_type",
+                    ],
+                },
+                executor=self._add_knowledge,
+            )
 
     def register_tool(
         self,
@@ -208,6 +257,45 @@ class ToolRegistry:
             "sides": sides,
             "description": f"Rolled a D{sides} and got {roll}",
         }
+
+    def _add_knowledge(
+        self,
+        entity1: str,
+        entity1_type: str,
+        relation: str,
+        entity2: str,
+        entity2_type: str,
+    ) -> Dict[str, Any]:
+        """
+        Add a knowledge graph relationship.
+
+        Args:
+            entity1: Source entity name
+            entity1_type: Source entity type
+            relation: Relationship type
+            entity2: Target entity name
+            entity2_type: Target entity type
+
+        Returns:
+            Dictionary with success status and description
+        """
+        if not self.graph_memory:
+            raise RuntimeError("Knowledge graph is not enabled")
+
+        success = self.graph_memory.add_relationship(
+            entity1, entity1_type, relation, entity2, entity2_type
+        )
+
+        if success:
+            return {
+                "status": "success",
+                "description": f"Stored: {entity1} ({entity1_type}) {relation} {entity2} ({entity2_type})",
+                "entity1": entity1,
+                "relation": relation,
+                "entity2": entity2,
+            }
+        else:
+            raise RuntimeError("Failed to store knowledge relationship")
 
 
 def parse_tool_call(response: str) -> Optional[Dict[str, Any]]:

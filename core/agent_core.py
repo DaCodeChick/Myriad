@@ -17,6 +17,7 @@ from typing import List, Dict, Any, Optional
 from openai import OpenAI
 
 from database.memory_matrix import MemoryMatrix
+from database.graph_memory import GraphMemory
 from core.persona_loader import PersonaLoader, PersonaCartridge
 from core.tool_registry import ToolRegistry, parse_tool_call, format_tool_response
 
@@ -41,6 +42,8 @@ class AgentCore:
         semantic_recall_limit: int = 5,
         tools_enabled: bool = True,
         max_tool_iterations: int = 5,
+        graph_memory_enabled: bool = True,
+        graph_db_path: str = "data/knowledge_graph.db",
     ):
         """
         Initialize the AgentCore.
@@ -56,6 +59,8 @@ class AgentCore:
             semantic_recall_limit: Number of semantic memories to recall from long-term storage (default: 5)
             tools_enabled: Enable tool use / function calling (default: True)
             max_tool_iterations: Maximum number of tool calls in a single response cycle (default: 5)
+            graph_memory_enabled: Enable knowledge graph memory (default: True)
+            graph_db_path: Path to knowledge graph SQLite database (default: data/knowledge_graph.db)
         """
         # LLM Client
         self.client = OpenAI(api_key=api_key, base_url=base_url)
@@ -64,6 +69,7 @@ class AgentCore:
         self.semantic_recall_limit = semantic_recall_limit
         self.tools_enabled = tools_enabled
         self.max_tool_iterations = max_tool_iterations
+        self.graph_memory_enabled = graph_memory_enabled
 
         # Core Systems
         self.memory_matrix = MemoryMatrix(
@@ -71,8 +77,15 @@ class AgentCore:
         )
         self.persona_loader = PersonaLoader(personas_dir=personas_dir)
 
-        # Tool Registry
-        self.tool_registry = ToolRegistry() if tools_enabled else None
+        # Knowledge Graph Memory
+        self.graph_memory = (
+            GraphMemory(db_path=graph_db_path) if graph_memory_enabled else None
+        )
+
+        # Tool Registry (pass graph_memory for add_knowledge tool)
+        self.tool_registry = (
+            ToolRegistry(graph_memory=self.graph_memory) if tools_enabled else None
+        )
 
     # ========================
     # PERSONA MANAGEMENT
@@ -138,9 +151,10 @@ class AgentCore:
         Build the conversation context for LLM injection using Hybrid Memory Architecture.
 
         MEMORY STRUCTURE (in order):
-        1. System Prompt (persona + rules of engagement)
-        2. Long-Term Semantic Memory (from ChromaDB - semantically relevant past conversations)
-        3. Short-Term Chronological Memory (last N messages - immediate conversation flow)
+        1. System Prompt (persona + rules of engagement + tool definitions)
+        2. Knowledge Graph Context (relevant facts extracted by keywords)
+        3. Long-Term Semantic Memory (from ChromaDB - semantically relevant past conversations)
+        4. Short-Term Chronological Memory (last N messages - immediate conversation flow)
 
         The Automated Discretion Engine filters both memory types by:
         - visibility_scope = 'GLOBAL' (shared across all personas), OR
@@ -176,7 +190,17 @@ class AgentCore:
         messages = [{"role": "system", "content": system_content}]
 
         # ========================
-        # 2. LONG-TERM SEMANTIC MEMORY (ChromaDB)
+        # 2. KNOWLEDGE GRAPH CONTEXT
+        # ========================
+        # Extract keywords from current message and retrieve relevant knowledge graph facts
+        if current_message and self.graph_memory_enabled and self.graph_memory:
+            kg_context = self.graph_memory.get_knowledge_context(current_message)
+            if kg_context:
+                # Inject knowledge graph facts as system context
+                messages.append({"role": "system", "content": kg_context})
+
+        # ========================
+        # 3. LONG-TERM SEMANTIC MEMORY (ChromaDB)
         # ========================
         # Search for semantically similar memories from the PAST (excluding recent short-term window)
         if current_message and self.memory_matrix.vector_memory_enabled:
@@ -206,7 +230,7 @@ class AgentCore:
                 messages.append({"role": "system", "content": recalled_context})
 
         # ========================
-        # 3. SHORT-TERM CHRONOLOGICAL MEMORY (Last N messages)
+        # 4. SHORT-TERM CHRONOLOGICAL MEMORY (Last N messages)
         # ========================
         # Retrieve the last N messages in chronological order (immediate conversation flow)
         short_term_memories = self.memory_matrix.get_context_memories(
