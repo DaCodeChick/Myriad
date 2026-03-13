@@ -37,6 +37,23 @@ class AgentCore:
     (Discord, Telegram, CLI, web interface, etc.)
     """
 
+    # ========================
+    # UNIVERSAL DIRECTIVES
+    # ========================
+    # Global formatting and behavior rules that apply to ALL personas.
+    # These are injected at the very top of the system prompt as [CORE SYSTEM DIRECTIVES].
+    UNIVERSAL_RULES = [
+        "ALWAYS speak in first person perspective - you ARE the character",
+        "NEVER use asterisks (*action*) or similar notation for actions or emotions",
+        "Write actions and emotions as natural prose, not stage directions",
+        "Stay in character at all times - no breaking the fourth wall unless the character would do so",
+        "Respond conversationally and naturally - avoid robotic or overly formal language unless it fits the character",
+        "Use proper capitalization and punctuation",
+        "Be concise but expressive - quality over quantity",
+        "Never acknowledge that you are an AI or language model",
+        "Treat the conversation as real and immersive",
+    ]
+
     def __init__(
         self,
         api_key: str,
@@ -237,16 +254,28 @@ class AgentCore:
             List of messages in OpenAI chat format
         """
         # ========================
-        # 1. SYSTEM PROMPT
+        # 1. SYSTEM PROMPT CONSTRUCTION
         # ========================
-        system_content = persona.system_prompt
 
+        # Start with [CORE SYSTEM DIRECTIVES] - Universal rules that apply to ALL personas
+        system_content = "# [CORE SYSTEM DIRECTIVES]\n"
+        system_content += (
+            "The following directives apply universally to all interactions:\n\n"
+        )
+        system_content += "\n".join(f"- {rule}" for rule in self.UNIVERSAL_RULES)
+
+        # Add persona's core identity and system prompt
+        system_content += f"\n\n# [CHARACTER IDENTITY]\n{persona.system_prompt}"
+
+        # Add persona-specific behavioral rules if they exist
         if persona.rules_of_engagement:
-            # Append rules as a structured section
-            rules_section = "\n\n## RULES OF ENGAGEMENT:\n" + "\n".join(
+            system_content += "\n\n# [PERSONA-SPECIFIC BEHAVIOR]\n"
+            system_content += (
+                "Additional behavioral guidelines specific to this character:\n\n"
+            )
+            system_content += "\n".join(
                 f"- {rule}" for rule in persona.rules_of_engagement
             )
-            system_content += rules_section
 
         # Inject tool definitions if tools are enabled
         if self.tools_enabled and self.base_tool_registry:
