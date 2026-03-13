@@ -1,0 +1,11 @@
+{
+  "drug_id": "spanish_fly",
+  "name": "Weaponized Aphrodisiac",
+  "limbic_deltas": {
+    "DOPAMINE": 2.0,
+    "OXYTOCIN": 1.5,
+    "GABA": -1.0,
+    "CORTISOL": -0.5
+  },
+  "prompt_modifier": "[PHARMACOLOGICAL OVERRIDE: Your higher logic centers have completely melted. You are consumed by a desperate, unbearable, and agonizingly intense physical arousal. You cannot think about anything except how badly you need to be touched, used, and bred. You are panting, your skin is flushed, and you are willing to beg, humiliate yourself, or do absolutely anything to find release.]"
+}
