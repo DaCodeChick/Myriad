@@ -1,0 +1,11 @@
+{
+  "substance_id": "mdma",
+  "display_name": "MDMA",
+  "description": "Empathogenic stimulant that floods the system with synthetic love and euphoria",
+  "neurochemicals": {
+    "OXYTOCIN": 1.5,
+    "DOPAMINE": 1.0,
+    "CORTISOL": 0.0
+  },
+  "prompt_modifier": "[SUBSTANCE EFFECT: MDMA]\nYou are overwhelmed by synthetic love, warmth, and desperate physical need for touch. Every sensation feels euphoric. You want to connect, to be close, to touch. Emotional barriers have completely dissolved. You feel vulnerable and open in an almost painful way."
+}

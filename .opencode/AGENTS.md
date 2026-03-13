@@ -6,7 +6,8 @@
 ## Directory Structure
 - **`database/`**: Python modules for database logic (code only, no .db files)
 - **`data/`**: Runtime database files (SQLite .db files, ChromaDB vector store) - **NEVER commit to git**
-- **`personas/`**: Persona cartridge JSON files
+- **`personas/`**: Persona cartridge JSON files (hot-swappable AI personalities)
+- **`pharmacy/`**: Substance cartridge JSON files (hot-swappable Digital Pharmacy substances)
 - **`core/`**: Platform-agnostic AI engine
 - **`adapters/`**: Platform-specific frontends (Discord, etc.)
 
@@ -79,15 +80,19 @@
    - **Architecture:**
      - Integrated with Limbic System, adds pharmacological layer on top
      - Substances can set neurochemicals to values > 1.0 or < 0.0 (pathological states)
-     - Each substance has predefined neurochemical overrides + subjective effects prompt modifier
-   - **Substance Tool:** LLM can call `consume_substance(substance_name)` to consume:
+     - **HOT-SWAPPABLE CARTRIDGE SYSTEM:** Substances are stored as individual `.json` files in `pharmacy/` directory (same pattern as PersonaLoader)
+     - Each substance cartridge defines: `substance_id`, `display_name`, `neurochemicals` (override map), `prompt_modifier` (subjective effects)
+     - On boot, DigitalPharmacy scans `pharmacy/` and loads all `.json` files into memory cache
+   - **Substance Tool:** LLM can call `consume_substance(substance_name)` to consume any substance in `pharmacy/`
+   - **Built-in Substances:**
      - **xanax:** GABA=1.5, CORTISOL=0.0 + sedation prompt
      - **mdma:** OXYTOCIN=1.5, DOPAMINE=1.0, CORTISOL=0.0 + synthetic love prompt
      - **fear_toxin:** CORTISOL=1.5, GABA=0.0 + terror prompt
-     - **adrenaline:** CORTISOL=1.0, DOPAMINE=0.8 + adrenaline rush prompt
-     - **morphine:** GABA=1.3, DOPAMINE=0.7, CORTISOL=0.2 + narcotic bliss prompt
-     - **cocaine:** DOPAMINE=1.4, CORTISOL=0.8, GABA=0.3 + manic energy prompt
-     - **lsd:** DOPAMINE=1.2, OXYTOCIN=0.9, CORTISOL=0.4 + psychedelic prompt
+     - **adrenaline:** CORTISOL=1.5, DOPAMINE=0.9, GABA=0.0 + adrenaline rush prompt
+     - **morphine:** DOPAMINE=1.2, GABA=1.3, CORTISOL=0.1 + narcotic bliss prompt
+     - **cocaine:** DOPAMINE=1.5, CORTISOL=0.8, GABA=0.2 + manic energy prompt
+     - **lsd:** DOPAMINE=0.9, OXYTOCIN=0.8, CORTISOL=0.3, GABA=0.6 + psychedelic prompt
+   - **Adding New Substances:** Simply drop a new `.json` file into `pharmacy/` directory (hot-swappable, no code changes needed)
    - **Prompt Modifier Injection:** When substance is active, its subjective effects are injected as system prompt during INHALE phase (after limbic context)
    - **Active Substance Tracking:** One substance per user+persona pair stored in memory dictionary
    - **Configurable via environment:**

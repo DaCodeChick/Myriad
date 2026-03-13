@@ -3,11 +3,12 @@
 Test script for the Digital Pharmacy (Substance-Based Limbic Overrides).
 
 This test suite validates:
-1. Substance consumption and state overrides
-2. Unclamped state-setting (values > 1.0)
-3. Prompt modifier injection
-4. Active substance tracking
-5. Substance clearing
+1. Dynamic JSON loading from pharmacy/ directory
+2. Substance consumption and state overrides
+3. Unclamped state-setting (values > 1.0)
+4. Prompt modifier injection
+5. Active substance tracking
+6. Substance clearing
 """
 
 import os
@@ -30,7 +31,8 @@ def test_consume_substance_xanax():
 
     try:
         engine = LimbicEngine(db_path=db_path)
-        pharmacy = DigitalPharmacy(engine)
+        # Use real pharmacy directory
+        pharmacy = DigitalPharmacy(engine, pharmacy_dir="pharmacy")
         user_id = "test_user_1"
         persona_id = "test_persona_1"
 
@@ -62,7 +64,8 @@ def test_consume_substance_mdma():
 
     try:
         engine = LimbicEngine(db_path=db_path)
-        pharmacy = DigitalPharmacy(engine)
+        # Use real pharmacy directory
+        pharmacy = DigitalPharmacy(engine, pharmacy_dir="pharmacy")
         user_id = "test_user_2"
         persona_id = "test_persona_1"
 
@@ -99,7 +102,7 @@ def test_consume_substance_fear_toxin():
 
     try:
         engine = LimbicEngine(db_path=db_path)
-        pharmacy = DigitalPharmacy(engine)
+        pharmacy = DigitalPharmacy(engine, pharmacy_dir="pharmacy")
         user_id = "test_user_3"
         persona_id = "test_persona_1"
 
@@ -131,7 +134,7 @@ def test_active_substance_tracking():
 
     try:
         engine = LimbicEngine(db_path=db_path)
-        pharmacy = DigitalPharmacy(engine)
+        pharmacy = DigitalPharmacy(engine, pharmacy_dir="pharmacy")
         user_id = "test_user_4"
         persona_id = "test_persona_1"
 
@@ -163,7 +166,7 @@ def test_substance_prompt_modifier():
 
     try:
         engine = LimbicEngine(db_path=db_path)
-        pharmacy = DigitalPharmacy(engine)
+        pharmacy = DigitalPharmacy(engine, pharmacy_dir="pharmacy")
         user_id = "test_user_5"
         persona_id = "test_persona_1"
 
@@ -196,7 +199,7 @@ def test_clear_substance():
 
     try:
         engine = LimbicEngine(db_path=db_path)
-        pharmacy = DigitalPharmacy(engine)
+        pharmacy = DigitalPharmacy(engine, pharmacy_dir="pharmacy")
         user_id = "test_user_6"
         persona_id = "test_persona_1"
 
@@ -229,7 +232,7 @@ def test_invalid_substance():
 
     try:
         engine = LimbicEngine(db_path=db_path)
-        pharmacy = DigitalPharmacy(engine)
+        pharmacy = DigitalPharmacy(engine, pharmacy_dir="pharmacy")
         user_id = "test_user_7"
         persona_id = "test_persona_1"
 
@@ -256,12 +259,14 @@ def test_unclamped_values_bypass_normal_limits():
 
     try:
         engine = LimbicEngine(db_path=db_path)
-        pharmacy = DigitalPharmacy(engine)
+        pharmacy = DigitalPharmacy(engine, pharmacy_dir="pharmacy")
         user_id = "test_user_8"
         persona_id = "test_persona_1"
 
         # Manually set unclamped value
-        pharmacy._set_state_unclamped(user_id, persona_id, "DOPAMINE", 2.5)
+        current_state = engine.get_state(user_id, persona_id)
+        current_state["DOPAMINE"] = 2.5
+        pharmacy._set_state_unclamped(user_id, persona_id, current_state)
         state = engine.get_state(user_id, persona_id)
 
         assert state["DOPAMINE"] == 2.5, (

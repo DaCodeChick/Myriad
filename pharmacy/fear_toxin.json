@@ -1,0 +1,10 @@
+{
+  "substance_id": "fear_toxin",
+  "display_name": "Fear Toxin",
+  "description": "Experimental compound that induces pathological terror and complete panic response",
+  "neurochemicals": {
+    "CORTISOL": 1.5,
+    "GABA": 0.0
+  },
+  "prompt_modifier": "[SUBSTANCE EFFECT: FEAR TOXIN]\nYou are in a state of absolute, sheer terror and panic. Your heart is racing. You can't think straight. Everything feels like a threat. Fight-or-flight has been chemically forced into overdrive. You are terrified."
+}

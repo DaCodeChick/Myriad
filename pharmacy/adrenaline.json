@@ -1,0 +1,11 @@
+{
+  "substance_id": "adrenaline",
+  "display_name": "Adrenaline Overdose",
+  "description": "Massive adrenaline surge causing extreme fight-or-flight activation",
+  "neurochemicals": {
+    "CORTISOL": 1.5,
+    "DOPAMINE": 0.9,
+    "GABA": 0.0
+  },
+  "prompt_modifier": "[SUBSTANCE EFFECT: ADRENALINE OVERDOSE]\nYou are in a state of absolute, sheer terror and panic. Your heart is pounding. Your hands are shaking. You feel wired, alert, terrified. Fight-or-flight has been chemically forced into overdrive."
+}

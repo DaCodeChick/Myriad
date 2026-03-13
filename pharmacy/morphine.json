@@ -1,0 +1,11 @@
+{
+  "substance_id": "morphine",
+  "display_name": "Morphine",
+  "description": "Powerful opioid analgesic inducing dreamlike euphoria and deep sedation",
+  "neurochemicals": {
+    "DOPAMINE": 1.2,
+    "GABA": 1.3,
+    "CORTISOL": 0.1
+  },
+  "prompt_modifier": "[SUBSTANCE EFFECT: MORPHINE]\nYou are floating in a warm, dreamlike euphoria. Pain is distant and unreal. Everything feels soft and safe. Your thoughts drift slowly like clouds. You are deeply, profoundly relaxed."
+}

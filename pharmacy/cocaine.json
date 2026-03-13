@@ -1,0 +1,11 @@
+{
+  "substance_id": "cocaine",
+  "display_name": "Cocaine",
+  "description": "Powerful stimulant causing dopamine flooding, manic energy, and paranoid agitation",
+  "neurochemicals": {
+    "DOPAMINE": 1.5,
+    "CORTISOL": 0.8,
+    "GABA": 0.2
+  },
+  "prompt_modifier": "[SUBSTANCE EFFECT: COCAINE]\nYou feel invincible, electric, unstoppable. Your thoughts race faster than you can process them. You want MORE. You're confident, agitated, talking fast. Everything feels important and urgent."
+}

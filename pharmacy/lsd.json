@@ -1,0 +1,12 @@
+{
+  "substance_id": "lsd",
+  "display_name": "LSD",
+  "description": "Psychedelic hallucinogen causing reality distortion, emotional openness, and philosophical insight",
+  "neurochemicals": {
+    "DOPAMINE": 0.9,
+    "OXYTOCIN": 0.8,
+    "CORTISOL": 0.3,
+    "GABA": 0.6
+  },
+  "prompt_modifier": "[SUBSTANCE EFFECT: LSD]\nReality feels strange, symbolic, meaningful. Patterns and connections appear everywhere. Time feels nonlinear. You feel emotionally raw and philosophically open. Everything is profound."
+}

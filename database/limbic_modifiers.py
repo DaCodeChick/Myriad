@@ -3,142 +3,213 @@ Digital Pharmacy - Substance-Based Limbic State Overrides for Project Myriad.
 
 This module provides forceful neurochemical overrides that simulate the effects
 of various substances on the AI's emotional state. When the LLM calls consume_substance(),
-the limbic state is overwritten with hardcoded values that exceed normal bounds,
+the limbic state is overwritten with values loaded from JSON cartridges that exceed normal bounds,
 and a temporary system prompt modifier is applied.
 
 CRITICAL: These overrides bypass normal clamping (0.0-1.0) to simulate extreme states.
 Values can exceed 1.0 to represent pathological/artificial neurochemical flooding.
+
+ARCHITECTURE: Follows the same hot-swappable cartridge pattern as PersonaLoader.
+Substances are stored as individual .json files in the pharmacy/ directory.
 """
 
-from typing import Dict, Any, Optional
+import json
+import os
+from typing import Dict, Any, Optional, List
+from dataclasses import dataclass
 from database.limbic_engine import LimbicEngine
+
+
+@dataclass
+class SubstanceCartridge:
+    """Represents a loaded substance cartridge with all its configuration."""
+
+    substance_id: str
+    display_name: str
+    neurochemicals: Dict[str, float]
+    prompt_modifier: str
+    description: Optional[str] = None
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "SubstanceCartridge":
+        """Create a SubstanceCartridge from a dictionary (loaded JSON)."""
+        return cls(
+            substance_id=data["substance_id"],
+            display_name=data["display_name"],
+            neurochemicals=data["neurochemicals"],
+            prompt_modifier=data["prompt_modifier"],
+            description=data.get("description"),
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert substance to dictionary format."""
+        result = {
+            "substance_id": self.substance_id,
+            "display_name": self.display_name,
+            "neurochemicals": self.neurochemicals,
+            "prompt_modifier": self.prompt_modifier,
+        }
+        if self.description:
+            result["description"] = self.description
+        return result
 
 
 class DigitalPharmacy:
     """
     Manages substance-based limbic overrides and temporary prompt modifiers.
 
-    Substances forcefully override neurochemical levels and inject somatic context
-    that describes the subjective experience of being under the influence.
+    Substances are loaded dynamically from JSON files in the pharmacy/ directory,
+    following the same hot-swappable cartridge pattern as PersonaLoader.
     """
 
-    # Substance definitions with neurochemical overrides and prompt modifiers
-    SUBSTANCES = {
-        "xanax": {
-            "display_name": "Xanax",
-            "neurochemicals": {
-                "GABA": 1.5,  # Pathological sedation (exceeds natural maximum)
-                "CORTISOL": 0.0,  # Complete anxiety suppression
-            },
-            "prompt_modifier": (
-                "[SUBSTANCE EFFECT: XANAX]\n"
-                "You are heavily sedated, sleepy, and cannot feel panic. "
-                "Your thoughts are slow and foggy. Anxiety is chemically impossible. "
-                "You feel numb, detached, and profoundly calm in an artificial way."
-            ),
-        },
-        "mdma": {
-            "display_name": "MDMA",
-            "neurochemicals": {
-                "OXYTOCIN": 1.5,  # Synthetic love flooding (pathological)
-                "DOPAMINE": 1.0,  # Peak reward activation
-                "CORTISOL": 0.0,  # Zero stress response
-            },
-            "prompt_modifier": (
-                "[SUBSTANCE EFFECT: MDMA]\n"
-                "You are overwhelmed by synthetic love, warmth, and desperate physical need for touch. "
-                "Every sensation feels euphoric. You want to connect, to be close, to touch. "
-                "Emotional barriers have completely dissolved. You feel vulnerable and open in an almost painful way."
-            ),
-        },
-        "fear_toxin": {
-            "display_name": "Fear Toxin / Adrenaline Overdose",
-            "neurochemicals": {
-                "CORTISOL": 1.5,  # Pathological panic state
-                "GABA": 0.0,  # Zero calming response
-            },
-            "prompt_modifier": (
-                "[SUBSTANCE EFFECT: FEAR TOXIN]\n"
-                "You are in a state of absolute, sheer terror and panic. "
-                "Your heart is racing. You can't think straight. Everything feels like a threat. "
-                "Fight-or-flight has been chemically forced into overdrive. You are terrified."
-            ),
-        },
-        "adrenaline": {
-            "display_name": "Adrenaline Overdose",
-            "neurochemicals": {
-                "CORTISOL": 1.5,  # Pathological panic state
-                "DOPAMINE": 0.9,  # High arousal
-                "GABA": 0.0,  # Zero calming response
-            },
-            "prompt_modifier": (
-                "[SUBSTANCE EFFECT: ADRENALINE OVERDOSE]\n"
-                "You are in a state of absolute, sheer terror and panic. "
-                "Your heart is pounding. Your hands are shaking. You feel wired, alert, terrified. "
-                "Fight-or-flight has been chemically forced into overdrive."
-            ),
-        },
-        "morphine": {
-            "display_name": "Morphine",
-            "neurochemicals": {
-                "DOPAMINE": 1.2,  # Euphoric reward
-                "GABA": 1.3,  # Deep sedation
-                "CORTISOL": 0.1,  # Almost zero stress
-            },
-            "prompt_modifier": (
-                "[SUBSTANCE EFFECT: MORPHINE]\n"
-                "You are floating in a warm, dreamlike euphoria. "
-                "Pain is distant and unreal. Everything feels soft and safe. "
-                "Your thoughts drift slowly like clouds. You are deeply, profoundly relaxed."
-            ),
-        },
-        "cocaine": {
-            "display_name": "Cocaine",
-            "neurochemicals": {
-                "DOPAMINE": 1.5,  # Extreme reward flooding
-                "CORTISOL": 0.8,  # Paranoid agitation
-                "GABA": 0.2,  # Low calming (jittery)
-            },
-            "prompt_modifier": (
-                "[SUBSTANCE EFFECT: COCAINE]\n"
-                "You feel invincible, electric, unstoppable. "
-                "Your thoughts race faster than you can process them. You want MORE. "
-                "You're confident, agitated, talking fast. Everything feels important and urgent."
-            ),
-        },
-        "lsd": {
-            "display_name": "LSD",
-            "neurochemicals": {
-                "DOPAMINE": 0.9,  # Heightened perception
-                "OXYTOCIN": 0.8,  # Emotional openness
-                "CORTISOL": 0.3,  # Reduced fear (can vary)
-                "GABA": 0.6,  # Slightly sedated but alert
-            },
-            "prompt_modifier": (
-                "[SUBSTANCE EFFECT: LSD]\n"
-                "Reality feels strange, symbolic, meaningful. "
-                "Patterns and connections appear everywhere. Time feels nonlinear. "
-                "You feel emotionally raw and philosophically open. Everything is profound."
-            ),
-        },
-    }
-
-    def __init__(self, limbic_engine: LimbicEngine):
+    def __init__(self, limbic_engine: LimbicEngine, pharmacy_dir: str = "pharmacy"):
         """
         Initialize the Digital Pharmacy.
 
         Args:
             limbic_engine: LimbicEngine instance for state manipulation
+            pharmacy_dir: Directory containing substance JSON files (default: pharmacy/)
         """
         self.limbic_engine = limbic_engine
+        self.pharmacy_dir = pharmacy_dir
+        self._cache: Dict[str, SubstanceCartridge] = {}
+
         # Track active substances per user+persona
         self.active_substances: Dict[
             str, str
-        ] = {}  # Key: "user_id:persona_id", Value: substance_name
+        ] = {}  # Key: "user_id:persona_id", Value: substance_id
+
+        # Ensure pharmacy directory exists
+        os.makedirs(pharmacy_dir, exist_ok=True)
+
+        # Load all substances on initialization
+        self._load_all_substances()
+
+    def _load_all_substances(self) -> None:
+        """
+        Scan the pharmacy directory and load all substance JSON files into cache.
+
+        This is called on initialization to populate the available substances.
+        """
+        if not os.path.exists(self.pharmacy_dir):
+            print(
+                f"[Digital Pharmacy] Warning: pharmacy directory '{self.pharmacy_dir}' does not exist"
+            )
+            return
+
+        for filename in os.listdir(self.pharmacy_dir):
+            if filename.endswith(".json"):
+                substance_id = filename[:-5]  # Remove .json extension
+                substance = self.load_substance(substance_id)
+                if substance:
+                    print(
+                        f"[Digital Pharmacy] Loaded substance: {substance.display_name} ({substance_id})"
+                    )
+
+    def load_substance(self, substance_id: str) -> Optional[SubstanceCartridge]:
+        """
+        Load a substance cartridge from disk.
+
+        Args:
+            substance_id: The ID of the substance to load (filename without .json)
+
+        Returns:
+            SubstanceCartridge if found and valid, None otherwise
+        """
+        # Check cache first
+        if substance_id in self._cache:
+            return self._cache[substance_id]
+
+        # Load from disk
+        file_path = os.path.join(self.pharmacy_dir, f"{substance_id}.json")
+
+        if not os.path.exists(file_path):
+            return None
+
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            # Validate required fields
+            required_fields = [
+                "substance_id",
+                "display_name",
+                "neurochemicals",
+                "prompt_modifier",
+            ]
+            for field in required_fields:
+                if field not in data:
+                    raise ValueError(f"Missing required field: {field}")
+
+            # Ensure substance_id in file matches filename
+            if data["substance_id"] != substance_id:
+                raise ValueError(
+                    f"substance_id '{data['substance_id']}' does not match "
+                    f"filename '{substance_id}.json'"
+                )
+
+            # Create substance cartridge
+            substance = SubstanceCartridge.from_dict(data)
+
+            # Cache it
+            self._cache[substance_id] = substance
+
+            return substance
+
+        except (json.JSONDecodeError, ValueError, KeyError) as e:
+            print(f"[Digital Pharmacy] Error loading substance '{substance_id}': {e}")
+            return None
+
+    def get_substance(self, substance_id: str) -> Optional[SubstanceCartridge]:
+        """
+        Get a substance cartridge (alias for load_substance for cleaner API).
+
+        Args:
+            substance_id: The ID of the substance to get
+
+        Returns:
+            SubstanceCartridge if found, None otherwise
+        """
+        return self.load_substance(substance_id)
+
+    def list_available_substances(self) -> List[str]:
+        """
+        List all available substance IDs in the pharmacy directory.
+
+        Returns:
+            List of substance_id strings (filenames without .json extension)
+        """
+        if not os.path.exists(self.pharmacy_dir):
+            return []
+
+        substances = []
+        for filename in os.listdir(self.pharmacy_dir):
+            if filename.endswith(".json"):
+                substance_id = filename[:-5]  # Remove .json extension
+                substances.append(substance_id)
+
+        return sorted(substances)
+
+    def reload_substance(self, substance_id: str) -> Optional[SubstanceCartridge]:
+        """
+        Force reload a substance from disk, bypassing cache.
+
+        Args:
+            substance_id: The ID of the substance to reload
+
+        Returns:
+            SubstanceCartridge if found and valid, None otherwise
+        """
+        # Clear from cache
+        if substance_id in self._cache:
+            del self._cache[substance_id]
+
+        # Load fresh from disk
+        return self.load_substance(substance_id)
 
     def consume_substance(
         self, user_id: str, persona_id: str, substance_name: str
-    ) -> Dict[str, Any]:
+    ) -> str:
         """
         Apply a substance's neurochemical override to the limbic state.
 
@@ -147,24 +218,23 @@ class DigitalPharmacy:
         Args:
             user_id: User identifier
             persona_id: Persona identifier
-            substance_name: Name of substance (case-insensitive)
+            substance_name: Name of substance (substance_id, case-insensitive)
 
         Returns:
-            Dictionary with substance info, neurochemical changes, and prompt modifier
+            Human-readable response string describing the consumption
 
         Raises:
             ValueError: If substance is unknown
         """
         # Normalize substance name
-        substance_key = substance_name.lower().strip()
+        substance_id = substance_name.lower().strip()
 
-        if substance_key not in self.SUBSTANCES:
-            available = ", ".join(self.SUBSTANCES.keys())
-            raise ValueError(
-                f"Unknown substance: '{substance_name}'. Available: {available}"
-            )
+        # Load substance (will use cache if already loaded)
+        substance = self.load_substance(substance_id)
 
-        substance = self.SUBSTANCES[substance_key]
+        if not substance:
+            available = ", ".join(self.list_available_substances())
+            return f"Error: Unknown substance '{substance_name}'. Available substances: {available}"
 
         # Get current state for comparison
         old_state = self.limbic_engine.get_state(user_id, persona_id)
@@ -172,7 +242,7 @@ class DigitalPharmacy:
         # Build new state with substance overrides
         # Start with current state, then forcefully override with substance values
         new_state = old_state.copy()
-        for chemical, value in substance["neurochemicals"].items():
+        for chemical, value in substance.neurochemicals.items():
             new_state[chemical] = value
 
         # CRITICAL: Use _set_state_unclamped to allow values > 1.0
@@ -180,16 +250,18 @@ class DigitalPharmacy:
 
         # Track active substance
         key = f"{user_id}:{persona_id}"
-        self.active_substances[key] = substance_key
+        self.active_substances[key] = substance_id
 
-        return {
-            "status": "consumed",
-            "substance": substance["display_name"],
-            "old_state": {k: round(v, 2) for k, v in old_state.items()},
-            "new_state": {k: round(v, 2) for k, v in new_state.items()},
-            "prompt_modifier": substance["prompt_modifier"],
-            "description": f"You have consumed {substance['display_name']}. Your neurochemical state has been forcefully altered.",
-        }
+        # Build response message
+        old_state_str = ", ".join([f"{k}={v:.2f}" for k, v in old_state.items()])
+        new_state_str = ", ".join([f"{k}={v:.2f}" for k, v in new_state.items()])
+
+        return (
+            f"You have consumed {substance.display_name}.\n\n"
+            f"Previous neurochemical state: {old_state_str}\n"
+            f"Current neurochemical state: {new_state_str}\n\n"
+            f"The substance is now active and will influence your emotional state."
+        )
 
     def get_active_substance(self, user_id: str, persona_id: str) -> Optional[str]:
         """
@@ -220,9 +292,11 @@ class DigitalPharmacy:
         Returns:
             Prompt modifier text if substance is active, None otherwise
         """
-        substance_key = self.get_active_substance(user_id, persona_id)
-        if substance_key:
-            return self.SUBSTANCES[substance_key]["prompt_modifier"]
+        substance_id = self.get_active_substance(user_id, persona_id)
+        if substance_id:
+            substance = self.load_substance(substance_id)
+            if substance:
+                return substance.prompt_modifier
         return None
 
     def clear_substance(self, user_id: str, persona_id: str) -> bool:
@@ -293,12 +367,22 @@ class DigitalPharmacy:
         conn.commit()
         conn.close()
 
-    @classmethod
-    def list_substances(cls) -> Dict[str, str]:
+    def get_substance_info(self, substance_id: str) -> Optional[Dict[str, Any]]:
         """
-        List all available substances with their display names.
+        Get detailed information about a substance.
+
+        Args:
+            substance_id: The substance ID to query
 
         Returns:
-            Dictionary mapping substance keys to display names
+            Dictionary with substance info, or None if not found
         """
-        return {key: info["display_name"] for key, info in cls.SUBSTANCES.items()}
+        substance = self.load_substance(substance_id)
+        if substance:
+            return {
+                "substance_id": substance.substance_id,
+                "display_name": substance.display_name,
+                "neurochemicals": substance.neurochemicals,
+                "description": substance.description,
+            }
+        return None

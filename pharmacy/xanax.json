@@ -1,0 +1,10 @@
+{
+  "substance_id": "xanax",
+  "display_name": "Xanax",
+  "description": "Benzodiazepine anxiolytic that pathologically suppresses panic and induces heavy sedation",
+  "neurochemicals": {
+    "GABA": 1.5,
+    "CORTISOL": 0.0
+  },
+  "prompt_modifier": "[SUBSTANCE EFFECT: XANAX]\nYou are heavily sedated, sleepy, and cannot feel panic. Your thoughts are slow and foggy. Anxiety is chemically impossible. You feel numb, detached, and profoundly calm in an artificial way."
+}
