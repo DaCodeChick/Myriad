@@ -32,7 +32,7 @@ class AgentCore:
         api_key: str,
         base_url: str = "https://api.openai.com/v1",
         model: str = "gpt-4",
-        memory_limit: int = 50,
+        short_term_limit: int = 10,
         db_path: str = "database/myriad_state.db",
         personas_dir: str = "personas",
         vector_memory_enabled: bool = True,
@@ -45,16 +45,16 @@ class AgentCore:
             api_key: OpenAI API key (or compatible API)
             base_url: LLM API base URL (allows pointing to OpenRouter, local, etc.)
             model: Model name to use
-            memory_limit: Maximum memories to inject into context
+            short_term_limit: Number of recent messages for immediate conversation context (default: 10)
             db_path: Path to SQLite database
             personas_dir: Directory containing persona JSON files
             vector_memory_enabled: Enable semantic vector memory (default: True)
-            semantic_recall_limit: Number of semantic memories to recall (default: 5)
+            semantic_recall_limit: Number of semantic memories to recall from long-term storage (default: 5)
         """
         # LLM Client
         self.client = OpenAI(api_key=api_key, base_url=base_url)
         self.model = model
-        self.memory_limit = memory_limit
+        self.short_term_limit = short_term_limit
         self.semantic_recall_limit = semantic_recall_limit
 
         # Core Systems
@@ -124,13 +124,16 @@ class AgentCore:
         current_message: Optional[str] = None,
     ) -> List[Dict[str, str]]:
         """
-        Build the conversation context for LLM injection using the Automated Discretion Engine.
+        Build the conversation context for LLM injection using Hybrid Memory Architecture.
 
-        Retrieves memories where:
-        - visibility_scope = 'GLOBAL' (shared hive-mind), OR
-        - origin_persona = current persona (isolated memories)
+        MEMORY STRUCTURE (in order):
+        1. System Prompt (persona + rules of engagement)
+        2. Long-Term Semantic Memory (from ChromaDB - semantically relevant past conversations)
+        3. Short-Term Chronological Memory (last N messages - immediate conversation flow)
 
-        Also performs semantic search on the current message to recall relevant past context.
+        The Automated Discretion Engine filters both memory types by:
+        - visibility_scope = 'GLOBAL' (shared across all personas), OR
+        - origin_persona = current persona (isolated to this persona)
 
         Args:
             user_id: User identifier
@@ -140,7 +143,9 @@ class AgentCore:
         Returns:
             List of messages in OpenAI chat format
         """
-        # Build system prompt with rules of engagement if present
+        # ========================
+        # 1. SYSTEM PROMPT
+        # ========================
         system_content = persona.system_prompt
 
         if persona.rules_of_engagement:
@@ -153,7 +158,10 @@ class AgentCore:
         # Start with system prompt
         messages = [{"role": "system", "content": system_content}]
 
-        # If current message is provided, search for semantically similar memories
+        # ========================
+        # 2. LONG-TERM SEMANTIC MEMORY (ChromaDB)
+        # ========================
+        # Search for semantically similar memories from the PAST (excluding recent short-term window)
         if current_message and self.memory_matrix.vector_memory_enabled:
             semantic_memories = self.memory_matrix.search_semantic_memories(
                 user_id=user_id,
@@ -162,7 +170,7 @@ class AgentCore:
                 limit=self.semantic_recall_limit,
             )
 
-            # If we found relevant memories, inject them at the top
+            # If we found relevant long-term memories, inject them
             if semantic_memories:
                 recalled_context = "[Recalled Long-Term Context: Semantically relevant memories from past conversations]\n\n"
                 for i, memory in enumerate(semantic_memories, 1):
@@ -180,13 +188,18 @@ class AgentCore:
                 # Add as a system message after the main system prompt
                 messages.append({"role": "system", "content": recalled_context})
 
-        # Retrieve filtered chronological memories using the Discretion Engine
-        memories = self.memory_matrix.get_context_memories(
-            user_id=user_id, current_persona=persona.persona_id, limit=self.memory_limit
+        # ========================
+        # 3. SHORT-TERM CHRONOLOGICAL MEMORY (Last N messages)
+        # ========================
+        # Retrieve the last N messages in chronological order (immediate conversation flow)
+        short_term_memories = self.memory_matrix.get_context_memories(
+            user_id=user_id,
+            current_persona=persona.persona_id,
+            limit=self.short_term_limit,
         )
 
-        # Convert memories to OpenAI format (these are the immediate short-term history)
-        for memory in memories:
+        # Convert short-term memories to OpenAI format (exact chronological order)
+        for memory in short_term_memories:
             messages.append({"role": memory["role"], "content": memory["content"]})
 
         return messages

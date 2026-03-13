@@ -289,7 +289,9 @@ def run_discord_adapter():
     api_key = os.getenv("LLM_API_KEY")
     base_url = os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")
     model = os.getenv("LLM_MODEL", "gpt-4")
-    memory_limit = int(os.getenv("MEMORY_CONTEXT_LIMIT", "50"))
+
+    # Memory configuration
+    short_term_limit = int(os.getenv("SHORT_TERM_MEMORY_LIMIT", "10"))
 
     # Vector memory configuration
     vector_memory_enabled = os.getenv("VECTOR_MEMORY_ENABLED", "true").lower() == "true"
@@ -311,7 +313,7 @@ def run_discord_adapter():
         api_key=api_key,
         base_url=base_url,
         model=model,
-        memory_limit=memory_limit,
+        short_term_limit=short_term_limit,
         vector_memory_enabled=vector_memory_enabled,
         semantic_recall_limit=semantic_recall_limit,
     )
