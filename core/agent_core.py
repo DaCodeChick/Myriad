@@ -22,6 +22,8 @@ from database.graph_memory import GraphMemory
 from database.limbic_engine import LimbicEngine
 from database.limbic_modifiers import DigitalPharmacy
 from database.metacognition_engine import MetacognitionEngine
+from database.lives_engine import LivesEngine
+from database.save_states_engine import SaveStatesEngine
 from core.persona_loader import PersonaLoader, PersonaCartridge
 from core.tool_registry import ToolRegistry, parse_tool_call, format_tool_response
 from core.cadence_degrader import CadenceDegrader
@@ -56,6 +58,7 @@ class AgentCore:
         metacognition_enabled: bool = True,
         metacognition_db_path: str = "data/metacognition.db",
         show_thoughts_inline: bool = True,
+        lives_enabled: bool = True,
     ):
         """
         Initialize the AgentCore.
@@ -80,6 +83,7 @@ class AgentCore:
             metacognition_enabled: Enable Metacognition Engine (internal thought tracking) (default: True)
             metacognition_db_path: Path to metacognition SQLite database (default: data/metacognition.db)
             show_thoughts_inline: Display thoughts inline in responses vs. terminal-only (default: True)
+            lives_enabled: Enable Lives & Memories system (timelines and save states) (default: True)
         """
         # LLM Client
         self.client = OpenAI(api_key=api_key, base_url=base_url)
@@ -92,6 +96,7 @@ class AgentCore:
         self.limbic_enabled = limbic_enabled
         self.digital_pharmacy_enabled = digital_pharmacy_enabled
         self.cadence_degrader_enabled = cadence_degrader_enabled
+        self.lives_enabled = lives_enabled
 
         # Core Systems
         self.memory_matrix = MemoryMatrix(
@@ -126,6 +131,12 @@ class AgentCore:
             MetacognitionEngine(db_path=metacognition_db_path)
             if metacognition_enabled
             else None
+        )
+
+        # Lives & Memories System (Timeline Management and Save States)
+        self.lives_engine = LivesEngine(db_path=db_path) if lives_enabled else None
+        self.save_states_engine = (
+            SaveStatesEngine(db_path=db_path) if lives_enabled else None
         )
 
         # Tool Registry (pass graph_memory, limbic_engine, and digital_pharmacy)
@@ -199,6 +210,7 @@ class AgentCore:
         user_id: str,
         persona: PersonaCartridge,
         current_message: Optional[str] = None,
+        life_id: Optional[str] = None,
     ) -> List[Dict[str, str]]:
         """
         Build the conversation context for LLM injection using Hybrid Memory Architecture.
@@ -213,11 +225,13 @@ class AgentCore:
         The Automated Discretion Engine filters both memory types by:
         - visibility_scope = 'GLOBAL' (shared across all personas), OR
         - origin_persona = current persona (isolated to this persona)
+        - life_id = current timeline (if Lives system enabled)
 
         Args:
             user_id: User identifier
             persona: Current active persona
             current_message: Optional current user message for semantic search
+            life_id: Optional timeline/session ID for memory scoping
 
         Returns:
             List of messages in OpenAI chat format
@@ -311,6 +325,7 @@ class AgentCore:
                 current_persona=persona.persona_id,
                 query=current_message,
                 limit=self.semantic_recall_limit,
+                life_id=life_id,
             )
 
             # If we found relevant long-term memories, inject them
@@ -339,6 +354,7 @@ class AgentCore:
             user_id=user_id,
             current_persona=persona.persona_id,
             limit=self.short_term_limit,
+            life_id=life_id,
         )
 
         # Convert short-term memories to OpenAI format (exact chronological order)
@@ -354,6 +370,7 @@ class AgentCore:
         role: str,
         content: str,
         visibility: str = "ISOLATED",
+        life_id: Optional[str] = None,
     ):
         """
         Save a message to the memory matrix.
@@ -364,6 +381,7 @@ class AgentCore:
             role: 'user', 'assistant', or 'system'
             content: Message content
             visibility: 'GLOBAL' or 'ISOLATED' (default: ISOLATED)
+            life_id: Timeline/session ID (optional)
         """
         self.memory_matrix.add_memory(
             user_id=user_id,
@@ -371,6 +389,7 @@ class AgentCore:
             role=role,
             content=content,
             visibility_scope=visibility,
+            life_id=life_id,
         )
 
     # ========================
@@ -417,6 +436,11 @@ class AgentCore:
         if not persona:
             return None
 
+        # Get or create active life for this user+persona (if lives enabled)
+        life_id = None
+        if self.lives_enabled and self.lives_engine:
+            life_id = self.lives_engine.ensure_default_life(user_id, persona.persona_id)
+
         # Update user interaction timestamp
         self.memory_matrix.update_user_interaction(user_id)
 
@@ -445,12 +469,13 @@ class AgentCore:
             role="user",
             content=full_message,
             visibility=memory_visibility,
+            life_id=life_id,
         )
 
         # Build conversation context with memory injection (pass current message for semantic search)
         # NOTE: INHALE phase happens inside _build_conversation_context (limbic state injection)
         messages = self._build_conversation_context(
-            user_id, persona, current_message=message
+            user_id, persona, current_message=message, life_id=life_id
         )
 
         # Add current message (use full_message with vision injection if present)
@@ -512,6 +537,7 @@ class AgentCore:
                             role="assistant",
                             content=assistant_message,
                             visibility=memory_visibility,
+                            life_id=life_id,
                         )
 
                         self._save_message_to_memory(
@@ -520,6 +546,7 @@ class AgentCore:
                             role="user",
                             content=tool_response_text,
                             visibility=memory_visibility,
+                            life_id=life_id,
                         )
 
                         # Loop back to let LLM read the result and respond
@@ -546,6 +573,7 @@ class AgentCore:
             role="assistant",
             content=final_response,
             visibility=memory_visibility,
+            life_id=life_id,
         )
 
         # ========================

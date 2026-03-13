@@ -71,6 +71,7 @@ class VectorMemory:
         origin_persona: str,
         role: str,
         visibility_scope: str = "ISOLATED",
+        life_id: Optional[str] = None,
         timestamp: Optional[str] = None,
     ):
         """
@@ -83,6 +84,7 @@ class VectorMemory:
             origin_persona: The persona that recorded this memory
             role: 'user', 'assistant', or 'system'
             visibility_scope: 'GLOBAL' or 'ISOLATED'
+            life_id: Timeline/session ID (optional)
             timestamp: ISO timestamp (defaults to now)
         """
         if timestamp is None:
@@ -91,20 +93,25 @@ class VectorMemory:
         # Generate embedding
         embedding = self.embedding_model.encode(content).tolist()
 
+        # Build metadata
+        metadata = {
+            "user_id": user_id,
+            "origin_persona": origin_persona,
+            "role": role,
+            "visibility_scope": visibility_scope,
+            "timestamp": timestamp,
+        }
+
+        # Add life_id if provided
+        if life_id:
+            metadata["life_id"] = life_id
+
         # Add to ChromaDB
         self.collection.add(
             ids=[memory_id],
             embeddings=[embedding],
             documents=[content],
-            metadatas=[
-                {
-                    "user_id": user_id,
-                    "origin_persona": origin_persona,
-                    "role": role,
-                    "visibility_scope": visibility_scope,
-                    "timestamp": timestamp,
-                }
-            ],
+            metadatas=[metadata],
         )
 
     def search_semantic_memories(
@@ -113,6 +120,7 @@ class VectorMemory:
         user_id: str,
         current_persona: str,
         top_k: int = 5,
+        life_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Search for semantically similar memories using vector similarity.
@@ -120,12 +128,14 @@ class VectorMemory:
         Applies the Automated Discretion Engine filters:
         - visibility_scope = 'GLOBAL' (shared), OR
         - origin_persona = current_persona (isolated to this persona)
+        - life_id = current life (if provided)
 
         Args:
             query: The query text to search for
             user_id: User identifier
             current_persona: Currently active persona
             top_k: Number of results to return
+            life_id: Optional life/timeline ID to filter by
 
         Returns:
             List of memory dictionaries with content, metadata, and distance scores
@@ -145,6 +155,10 @@ class VectorMemory:
                 },
             ]
         }
+
+        # Add life_id filter if provided
+        if life_id:
+            where_filter["$and"].append({"life_id": {"$eq": life_id}})
 
         # Query ChromaDB
         results = self.collection.query(
@@ -207,6 +221,20 @@ class VectorMemory:
 
         if results["ids"]:
             self.collection.delete(ids=results["ids"])
+
+    def delete_memories_by_ids(self, memory_ids: List[str]):
+        """
+        Delete specific memories by their IDs.
+        Used when rewinding to a save state (FORGET option).
+
+        Args:
+            memory_ids: List of memory IDs to delete
+        """
+        if memory_ids:
+            try:
+                self.collection.delete(ids=memory_ids)
+            except Exception as e:
+                print(f"Warning: Failed to delete some vector memories: {e}")
 
     def get_collection_stats(self) -> Dict[str, Any]:
         """Get statistics about the vector memory collection."""

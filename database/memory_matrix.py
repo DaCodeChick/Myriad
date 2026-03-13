@@ -65,7 +65,7 @@ class MemoryMatrix:
             )
         """)
 
-        # Memory Table - conversation history with visibility scoping
+        # Memory Table - conversation history with visibility scoping and life scoping
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS memories (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -74,11 +74,20 @@ class MemoryMatrix:
                 role TEXT NOT NULL CHECK(role IN ('user', 'assistant', 'system')),
                 content TEXT NOT NULL,
                 visibility_scope TEXT NOT NULL CHECK(visibility_scope IN ('GLOBAL', 'ISOLATED')),
+                life_id TEXT,
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 
                 FOREIGN KEY (user_id) REFERENCES user_state(user_id)
             )
         """)
+
+        # MIGRATION: Add life_id column if it doesn't exist (for existing databases)
+        cursor.execute("PRAGMA table_info(memories)")
+        columns = [col[1] for col in cursor.fetchall()]
+        if "life_id" not in columns:
+            print("⚠ Migrating memories table: Adding life_id column...")
+            cursor.execute("ALTER TABLE memories ADD COLUMN life_id TEXT")
+            print("✓ Migration complete")
 
         # Create indexes for fast querying
         cursor.execute("""
@@ -94,6 +103,11 @@ class MemoryMatrix:
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_memories_timestamp 
             ON memories(timestamp DESC)
+        """)
+
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_memories_life
+            ON memories(life_id)
         """)
 
         conn.commit()
@@ -178,6 +192,7 @@ class MemoryMatrix:
         role: str,
         content: str,
         visibility_scope: str = "ISOLATED",
+        life_id: Optional[str] = None,
     ) -> int:
         """
         Add a new memory to the database.
@@ -188,6 +203,7 @@ class MemoryMatrix:
             role: 'user', 'assistant', or 'system'
             content: The message content
             visibility_scope: 'GLOBAL' or 'ISOLATED' (default: ISOLATED)
+            life_id: Timeline/session ID (optional for backwards compatibility)
 
         Returns:
             The ID of the inserted memory
@@ -203,10 +219,10 @@ class MemoryMatrix:
 
         cursor.execute(
             """
-            INSERT INTO memories (user_id, origin_persona, role, content, visibility_scope)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO memories (user_id, origin_persona, role, content, visibility_scope, life_id)
+            VALUES (?, ?, ?, ?, ?, ?)
         """,
-            (user_id, origin_persona, role, content, visibility_scope),
+            (user_id, origin_persona, role, content, visibility_scope, life_id),
         )
 
         memory_id = cursor.lastrowid
@@ -223,6 +239,7 @@ class MemoryMatrix:
                     role=role,
                     content=content,
                     visibility_scope=visibility_scope,
+                    life_id=life_id,
                 )
             except Exception as e:
                 print(f"Warning: Failed to add memory to vector store: {e}")
@@ -232,7 +249,11 @@ class MemoryMatrix:
         return memory_id
 
     def get_context_memories(
-        self, user_id: str, current_persona: str, limit: int = 50
+        self,
+        user_id: str,
+        current_persona: str,
+        limit: int = 50,
+        life_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Retrieve memories for context injection using the Automated Discretion Engine.
@@ -240,11 +261,13 @@ class MemoryMatrix:
         Returns memories where:
         - visibility_scope = 'GLOBAL' (shared across all personas), OR
         - origin_persona = current_persona (isolated to this persona)
+        - life_id = current life (if provided)
 
         Args:
             user_id: Discord user ID
             current_persona: The currently active persona_id
             limit: Maximum number of memories to return (chronological, most recent)
+            life_id: Optional life/timeline ID to filter by
 
         Returns:
             List of memory dictionaries, ordered by timestamp (oldest first for LLM context)
@@ -252,17 +275,31 @@ class MemoryMatrix:
         conn = self._get_connection()
         cursor = conn.cursor()
 
-        cursor.execute(
-            """
-            SELECT id, origin_persona, role, content, visibility_scope, timestamp
-            FROM memories
-            WHERE user_id = ?
-              AND (visibility_scope = 'GLOBAL' OR origin_persona = ?)
-            ORDER BY timestamp DESC
-            LIMIT ?
-        """,
-            (user_id, current_persona, limit),
-        )
+        if life_id:
+            cursor.execute(
+                """
+                SELECT id, origin_persona, role, content, visibility_scope, timestamp, life_id
+                FROM memories
+                WHERE user_id = ?
+                  AND (visibility_scope = 'GLOBAL' OR origin_persona = ?)
+                  AND (life_id = ? OR life_id IS NULL)
+                ORDER BY timestamp DESC
+                LIMIT ?
+            """,
+                (user_id, current_persona, life_id, limit),
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT id, origin_persona, role, content, visibility_scope, timestamp, life_id
+                FROM memories
+                WHERE user_id = ?
+                  AND (visibility_scope = 'GLOBAL' OR origin_persona = ?)
+                ORDER BY timestamp DESC
+                LIMIT ?
+            """,
+                (user_id, current_persona, limit),
+            )
 
         rows = cursor.fetchall()
         conn.close()
@@ -307,6 +344,7 @@ class MemoryMatrix:
         current_persona: str,
         query: str,
         limit: int = 5,
+        life_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Search for semantically similar memories using vector embeddings.
@@ -314,12 +352,14 @@ class MemoryMatrix:
         This uses the Automated Discretion Engine to filter results by:
         - visibility_scope = 'GLOBAL' (shared across all personas), OR
         - origin_persona = current_persona (isolated to this persona)
+        - life_id = current life (if provided)
 
         Args:
             user_id: Discord user ID
             current_persona: The currently active persona_id
             query: The text to search for semantically similar memories
             limit: Maximum number of memories to return (default: 5)
+            life_id: Optional life/timeline ID to filter by
 
         Returns:
             List of memory dictionaries with semantic similarity scores,
@@ -335,6 +375,7 @@ class MemoryMatrix:
                 user_id=user_id,
                 current_persona=current_persona,
                 top_k=limit,
+                life_id=life_id,
             )
         except Exception as e:
             print(f"Warning: Semantic search failed: {e}")
@@ -369,3 +410,136 @@ class MemoryMatrix:
                 self.vector_memory.clear_user_memories(user_id, persona_id)
             except Exception as e:
                 print(f"Warning: Failed to clear vector memories: {e}")
+
+    # ========================
+    # LIVES & MEMORIES SYSTEM
+    # ========================
+
+    def delete_memories_after_checkpoint(
+        self, life_id: str, checkpoint_message_id: int
+    ) -> int:
+        """
+        Delete all memories (SQL + vector) that occurred AFTER a checkpoint.
+        Used when loading a save state with FORGET option.
+
+        Args:
+            life_id: The timeline ID
+            checkpoint_message_id: Delete all memories with id > this value
+
+        Returns:
+            Number of memories deleted
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        # First, get the IDs of memories to delete (for vector cleanup)
+        cursor.execute(
+            """
+            SELECT id
+            FROM memories
+            WHERE life_id = ? AND id > ?
+        """,
+            (life_id, checkpoint_message_id),
+        )
+
+        memory_ids = [str(row["id"]) for row in cursor.fetchall()]
+
+        # Delete from SQL
+        cursor.execute(
+            """
+            DELETE FROM memories
+            WHERE life_id = ? AND id > ?
+        """,
+            (life_id, checkpoint_message_id),
+        )
+
+        deleted_count = cursor.rowcount
+        conn.commit()
+        conn.close()
+
+        # Delete from vector memory
+        if self.vector_memory_enabled and self.vector_memory and memory_ids:
+            try:
+                self.vector_memory.delete_memories_by_ids(memory_ids)
+            except Exception as e:
+                print(f"Warning: Failed to delete vectors: {e}")
+
+        return deleted_count
+
+    def clone_life_memories(
+        self,
+        source_life_id: str,
+        target_life_id: str,
+        up_to_message_id: Optional[int] = None,
+    ) -> int:
+        """
+        Clone all memories from one life to another.
+        Used when creating a branch before rewinding.
+
+        Args:
+            source_life_id: The life to copy from
+            target_life_id: The life to copy to
+            up_to_message_id: Optional - only clone up to this message ID
+
+        Returns:
+            Number of memories cloned
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        if up_to_message_id:
+            cursor.execute(
+                """
+                INSERT INTO memories (user_id, origin_persona, role, content, visibility_scope, life_id, timestamp)
+                SELECT user_id, origin_persona, role, content, visibility_scope, ?, timestamp
+                FROM memories
+                WHERE life_id = ? AND id <= ?
+                ORDER BY id ASC
+            """,
+                (target_life_id, source_life_id, up_to_message_id),
+            )
+        else:
+            cursor.execute(
+                """
+                INSERT INTO memories (user_id, origin_persona, role, content, visibility_scope, life_id, timestamp)
+                SELECT user_id, origin_persona, role, content, visibility_scope, ?, timestamp
+                FROM memories
+                WHERE life_id = ?
+                ORDER BY id ASC
+            """,
+                (target_life_id, source_life_id),
+            )
+
+        cloned_count = cursor.rowcount
+        conn.commit()
+
+        # Now clone to vector memory
+        if self.vector_memory_enabled and self.vector_memory:
+            # Get the newly inserted memories
+            cursor.execute(
+                """
+                SELECT id, role, content, user_id, origin_persona, visibility_scope, timestamp
+                FROM memories
+                WHERE life_id = ?
+                ORDER BY id ASC
+            """,
+                (target_life_id,),
+            )
+
+            for row in cursor.fetchall():
+                try:
+                    self.vector_memory.add_memory(
+                        memory_id=str(row["id"]),
+                        user_id=row["user_id"],
+                        origin_persona=row["origin_persona"],
+                        role=row["role"],
+                        content=row["content"],
+                        visibility_scope=row["visibility_scope"],
+                        life_id=target_life_id,
+                        timestamp=row["timestamp"],
+                    )
+                except Exception as e:
+                    print(f"Warning: Failed to clone vector memory {row['id']}: {e}")
+
+        conn.close()
+        return cloned_count
