@@ -305,6 +305,10 @@ def run_discord_adapter():
     graph_memory_enabled = os.getenv("GRAPH_MEMORY_ENABLED", "true").lower() == "true"
     graph_db_path = os.getenv("GRAPH_DB_PATH", "data/knowledge_graph.db")
 
+    # Limbic system configuration (emotional neurochemistry)
+    limbic_enabled = os.getenv("LIMBIC_ENABLED", "true").lower() == "true"
+    limbic_db_path = os.getenv("LIMBIC_DB_PATH", "data/limbic_state.db")
+
     # Vision API configuration (optional)
     vision_api_key = os.getenv("VISION_API_KEY", "not-needed")
     vision_base_url = os.getenv("VISION_BASE_URL")
@@ -328,6 +332,8 @@ def run_discord_adapter():
         max_tool_iterations=max_tool_iterations,
         graph_memory_enabled=graph_memory_enabled,
         graph_db_path=graph_db_path,
+        limbic_enabled=limbic_enabled,
+        limbic_db_path=limbic_db_path,
     )
 
     # Initialize VisionBridge if configured

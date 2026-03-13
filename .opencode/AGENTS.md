@@ -20,13 +20,15 @@
    - **Short-Term Memory:** Last N messages (default: 10) in exact chronological order for immediate conversation flow
    - **Long-Term Semantic Memory:** ChromaDB vector search for recalling older, contextually relevant conversations
    - **Knowledge Graph Memory:** Entity-relationship storage for factual knowledge (people, preferences, facts about the world)
+   - **Limbic System (Emotional Neurochemistry):** Dynamic emotional state tracking via four neurochemicals (DOPAMINE, CORTISOL, OXYTOCIN, GABA)
    - **Context Construction Order:**
      1. System Prompt (persona + rules + tool definitions)
-     2. Knowledge Graph Context (relevant facts extracted by keywords from user message)
-     3. Long-Term Recalled Context (from ChromaDB semantic search)
-     4. Short-Term Conversation History (last 10 messages chronologically)
-     5. Current user message
-   - This prevents "Alzheimer's disease" where the bot loses track of the immediate conversation while maintaining long-term semantic recall and factual knowledge.
+     2. **Limbic State Context (INHALE - first-person somatic emotional state)**
+     3. Knowledge Graph Context (relevant facts extracted by keywords from user message)
+     4. Long-Term Recalled Context (from ChromaDB semantic search)
+     5. Short-Term Conversation History (last 10 messages chronologically)
+     6. Current user message
+   - This prevents "Alzheimer's disease" while maintaining long-term semantic recall, factual knowledge, and emotional continuity.
 6. **Code Style:** Keep files modular. Do not dump everything into `main.py`. Separate the database logic, the Discord event loop, and the LLM API calls.
 7. **Tool Use (Function Calling):** The bot supports tool/function calling where the LLM can request to execute predefined Python functions. Tools are registered in `core/tool_registry.py` and executed through a loop in `core/agent_core.py`:
    - **Tool Execution Loop:**
@@ -41,6 +43,7 @@
      - `get_current_time()` - Returns current date/time
      - `roll_dice(sides)` - Rolls a dice with N sides
      - `add_knowledge(entity1, entity1_type, relation, entity2, entity2_type)` - Stores facts in knowledge graph
+     - `inject_emotion(chemical_name, delta)` - Alters neurochemical state (DOPAMINE/CORTISOL/OXYTOCIN/GABA by ±0.3)
    - Tools remain platform-agnostic (no Discord imports in tool logic)
 8. **Knowledge Graph Memory:** The bot can permanently store factual knowledge as entity-relationship triplets:
    - **Database:** SQLite-based graph (`database/graph_memory.py`) with two tables:
@@ -57,4 +60,18 @@
      - `GRAPH_MEMORY_ENABLED=true` - Enable/disable knowledge graph
      - `GRAPH_DB_PATH=data/knowledge_graph.db` - Path to graph database
    - The graph is automatically queried on every message to inject relevant factual context
-9. **Decoupled Frontend (The Adapter Pattern):** The core intelligence, memory routing, and LLM logic MUST be completely platform-agnostic. Create an `AgentCore` class that only deals in raw text and JSON. Do not import `discord` into the core logic. Discord support must be built as a separate "Frontend Adapter" that imports `AgentCore` and bridges the platform to the engine.
+9. **Limbic System (Emotional Neurochemistry):** The bot simulates emotional state via a neurochemical model:
+   - **Architecture:**
+     - Four neurochemicals: DOPAMINE (drive, arousal), CORTISOL (stress, anger), OXYTOCIN (warmth, trust), GABA (calm, relaxation)
+     - Each chemical is a float value 0.0-1.0 (baseline: 0.5)
+     - State is isolated per user+persona pair and persists across turns
+   - **The Respiration Cycle:**
+     - **INHALE:** Before each turn, inject current limbic state as first-person somatic context into system prompt
+     - **PROCESS:** LLM reads emotional state, may call `inject_emotion` to alter neurochemicals in response to user input
+     - **EXHALE:** After final response, apply 10% metabolic decay toward baseline to all chemicals
+   - **LLM Control:** LLM can call `inject_emotion(chemical_name, delta)` where delta is -0.3 to +0.3
+   - **Configurable via environment:**
+     - `LIMBIC_ENABLED=true` - Enable/disable limbic system
+     - `LIMBIC_DB_PATH=data/limbic_state.db` - Path to limbic state database
+   - This provides continuous emotional context that evolves naturally through conversation
+10. **Decoupled Frontend (The Adapter Pattern):** The core intelligence, memory routing, and LLM logic MUST be completely platform-agnostic. Create an `AgentCore` class that only deals in raw text and JSON. Do not import `discord` into the core logic. Discord support must be built as a separate "Frontend Adapter" that imports `AgentCore` and bridges the platform to the engine.

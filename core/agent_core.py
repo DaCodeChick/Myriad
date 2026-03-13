@@ -18,6 +18,7 @@ from openai import OpenAI
 
 from database.memory_matrix import MemoryMatrix
 from database.graph_memory import GraphMemory
+from database.limbic_engine import LimbicEngine
 from core.persona_loader import PersonaLoader, PersonaCartridge
 from core.tool_registry import ToolRegistry, parse_tool_call, format_tool_response
 
@@ -44,6 +45,8 @@ class AgentCore:
         max_tool_iterations: int = 5,
         graph_memory_enabled: bool = True,
         graph_db_path: str = "data/knowledge_graph.db",
+        limbic_enabled: bool = True,
+        limbic_db_path: str = "data/limbic_state.db",
     ):
         """
         Initialize the AgentCore.
@@ -61,6 +64,8 @@ class AgentCore:
             max_tool_iterations: Maximum number of tool calls in a single response cycle (default: 5)
             graph_memory_enabled: Enable knowledge graph memory (default: True)
             graph_db_path: Path to knowledge graph SQLite database (default: data/knowledge_graph.db)
+            limbic_enabled: Enable limbic system (emotional neurochemistry) (default: True)
+            limbic_db_path: Path to limbic state SQLite database (default: data/limbic_state.db)
         """
         # LLM Client
         self.client = OpenAI(api_key=api_key, base_url=base_url)
@@ -70,6 +75,7 @@ class AgentCore:
         self.tools_enabled = tools_enabled
         self.max_tool_iterations = max_tool_iterations
         self.graph_memory_enabled = graph_memory_enabled
+        self.limbic_enabled = limbic_enabled
 
         # Core Systems
         self.memory_matrix = MemoryMatrix(
@@ -82,9 +88,20 @@ class AgentCore:
             GraphMemory(db_path=graph_db_path) if graph_memory_enabled else None
         )
 
-        # Tool Registry (pass graph_memory for add_knowledge tool)
-        self.tool_registry = (
-            ToolRegistry(graph_memory=self.graph_memory) if tools_enabled else None
+        # Limbic System (Emotional Neurochemistry)
+        self.limbic_engine = (
+            LimbicEngine(db_path=limbic_db_path) if limbic_enabled else None
+        )
+
+        # Tool Registry (pass graph_memory and limbic_engine)
+        # NOTE: user_id and persona_id will be passed when creating tool registry per message
+        self.base_tool_registry = (
+            ToolRegistry(
+                graph_memory=self.graph_memory,
+                limbic_engine=self.limbic_engine,
+            )
+            if tools_enabled
+            else None
         )
 
     # ========================
@@ -152,9 +169,10 @@ class AgentCore:
 
         MEMORY STRUCTURE (in order):
         1. System Prompt (persona + rules of engagement + tool definitions)
-        2. Knowledge Graph Context (relevant facts extracted by keywords)
-        3. Long-Term Semantic Memory (from ChromaDB - semantically relevant past conversations)
-        4. Short-Term Chronological Memory (last N messages - immediate conversation flow)
+        2. Limbic State Context (INHALE - first-person somatic emotional state)
+        3. Knowledge Graph Context (relevant facts extracted by keywords)
+        4. Long-Term Semantic Memory (from ChromaDB - semantically relevant past conversations)
+        5. Short-Term Chronological Memory (last N messages - immediate conversation flow)
 
         The Automated Discretion Engine filters both memory types by:
         - visibility_scope = 'GLOBAL' (shared across all personas), OR
@@ -181,8 +199,8 @@ class AgentCore:
             system_content += rules_section
 
         # Inject tool definitions if tools are enabled
-        if self.tools_enabled and self.tool_registry:
-            tool_definitions = self.tool_registry.get_tool_definitions_text()
+        if self.tools_enabled and self.base_tool_registry:
+            tool_definitions = self.base_tool_registry.get_tool_definitions_text()
             if tool_definitions:
                 system_content += tool_definitions
 
@@ -190,7 +208,18 @@ class AgentCore:
         messages = [{"role": "system", "content": system_content}]
 
         # ========================
-        # 2. KNOWLEDGE GRAPH CONTEXT
+        # 2. LIMBIC STATE CONTEXT (INHALE PHASE)
+        # ========================
+        # Inject current emotional state as first-person somatic context
+        if self.limbic_enabled and self.limbic_engine:
+            limbic_context = self.limbic_engine.get_limbic_context(
+                user_id=user_id, persona_id=persona.persona_id
+            )
+            if limbic_context:
+                messages.append({"role": "system", "content": limbic_context})
+
+        # ========================
+        # 3. KNOWLEDGE GRAPH CONTEXT
         # ========================
         # Extract keywords from current message and retrieve relevant knowledge graph facts
         if current_message and self.graph_memory_enabled and self.graph_memory:
@@ -200,7 +229,7 @@ class AgentCore:
                 messages.append({"role": "system", "content": kg_context})
 
         # ========================
-        # 3. LONG-TERM SEMANTIC MEMORY (ChromaDB)
+        # 4. LONG-TERM SEMANTIC MEMORY (ChromaDB)
         # ========================
         # Search for semantically similar memories from the PAST (excluding recent short-term window)
         if current_message and self.memory_matrix.vector_memory_enabled:
@@ -230,7 +259,7 @@ class AgentCore:
                 messages.append({"role": "system", "content": recalled_context})
 
         # ========================
-        # 4. SHORT-TERM CHRONOLOGICAL MEMORY (Last N messages)
+        # 5. SHORT-TERM CHRONOLOGICAL MEMORY (Last N messages)
         # ========================
         # Retrieve the last N messages in chronological order (immediate conversation flow)
         short_term_memories = self.memory_matrix.get_context_memories(
@@ -285,7 +314,8 @@ class AgentCore:
         """
         Process a user message and generate a response.
 
-        This is the main entry point for the AI engine with Tool Execution Loop.
+        This is the main entry point for the AI engine with Tool Execution Loop
+        and Limbic Respiration Cycle (INHALE/EXHALE).
 
         TOOL EXECUTION LOOP:
         1. LLM responds
@@ -293,6 +323,10 @@ class AgentCore:
         3. Inject tool result back into conversation
         4. LLM reads result and responds to user
         5. Repeat up to max_tool_iterations times
+
+        LIMBIC RESPIRATION CYCLE:
+        - INHALE: Inject current emotional state as first-person somatic context
+        - EXHALE: Apply metabolic decay (10% toward baseline) after final response
 
         Args:
             user_id: Unique user identifier
@@ -313,6 +347,17 @@ class AgentCore:
         # Update user interaction timestamp
         self.memory_matrix.update_user_interaction(user_id)
 
+        # Create context-specific tool registry with user_id and persona_id
+        # This allows inject_emotion to know which user/persona's state to modify
+        tool_registry = None
+        if self.tools_enabled:
+            tool_registry = ToolRegistry(
+                graph_memory=self.graph_memory,
+                limbic_engine=self.limbic_engine,
+                current_user_id=user_id,
+                current_persona_id=persona.persona_id,
+            )
+
         # If vision description is provided, prepend it to the message
         full_message = message
         if vision_description:
@@ -329,6 +374,7 @@ class AgentCore:
         )
 
         # Build conversation context with memory injection (pass current message for semantic search)
+        # NOTE: INHALE phase happens inside _build_conversation_context (limbic state injection)
         messages = self._build_conversation_context(
             user_id, persona, current_message=message
         )
@@ -359,7 +405,7 @@ class AgentCore:
                     return None
 
                 # Check if this is a tool call
-                if self.tools_enabled and self.tool_registry:
+                if self.tools_enabled and tool_registry:
                     tool_call = parse_tool_call(assistant_message)
 
                     if tool_call:
@@ -372,7 +418,7 @@ class AgentCore:
                         print(f"[Tool Call {tool_iterations}] {tool_name}({tool_args})")
 
                         # Execute the tool
-                        result = self.tool_registry.execute_tool(tool_name, tool_args)
+                        result = tool_registry.execute_tool(tool_name, tool_args)
 
                         # Format the tool response
                         tool_response_text = format_tool_response(tool_name, result)
@@ -427,6 +473,15 @@ class AgentCore:
             content=final_response,
             visibility=memory_visibility,
         )
+
+        # ========================
+        # EXHALE PHASE - Metabolic Decay
+        # ========================
+        # Apply 10% decay toward baseline (0.5) to prevent indefinite emotional extremes
+        if self.limbic_enabled and self.limbic_engine:
+            self.limbic_engine.apply_metabolic_decay(
+                user_id=user_id, persona_id=persona.persona_id
+            )
 
         return final_response
 
