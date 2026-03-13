@@ -205,3 +205,9 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Project Myriad - Database files
+database/*.db
+database/*.db-journal
+database/*.db-wal
+database/*.db-shm
