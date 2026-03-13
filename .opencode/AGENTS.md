@@ -44,6 +44,7 @@
      - `roll_dice(sides)` - Rolls a dice with N sides
      - `add_knowledge(entity1, entity1_type, relation, entity2, entity2_type)` - Stores facts in knowledge graph
      - `inject_emotion(chemical_name, delta)` - Alters neurochemical state (DOPAMINE/CORTISOL/OXYTOCIN/GABA by ±0.3)
+     - `consume_substance(substance_name)` - Digital Pharmacy: Consume a substance that forcefully overrides limbic state beyond natural limits
    - Tools remain platform-agnostic (no Discord imports in tool logic)
 8. **Knowledge Graph Memory:** The bot can permanently store factual knowledge as entity-relationship triplets:
    - **Database:** SQLite-based graph (`database/graph_memory.py`) with two tables:
@@ -74,4 +75,36 @@
      - `LIMBIC_ENABLED=true` - Enable/disable limbic system
      - `LIMBIC_DB_PATH=data/limbic_state.db` - Path to limbic state database
    - This provides continuous emotional context that evolves naturally through conversation
-10. **Decoupled Frontend (The Adapter Pattern):** The core intelligence, memory routing, and LLM logic MUST be completely platform-agnostic. Create an `AgentCore` class that only deals in raw text and JSON. Do not import `discord` into the core logic. Discord support must be built as a separate "Frontend Adapter" that imports `AgentCore` and bridges the platform to the engine.
+10. **Digital Pharmacy (Substance-Based Limbic Overrides):** The bot can consume substances that forcefully override neurochemical states beyond natural limits:
+   - **Architecture:**
+     - Integrated with Limbic System, adds pharmacological layer on top
+     - Substances can set neurochemicals to values > 1.0 or < 0.0 (pathological states)
+     - Each substance has predefined neurochemical overrides + subjective effects prompt modifier
+   - **Substance Tool:** LLM can call `consume_substance(substance_name)` to consume:
+     - **xanax:** GABA=1.5, CORTISOL=0.0 + sedation prompt
+     - **mdma:** OXYTOCIN=1.5, DOPAMINE=1.0, CORTISOL=0.0 + synthetic love prompt
+     - **fear_toxin:** CORTISOL=1.5, GABA=0.0 + terror prompt
+     - **adrenaline:** CORTISOL=1.0, DOPAMINE=0.8 + adrenaline rush prompt
+     - **morphine:** GABA=1.3, DOPAMINE=0.7, CORTISOL=0.2 + narcotic bliss prompt
+     - **cocaine:** DOPAMINE=1.4, CORTISOL=0.8, GABA=0.3 + manic energy prompt
+     - **lsd:** DOPAMINE=1.2, OXYTOCIN=0.9, CORTISOL=0.4 + psychedelic prompt
+   - **Prompt Modifier Injection:** When substance is active, its subjective effects are injected as system prompt during INHALE phase (after limbic context)
+   - **Active Substance Tracking:** One substance per user+persona pair stored in memory dictionary
+   - **Configurable via environment:**
+     - `DIGITAL_PHARMACY_ENABLED=true` - Enable/disable Digital Pharmacy
+   - This allows LLM to experience pharmacological states that bypass natural neurochemical limits
+11. **Cadence Degradation Engine (Text Post-Processing):** The bot's final text output is degraded based on extreme limbic states:
+   - **Architecture:**
+     - Post-processing filter applied AFTER LLM response, BEFORE Discord output
+     - Operates in final step of `process_message()` loop (after EXHALE phase)
+     - Degrades text based on neurochemical thresholds
+   - **Degradation Effects:**
+     - **CORTISOL > 0.8 (Panic):** Random stutters ("I... I d-don't"), random word capitalization
+     - **DOPAMINE > 0.8 (Arousal):** Vowel stretching ("fuuuuck", "pleeease"), adjacent key typos (shaking hands)
+     - **GABA > 0.8 (Sedation):** Lowercase conversion, remove periods, replace commas with ellipses
+   - **Intensity Scaling:** Degradation intensity scales with how far neurochemical exceeds threshold
+   - **Priority Order:** Dopamine effects → Cortisol effects → GABA effects (applied in sequence)
+   - **Configurable via environment:**
+     - `CADENCE_DEGRADER_ENABLED=true` - Enable/disable Cadence Degradation Engine
+   - This simulates breakdown of coherent expression under extreme emotional states
+12. **Decoupled Frontend (The Adapter Pattern):** The core intelligence, memory routing, and LLM logic MUST be completely platform-agnostic. Create an `AgentCore` class that only deals in raw text and JSON. Do not import `discord` into the core logic. Discord support must be built as a separate "Frontend Adapter" that imports `AgentCore` and bridges the platform to the engine.

@@ -19,8 +19,10 @@ from openai import OpenAI
 from database.memory_matrix import MemoryMatrix
 from database.graph_memory import GraphMemory
 from database.limbic_engine import LimbicEngine
+from database.limbic_modifiers import DigitalPharmacy
 from core.persona_loader import PersonaLoader, PersonaCartridge
 from core.tool_registry import ToolRegistry, parse_tool_call, format_tool_response
+from core.cadence_degrader import CadenceDegrader
 
 
 class AgentCore:
@@ -47,6 +49,8 @@ class AgentCore:
         graph_db_path: str = "data/knowledge_graph.db",
         limbic_enabled: bool = True,
         limbic_db_path: str = "data/limbic_state.db",
+        digital_pharmacy_enabled: bool = True,
+        cadence_degrader_enabled: bool = True,
     ):
         """
         Initialize the AgentCore.
@@ -66,6 +70,8 @@ class AgentCore:
             graph_db_path: Path to knowledge graph SQLite database (default: data/knowledge_graph.db)
             limbic_enabled: Enable limbic system (emotional neurochemistry) (default: True)
             limbic_db_path: Path to limbic state SQLite database (default: data/limbic_state.db)
+            digital_pharmacy_enabled: Enable Digital Pharmacy (substance-based limbic overrides) (default: True)
+            cadence_degrader_enabled: Enable Cadence Degradation Engine (text post-processing) (default: True)
         """
         # LLM Client
         self.client = OpenAI(api_key=api_key, base_url=base_url)
@@ -76,6 +82,8 @@ class AgentCore:
         self.max_tool_iterations = max_tool_iterations
         self.graph_memory_enabled = graph_memory_enabled
         self.limbic_enabled = limbic_enabled
+        self.digital_pharmacy_enabled = digital_pharmacy_enabled
+        self.cadence_degrader_enabled = cadence_degrader_enabled
 
         # Core Systems
         self.memory_matrix = MemoryMatrix(
@@ -93,12 +101,23 @@ class AgentCore:
             LimbicEngine(db_path=limbic_db_path) if limbic_enabled else None
         )
 
-        # Tool Registry (pass graph_memory and limbic_engine)
+        # Digital Pharmacy (Substance-Based Limbic Overrides)
+        self.digital_pharmacy = (
+            DigitalPharmacy(self.limbic_engine)
+            if digital_pharmacy_enabled and limbic_enabled and self.limbic_engine
+            else None
+        )
+
+        # Cadence Degradation Engine (Text Post-Processing)
+        self.cadence_degrader = CadenceDegrader() if cadence_degrader_enabled else None
+
+        # Tool Registry (pass graph_memory, limbic_engine, and digital_pharmacy)
         # NOTE: user_id and persona_id will be passed when creating tool registry per message
         self.base_tool_registry = (
             ToolRegistry(
                 graph_memory=self.graph_memory,
                 limbic_engine=self.limbic_engine,
+                digital_pharmacy=self.digital_pharmacy,
             )
             if tools_enabled
             else None
@@ -217,6 +236,17 @@ class AgentCore:
             )
             if limbic_context:
                 messages.append({"role": "system", "content": limbic_context})
+
+        # ========================
+        # 2.5. SUBSTANCE PROMPT MODIFIER (DIGITAL PHARMACY)
+        # ========================
+        # If a substance is active, inject its subjective effects as system prompt
+        if self.digital_pharmacy:
+            substance_modifier = self.digital_pharmacy.get_substance_prompt_modifier(
+                user_id=user_id, persona_id=persona.persona_id
+            )
+            if substance_modifier:
+                messages.append({"role": "system", "content": substance_modifier})
 
         # ========================
         # 3. KNOWLEDGE GRAPH CONTEXT
@@ -354,6 +384,7 @@ class AgentCore:
             tool_registry = ToolRegistry(
                 graph_memory=self.graph_memory,
                 limbic_engine=self.limbic_engine,
+                digital_pharmacy=self.digital_pharmacy,
                 current_user_id=user_id,
                 current_persona_id=persona.persona_id,
             )
@@ -482,6 +513,19 @@ class AgentCore:
             self.limbic_engine.apply_metabolic_decay(
                 user_id=user_id, persona_id=persona.persona_id
             )
+
+        # ========================
+        # CADENCE DEGRADATION - Text Post-Processing
+        # ========================
+        # Apply text degradation based on extreme limbic states
+        if self.cadence_degrader and self.limbic_enabled and self.limbic_engine:
+            limbic_state = self.limbic_engine.get_state(
+                user_id=user_id, persona_id=persona.persona_id
+            )
+            if limbic_state and self.cadence_degrader.should_degrade(limbic_state):
+                final_response = self.cadence_degrader.degrade(
+                    final_response, limbic_state
+                )
 
         return final_response
 

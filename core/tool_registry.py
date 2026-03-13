@@ -15,6 +15,7 @@ from typing import Dict, Any, List, Callable, Optional, TYPE_CHECKING
 if TYPE_CHECKING:
     from database.graph_memory import GraphMemory
     from database.limbic_engine import LimbicEngine
+    from database.limbic_modifiers import DigitalPharmacy
 
 
 class ToolRegistry:
@@ -29,6 +30,7 @@ class ToolRegistry:
         self,
         graph_memory: Optional["GraphMemory"] = None,
         limbic_engine: Optional["LimbicEngine"] = None,
+        digital_pharmacy: Optional["DigitalPharmacy"] = None,
         current_user_id: Optional[str] = None,
         current_persona_id: Optional[str] = None,
     ):
@@ -38,6 +40,7 @@ class ToolRegistry:
         Args:
             graph_memory: Optional GraphMemory instance for knowledge graph tools
             limbic_engine: Optional LimbicEngine instance for emotional tools
+            digital_pharmacy: Optional DigitalPharmacy instance for substance tools
             current_user_id: Current user ID (needed for inject_emotion context)
             current_persona_id: Current persona ID (needed for inject_emotion context)
         """
@@ -45,6 +48,7 @@ class ToolRegistry:
         self.executors: Dict[str, Callable] = {}
         self.graph_memory = graph_memory
         self.limbic_engine = limbic_engine
+        self.digital_pharmacy = digital_pharmacy
         self.current_user_id = current_user_id
         self.current_persona_id = current_persona_id
 
@@ -144,6 +148,33 @@ class ToolRegistry:
                     "required": ["chemical_name", "delta"],
                 },
                 executor=self._inject_emotion,
+            )
+
+        # Tool 5: Consume Substance (if digital_pharmacy is available)
+        if self.digital_pharmacy:
+            self.register_tool(
+                name="consume_substance",
+                description="Consume a substance that forcefully alters your neurochemical state beyond natural limits. Use this when the user explicitly gives you a drug/substance in roleplay. Available substances: xanax, mdma, fear_toxin, adrenaline, morphine, cocaine, lsd. WARNING: This will override your emotional state with extreme values.",
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "substance_name": {
+                            "type": "string",
+                            "description": "The substance to consume. Must be one of: xanax, mdma, fear_toxin, adrenaline, morphine, cocaine, lsd",
+                            "enum": [
+                                "xanax",
+                                "mdma",
+                                "fear_toxin",
+                                "adrenaline",
+                                "morphine",
+                                "cocaine",
+                                "lsd",
+                            ],
+                        }
+                    },
+                    "required": ["substance_name"],
+                },
+                executor=self._consume_substance,
             )
 
     def register_tool(
@@ -370,6 +401,41 @@ class ToolRegistry:
             "new_value": result["new_value"],
             "delta": result["delta"],
             "description": result["description"],
+        }
+
+    def _consume_substance(self, substance_name: str) -> Dict[str, Any]:
+        """
+        Consume a substance that forcefully overrides neurochemical state.
+
+        Args:
+            substance_name: Name of substance to consume (xanax, mdma, etc.)
+
+        Returns:
+            Dictionary with substance effects and neurochemical changes
+        """
+        if not self.digital_pharmacy:
+            raise RuntimeError("Digital Pharmacy is not enabled")
+
+        if not self.current_user_id or not self.current_persona_id:
+            raise RuntimeError(
+                "User ID and Persona ID required for substance consumption"
+            )
+
+        # Consume the substance (this forcefully overrides limbic state)
+        result = self.digital_pharmacy.consume_substance(
+            user_id=self.current_user_id,
+            persona_id=self.current_persona_id,
+            substance_name=substance_name,
+        )
+
+        # Return the result which includes prompt_modifier for system prompt injection
+        return {
+            "status": result["status"],
+            "substance": result["substance"],
+            "old_state": result["old_state"],
+            "new_state": result["new_state"],
+            "description": result["description"],
+            "prompt_modifier": result["prompt_modifier"],
         }
 
 

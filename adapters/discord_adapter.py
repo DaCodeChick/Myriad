@@ -309,6 +309,16 @@ def run_discord_adapter():
     limbic_enabled = os.getenv("LIMBIC_ENABLED", "true").lower() == "true"
     limbic_db_path = os.getenv("LIMBIC_DB_PATH", "data/limbic_state.db")
 
+    # Digital Pharmacy configuration (substance-based limbic overrides)
+    digital_pharmacy_enabled = (
+        os.getenv("DIGITAL_PHARMACY_ENABLED", "true").lower() == "true"
+    )
+
+    # Cadence Degradation Engine configuration (text post-processing)
+    cadence_degrader_enabled = (
+        os.getenv("CADENCE_DEGRADER_ENABLED", "true").lower() == "true"
+    )
+
     # Vision API configuration (optional)
     vision_api_key = os.getenv("VISION_API_KEY", "not-needed")
     vision_base_url = os.getenv("VISION_BASE_URL")
@@ -334,6 +344,8 @@ def run_discord_adapter():
         graph_db_path=graph_db_path,
         limbic_enabled=limbic_enabled,
         limbic_db_path=limbic_db_path,
+        digital_pharmacy_enabled=digital_pharmacy_enabled,
+        cadence_degrader_enabled=cadence_degrader_enabled,
     )
 
     # Initialize VisionBridge if configured
