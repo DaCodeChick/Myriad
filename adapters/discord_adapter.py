@@ -319,6 +319,11 @@ def run_discord_adapter():
         os.getenv("CADENCE_DEGRADER_ENABLED", "true").lower() == "true"
     )
 
+    # Metacognition Engine configuration (internal thought tracking)
+    metacognition_enabled = os.getenv("METACOGNITION_ENABLED", "true").lower() == "true"
+    metacognition_db_path = os.getenv("METACOGNITION_DB_PATH", "data/metacognition.db")
+    show_thoughts_inline = os.getenv("SHOW_THOUGHTS_INLINE", "true").lower() == "true"
+
     # Vision API configuration (optional)
     vision_api_key = os.getenv("VISION_API_KEY", "not-needed")
     vision_base_url = os.getenv("VISION_BASE_URL")
@@ -346,6 +351,9 @@ def run_discord_adapter():
         limbic_db_path=limbic_db_path,
         digital_pharmacy_enabled=digital_pharmacy_enabled,
         cadence_degrader_enabled=cadence_degrader_enabled,
+        metacognition_enabled=metacognition_enabled,
+        metacognition_db_path=metacognition_db_path,
+        show_thoughts_inline=show_thoughts_inline,
     )
 
     # Initialize VisionBridge if configured

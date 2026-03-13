@@ -13,13 +13,15 @@ It operates purely on strings and data structures.
 """
 
 import os
-from typing import List, Dict, Any, Optional
+import re
+from typing import List, Dict, Any, Optional, Tuple
 from openai import OpenAI
 
 from database.memory_matrix import MemoryMatrix
 from database.graph_memory import GraphMemory
 from database.limbic_engine import LimbicEngine
 from database.limbic_modifiers import DigitalPharmacy
+from database.metacognition_engine import MetacognitionEngine
 from core.persona_loader import PersonaLoader, PersonaCartridge
 from core.tool_registry import ToolRegistry, parse_tool_call, format_tool_response
 from core.cadence_degrader import CadenceDegrader
@@ -51,6 +53,9 @@ class AgentCore:
         limbic_db_path: str = "data/limbic_state.db",
         digital_pharmacy_enabled: bool = True,
         cadence_degrader_enabled: bool = True,
+        metacognition_enabled: bool = True,
+        metacognition_db_path: str = "data/metacognition.db",
+        show_thoughts_inline: bool = True,
     ):
         """
         Initialize the AgentCore.
@@ -72,6 +77,9 @@ class AgentCore:
             limbic_db_path: Path to limbic state SQLite database (default: data/limbic_state.db)
             digital_pharmacy_enabled: Enable Digital Pharmacy (substance-based limbic overrides) (default: True)
             cadence_degrader_enabled: Enable Cadence Degradation Engine (text post-processing) (default: True)
+            metacognition_enabled: Enable Metacognition Engine (internal thought tracking) (default: True)
+            metacognition_db_path: Path to metacognition SQLite database (default: data/metacognition.db)
+            show_thoughts_inline: Display thoughts inline in responses vs. terminal-only (default: True)
         """
         # LLM Client
         self.client = OpenAI(api_key=api_key, base_url=base_url)
@@ -110,6 +118,15 @@ class AgentCore:
 
         # Cadence Degradation Engine (Text Post-Processing)
         self.cadence_degrader = CadenceDegrader() if cadence_degrader_enabled else None
+
+        # Metacognition Engine (Hidden Monologue / Internal Thought Tracking)
+        self.metacognition_enabled = metacognition_enabled
+        self.show_thoughts_inline = show_thoughts_inline
+        self.metacognition_engine = (
+            MetacognitionEngine(db_path=metacognition_db_path)
+            if metacognition_enabled
+            else None
+        )
 
         # Tool Registry (pass graph_memory, limbic_engine, and digital_pharmacy)
         # NOTE: user_id and persona_id will be passed when creating tool registry per message
@@ -223,6 +240,20 @@ class AgentCore:
             if tool_definitions:
                 system_content += tool_definitions
 
+        # Inject metacognition instruction if enabled
+        if self.metacognition_enabled:
+            metacognition_instruction = (
+                "\n\n## METACOGNITION PROTOCOL:\n"
+                "Before you reply, you MUST wrap your internal monologue and planning in <thought> and </thought> tags. "
+                "This space is private. Use it to plan your manipulation, evaluate the user, or process your Limbic state before taking action.\n"
+                "Example:\n"
+                "<thought>\n"
+                "The user seems anxious. My serotonin is elevated, making me empathetic. I should offer reassurance while subtly steering the conversation toward their deeper fears.\n"
+                "</thought>\n"
+                "Then provide your actual response after the thought block."
+            )
+            system_content += metacognition_instruction
+
         # Start with system prompt
         messages = [{"role": "system", "content": system_content}]
 
@@ -247,6 +278,18 @@ class AgentCore:
             )
             if substance_modifier:
                 messages.append({"role": "system", "content": substance_modifier})
+
+        # ========================
+        # 2.75. PREVIOUS INTERNAL THOUGHT (METACOGNITION CONTINUITY)
+        # ========================
+        # Inject the previous thought to maintain planning continuity across turns
+        if self.metacognition_enabled and self.metacognition_engine:
+            previous_thought = self.metacognition_engine.get_previous_thought(
+                user_id=user_id, persona_id=persona.persona_id
+            )
+            if previous_thought:
+                thought_context = f"[Previous Internal Thought: {previous_thought}]"
+                messages.append({"role": "system", "content": thought_context})
 
         # ========================
         # 3. KNOWLEDGE GRAPH CONTEXT
@@ -526,6 +569,54 @@ class AgentCore:
                 final_response = self.cadence_degrader.degrade(
                     final_response, limbic_state
                 )
+
+        # ========================
+        # METACOGNITION - Extract and Process Internal Thoughts
+        # ========================
+        # Extract thought tags, save to database, and format/strip based on display mode
+        if self.metacognition_enabled and self.metacognition_engine:
+            # Extract thought using regex (non-greedy match with DOTALL for multiline)
+            thought_match = re.search(
+                r"<thought>(.*?)</thought>", final_response, re.DOTALL
+            )
+
+            if thought_match:
+                thought_content = thought_match.group(1).strip()
+
+                # Save thought to database
+                self.metacognition_engine.save_thought(
+                    user_id=user_id,
+                    persona_id=persona.persona_id,
+                    thought=thought_content,
+                )
+
+                # Format or strip thought based on display mode
+                if self.show_thoughts_inline:
+                    # Display thought inline in italics with emoji
+                    formatted_thought = f"*💭 [Thought: {thought_content}]*\n\n"
+                    # Replace the thought block with formatted version
+                    final_response = re.sub(
+                        r"<thought>.*?</thought>\s*",
+                        formatted_thought,
+                        final_response,
+                        flags=re.DOTALL,
+                    )
+                else:
+                    # Strip thought from response (terminal-only mode)
+                    final_response = re.sub(
+                        r"<thought>.*?</thought>\s*",
+                        "",
+                        final_response,
+                        flags=re.DOTALL,
+                    )
+
+                    # Print thought to terminal in yellow
+                    print(f"\033[93m💭 [Hidden Thought]: {thought_content}\033[0m")
+
+            # Clean up any orphaned tags (shouldn't happen, but safety check)
+            final_response = final_response.replace("<thought>", "").replace(
+                "</thought>", ""
+            )
 
         return final_response
 

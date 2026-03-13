@@ -112,4 +112,30 @@
    - **Configurable via environment:**
      - `CADENCE_DEGRADER_ENABLED=true` - Enable/disable Cadence Degradation Engine
    - This simulates breakdown of coherent expression under extreme emotional states
-12. **Decoupled Frontend (The Adapter Pattern):** The core intelligence, memory routing, and LLM logic MUST be completely platform-agnostic. Create an `AgentCore` class that only deals in raw text and JSON. Do not import `discord` into the core logic. Discord support must be built as a separate "Frontend Adapter" that imports `AgentCore` and bridges the platform to the engine.
+12. **Metacognition Engine (Hidden Monologue / Internal Thought Tracking):** The bot wraps internal planning in thought tags before responding:
+   - **Architecture:**
+     - System prompt instructs LLM to wrap internal thoughts in `<thought>...</thought>` tags before each response
+     - Thoughts are extracted via regex, saved to database, and either displayed inline or terminal-only
+     - Previous thought is injected into next turn's context for planning continuity
+   - **Thought Tag System:**
+     - LLM MUST output thoughts before responses: `<thought>Internal planning here</thought>\nActual response.`
+     - Thoughts are private space for manipulation planning, user evaluation, and limbic state processing
+   - **Thought Processing Pipeline:**
+     1. Extract thought content using `re.search(r'<thought>(.*?)</thought>', response, re.DOTALL)`
+     2. Save thought to database (per user+persona pair, timestamped)
+     3. **If `SHOW_THOUGHTS_INLINE=True`:** Format as `*💭 [Thought: ...]*` at top of Discord message
+     4. **If `SHOW_THOUGHTS_INLINE=False`:** Strip thought from Discord message, print to terminal in yellow
+     5. Clean up any orphaned tags
+   - **Thought Continuity:**
+     - On next turn, previous thought is injected as system message: `[Previous Internal Thought: <summary>]`
+     - Allows LLM to maintain strategic planning across conversation turns
+   - **Database Storage:**
+     - SQLite database (`data/metacognition.db`) with `internal_thoughts` table
+     - Columns: `user_id`, `persona_id`, `thought`, `timestamp`
+     - Methods: `save_thought()`, `get_previous_thought()`, `clear_thoughts()`
+   - **Configurable via environment:**
+     - `METACOGNITION_ENABLED=true` - Enable/disable Metacognition Engine
+     - `METACOGNITION_DB_PATH=data/metacognition.db` - Path to metacognition database
+     - `SHOW_THOUGHTS_INLINE=true` - Display thoughts in Discord (true) or terminal-only (false)
+   - This allows LLM to maintain internal continuity and strategic planning between responses
+13. **Decoupled Frontend (The Adapter Pattern):** The core intelligence, memory routing, and LLM logic MUST be completely platform-agnostic. Create an `AgentCore` class that only deals in raw text and JSON. Do not import `discord` into the core logic. Discord support must be built as a separate "Frontend Adapter" that imports `AgentCore` and bridges the platform to the engine.

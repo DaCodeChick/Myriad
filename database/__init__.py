@@ -5,6 +5,7 @@ from database.vector_memory import VectorMemory
 from database.graph_memory import GraphMemory
 from database.limbic_engine import LimbicEngine
 from database.limbic_modifiers import DigitalPharmacy
+from database.metacognition_engine import MetacognitionEngine
 
 __all__ = [
     "MemoryMatrix",
@@ -12,4 +13,5 @@ __all__ = [
     "GraphMemory",
     "LimbicEngine",
     "DigitalPharmacy",
+    "MetacognitionEngine",
 ]
