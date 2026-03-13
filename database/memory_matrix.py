@@ -5,26 +5,45 @@ This module handles:
 1. User state tracking (active_persona_id per user)
 2. Conversation memory with visibility scoping (GLOBAL vs ISOLATED)
 3. The Automated Discretion Engine routing logic
+4. Semantic vector memory integration via ChromaDB
 """
 
 import sqlite3
 import os
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+from database.vector_memory import VectorMemory
 
 
 class MemoryMatrix:
     """Manages all database operations for Project Myriad."""
 
-    def __init__(self, db_path: str = "database/myriad_state.db"):
+    def __init__(
+        self,
+        db_path: str = "database/myriad_state.db",
+        vector_memory_enabled: bool = True,
+    ):
         """Initialize the database connection and ensure schema exists."""
         self.db_path = db_path
+        self.vector_memory_enabled = vector_memory_enabled
 
         # Ensure database directory exists
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
-        # Initialize schema
+        # Initialize SQLite schema
         self._init_schema()
+
+        # Initialize VectorMemory if enabled
+        if self.vector_memory_enabled:
+            try:
+                self.vector_memory = VectorMemory()
+            except Exception as e:
+                print(f"Warning: Failed to initialize VectorMemory: {e}")
+                print("Continuing with SQLite-only memory system.")
+                self.vector_memory_enabled = False
+                self.vector_memory = None
+        else:
+            self.vector_memory = None
 
     def _get_connection(self) -> sqlite3.Connection:
         """Create a new database connection."""
@@ -194,6 +213,20 @@ class MemoryMatrix:
         conn.commit()
         conn.close()
 
+        # Also add to vector memory if enabled
+        if self.vector_memory_enabled and self.vector_memory:
+            try:
+                self.vector_memory.add_memory(
+                    memory_id=str(memory_id),
+                    user_id=user_id,
+                    origin_persona=origin_persona,
+                    role=role,
+                    content=content,
+                    visibility_scope=visibility_scope,
+                )
+            except Exception as e:
+                print(f"Warning: Failed to add memory to vector store: {e}")
+
         # lastrowid should always exist for INSERT, but satisfy type checker
         assert memory_id is not None
         return memory_id
@@ -268,6 +301,45 @@ class MemoryMatrix:
 
         return [dict(row) for row in rows]
 
+    def search_semantic_memories(
+        self,
+        user_id: str,
+        current_persona: str,
+        query: str,
+        limit: int = 5,
+    ) -> List[Dict[str, Any]]:
+        """
+        Search for semantically similar memories using vector embeddings.
+
+        This uses the Automated Discretion Engine to filter results by:
+        - visibility_scope = 'GLOBAL' (shared across all personas), OR
+        - origin_persona = current_persona (isolated to this persona)
+
+        Args:
+            user_id: Discord user ID
+            current_persona: The currently active persona_id
+            query: The text to search for semantically similar memories
+            limit: Maximum number of memories to return (default: 5)
+
+        Returns:
+            List of memory dictionaries with semantic similarity scores,
+            ordered by relevance (most similar first)
+        """
+        if not self.vector_memory_enabled or not self.vector_memory:
+            # Fallback: return empty list if vector memory is disabled
+            return []
+
+        try:
+            return self.vector_memory.search_semantic_memories(
+                query=query,
+                user_id=user_id,
+                current_persona=current_persona,
+                top_k=limit,
+            )
+        except Exception as e:
+            print(f"Warning: Semantic search failed: {e}")
+            return []
+
     def clear_user_memories(self, user_id: str, persona_id: Optional[str] = None):
         """
         Clear memories for a user.
@@ -290,3 +362,10 @@ class MemoryMatrix:
 
         conn.commit()
         conn.close()
+
+        # Also clear from vector memory if enabled
+        if self.vector_memory_enabled and self.vector_memory:
+            try:
+                self.vector_memory.clear_user_memories(user_id, persona_id)
+            except Exception as e:
+                print(f"Warning: Failed to clear vector memories: {e}")

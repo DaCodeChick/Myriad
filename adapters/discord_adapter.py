@@ -291,6 +291,10 @@ def run_discord_adapter():
     model = os.getenv("LLM_MODEL", "gpt-4")
     memory_limit = int(os.getenv("MEMORY_CONTEXT_LIMIT", "50"))
 
+    # Vector memory configuration
+    vector_memory_enabled = os.getenv("VECTOR_MEMORY_ENABLED", "true").lower() == "true"
+    semantic_recall_limit = int(os.getenv("SEMANTIC_RECALL_LIMIT", "5"))
+
     # Vision API configuration (optional)
     vision_api_key = os.getenv("VISION_API_KEY", "not-needed")
     vision_base_url = os.getenv("VISION_BASE_URL")
@@ -304,7 +308,12 @@ def run_discord_adapter():
 
     # Initialize AgentCore (platform-agnostic)
     agent_core = AgentCore(
-        api_key=api_key, base_url=base_url, model=model, memory_limit=memory_limit
+        api_key=api_key,
+        base_url=base_url,
+        model=model,
+        memory_limit=memory_limit,
+        vector_memory_enabled=vector_memory_enabled,
+        semantic_recall_limit=semantic_recall_limit,
     )
 
     # Initialize VisionBridge if configured

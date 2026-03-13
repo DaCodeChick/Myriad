@@ -35,6 +35,8 @@ class AgentCore:
         memory_limit: int = 50,
         db_path: str = "database/myriad_state.db",
         personas_dir: str = "personas",
+        vector_memory_enabled: bool = True,
+        semantic_recall_limit: int = 5,
     ):
         """
         Initialize the AgentCore.
@@ -46,14 +48,19 @@ class AgentCore:
             memory_limit: Maximum memories to inject into context
             db_path: Path to SQLite database
             personas_dir: Directory containing persona JSON files
+            vector_memory_enabled: Enable semantic vector memory (default: True)
+            semantic_recall_limit: Number of semantic memories to recall (default: 5)
         """
         # LLM Client
         self.client = OpenAI(api_key=api_key, base_url=base_url)
         self.model = model
         self.memory_limit = memory_limit
+        self.semantic_recall_limit = semantic_recall_limit
 
         # Core Systems
-        self.memory_matrix = MemoryMatrix(db_path=db_path)
+        self.memory_matrix = MemoryMatrix(
+            db_path=db_path, vector_memory_enabled=vector_memory_enabled
+        )
         self.persona_loader = PersonaLoader(personas_dir=personas_dir)
 
     # ========================
@@ -111,7 +118,10 @@ class AgentCore:
     # ========================
 
     def _build_conversation_context(
-        self, user_id: str, persona: PersonaCartridge
+        self,
+        user_id: str,
+        persona: PersonaCartridge,
+        current_message: Optional[str] = None,
     ) -> List[Dict[str, str]]:
         """
         Build the conversation context for LLM injection using the Automated Discretion Engine.
@@ -120,9 +130,12 @@ class AgentCore:
         - visibility_scope = 'GLOBAL' (shared hive-mind), OR
         - origin_persona = current persona (isolated memories)
 
+        Also performs semantic search on the current message to recall relevant past context.
+
         Args:
             user_id: User identifier
             persona: Current active persona
+            current_message: Optional current user message for semantic search
 
         Returns:
             List of messages in OpenAI chat format
@@ -140,12 +153,39 @@ class AgentCore:
         # Start with system prompt
         messages = [{"role": "system", "content": system_content}]
 
-        # Retrieve filtered memories using the Discretion Engine
+        # If current message is provided, search for semantically similar memories
+        if current_message and self.memory_matrix.vector_memory_enabled:
+            semantic_memories = self.memory_matrix.search_semantic_memories(
+                user_id=user_id,
+                current_persona=persona.persona_id,
+                query=current_message,
+                limit=self.semantic_recall_limit,
+            )
+
+            # If we found relevant memories, inject them at the top
+            if semantic_memories:
+                recalled_context = "[Recalled Long-Term Context: Semantically relevant memories from past conversations]\n\n"
+                for i, memory in enumerate(semantic_memories, 1):
+                    metadata = memory.get("metadata", {})
+                    content = memory.get("content", "")
+                    role = metadata.get("role", "unknown")
+                    timestamp = metadata.get("timestamp", "unknown")
+
+                    recalled_context += (
+                        f"{i}. [{role.upper()} - {timestamp}]: {content}\n\n"
+                    )
+
+                recalled_context += "[End of Recalled Context]\n"
+
+                # Add as a system message after the main system prompt
+                messages.append({"role": "system", "content": recalled_context})
+
+        # Retrieve filtered chronological memories using the Discretion Engine
         memories = self.memory_matrix.get_context_memories(
             user_id=user_id, current_persona=persona.persona_id, limit=self.memory_limit
         )
 
-        # Convert memories to OpenAI format
+        # Convert memories to OpenAI format (these are the immediate short-term history)
         for memory in memories:
             messages.append({"role": memory["role"], "content": memory["content"]})
 
@@ -227,8 +267,10 @@ class AgentCore:
             visibility=memory_visibility,
         )
 
-        # Build conversation context with memory injection
-        messages = self._build_conversation_context(user_id, persona)
+        # Build conversation context with memory injection (pass current message for semantic search)
+        messages = self._build_conversation_context(
+            user_id, persona, current_message=message
+        )
 
         # Add current message (use full_message with vision injection if present)
         messages.append({"role": "user", "content": full_message})
