@@ -202,7 +202,7 @@ class ConversationContextBuilder:
     ) -> str:
         """
         Build the complete system prompt including universal rules, persona identity,
-        tool definitions, and metacognition instructions.
+        background/lore, tool definitions, and metacognition instructions.
         """
         # Start with [CORE SYSTEM DIRECTIVES]
         content = "# [CORE SYSTEM DIRECTIVES]\n"
@@ -211,6 +211,10 @@ class ConversationContextBuilder:
 
         # Add persona's core identity and system prompt
         content += f"\n\n# [CHARACTER IDENTITY]\n{persona.system_prompt}"
+
+        # Inject background/lore if defined (deep historical context)
+        if persona.background:
+            content += f"\n\n# [BACKGROUND / LORE]\n{persona.background}"
 
         # Add persona-specific behavioral rules if they exist
         if persona.rules_of_engagement:
