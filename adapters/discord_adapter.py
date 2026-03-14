@@ -18,6 +18,8 @@ from typing import Optional
 from core.agent_core import AgentCore
 from core.vision_bridge import VisionBridge
 from core.config import MyriadConfig
+from adapters.commands.persona_commands import register_persona_commands
+from adapters.commands.memory_commands import register_memory_commands
 
 
 # ========================
@@ -283,114 +285,14 @@ def create_discord_bot(
     bot = MyriadDiscordBot(agent_core, vision_bridge)
 
     # ========================
-    # SLASH COMMANDS
+    # REGISTER COMMAND MODULES
     # ========================
 
-    @bot.tree.command(name="swap", description="Switch to a different persona")
-    @app_commands.describe(persona_id="The ID of the persona to switch to")
-    async def swap_persona(interaction: discord.Interaction, persona_id: str):
-        """Switch the user's active persona."""
-        user_id = str(interaction.user.id)
+    # Persona management commands (swap, personas, whoami)
+    register_persona_commands(bot)
 
-        # Attempt to switch persona
-        success = bot.agent_core.switch_persona(user_id, persona_id)
-
-        if success:
-            persona = bot.agent_core.get_active_persona(user_id)
-            if persona:  # Type guard to satisfy type checker
-                await interaction.response.send_message(
-                    f"✓ Switched to persona: **{persona.name}** (`{persona_id}`)",
-                    ephemeral=True,
-                )
-        else:
-            available = bot.agent_core.list_personas()
-            await interaction.response.send_message(
-                f"✗ Persona '{persona_id}' not found.\n"
-                f"Available personas: {', '.join(available)}",
-                ephemeral=True,
-            )
-
-    @bot.tree.command(name="personas", description="List all available personas")
-    async def list_personas(interaction: discord.Interaction):
-        """List all available persona cartridges."""
-        personas = bot.agent_core.list_personas()
-
-        if personas:
-            persona_list = "\n".join([f"• `{p}`" for p in personas])
-            await interaction.response.send_message(
-                f"**Available Personas:**\n{persona_list}\n\n"
-                f"Use `/swap <persona_id>` to switch.",
-                ephemeral=True,
-            )
-        else:
-            await interaction.response.send_message(
-                "No personas found in the `personas/` directory.", ephemeral=True
-            )
-
-    @bot.tree.command(name="whoami", description="Check your current active persona")
-    async def whoami(interaction: discord.Interaction):
-        """Show the user's current active persona."""
-        user_id = str(interaction.user.id)
-        persona = bot.agent_core.get_active_persona(user_id)
-
-        if persona:
-            traits = (
-                ", ".join(persona.personality_traits)
-                if persona.personality_traits
-                else "None"
-            )
-            await interaction.response.send_message(
-                f"**Current Persona:**\n"
-                f"• ID: `{persona.persona_id}`\n"
-                f"• Name: **{persona.name}**\n"
-                f"• Traits: {traits}\n"
-                f"• Temperature: {persona.temperature}\n"
-                f"• Max Tokens: {persona.max_tokens}",
-                ephemeral=True,
-            )
-        else:
-            await interaction.response.send_message(
-                f"You don't have an active persona.\n"
-                f"Use `/swap <persona_id>` to select one.",
-                ephemeral=True,
-            )
-
-    @bot.tree.command(name="forget", description="Clear your conversation memory")
-    @app_commands.describe(
-        persona_id="Optional: Clear only memories from this persona. Leave blank to clear ALL."
-    )
-    async def forget(
-        interaction: discord.Interaction, persona_id: Optional[str] = None
-    ):
-        """Clear conversation memory for the user."""
-        user_id = str(interaction.user.id)
-
-        # Clear memories
-        bot.agent_core.clear_user_memory(user_id, persona_id)
-
-        if persona_id:
-            await interaction.response.send_message(
-                f"✓ Cleared all memories from persona `{persona_id}`.", ephemeral=True
-            )
-        else:
-            await interaction.response.send_message(
-                "✓ Cleared ALL conversation memories.", ephemeral=True
-            )
-
-    @bot.tree.command(name="stats", description="View your memory statistics")
-    async def stats(interaction: discord.Interaction):
-        """Show memory statistics for the user."""
-        user_id = str(interaction.user.id)
-        stats = bot.agent_core.get_memory_stats(user_id)
-
-        await interaction.response.send_message(
-            f"**Memory Statistics:**\n"
-            f"• Total Memories: {stats['total_memories']}\n"
-            f"• Global (Shared): {stats['global_memories']}\n"
-            f"• Isolated (Persona-specific): {stats['isolated_memories']}\n"
-            f"• Active Persona: `{stats['active_persona'] or 'None'}`",
-            ephemeral=True,
-        )
+    # Memory management commands (forget, stats)
+    register_memory_commands(bot)
 
     # ========================
     # LIVES COMMAND GROUP (Timeline Branching)
