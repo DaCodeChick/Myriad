@@ -174,3 +174,37 @@ Before implementing any feature or making changes, follow the **RDSSC** principl
      - `SHOW_THOUGHTS_INLINE=true` - Display thoughts in Discord (true) or terminal-only (false)
    - This allows LLM to maintain internal continuity and strategic planning between responses
 13. **Decoupled Frontend (The Adapter Pattern):** The core intelligence, memory routing, and LLM logic MUST be completely platform-agnostic. Create an `AgentCore` class that only deals in raw text and JSON. Do not import `discord` into the core logic. Discord support must be built as a separate "Frontend Adapter" that imports `AgentCore` and bridges the platform to the engine.
+14. **Spontaneous Autonomy (Circadian Rhythm Engine):** The bot can proactively initiate conversations based on user activity patterns:
+   - **Architecture:**
+     - Independent background daemon (`autonomy_daemon.py`) running separately from main bot
+     - Monitors user activity patterns via `ActivityTracker` database (SQLite)
+     - Analyzes circadian rhythms to determine optimal outreach times
+     - Respects sleep patterns via activity probability threshold
+   - **Activity Tracking:**
+     - Every user message is logged with `user_id`, `persona_id`, and `timestamp` in `user_activity_logs` table
+     - Last active channel per user tracked in `last_channels` table for message routing
+     - Logging happens in Discord adapter's `on_message()` handler (adapters/discord_adapter.py:208-211)
+   - **Circadian Rhythm Analysis:**
+     - `get_activity_probability(user_id, current_hour)` analyzes last 7 days of activity
+     - Uses sliding window: counts messages in `current_hour ± 1 hour`
+     - Returns 0.0 (asleep) to 1.0 (highly active) based on historical patterns
+     - Scales by data density to prevent false negatives from sparse data
+   - **Decision Pipeline:**
+     1. Check if user inactive for > threshold hours (default: 4 hours)
+     2. Calculate activity probability for current hour
+     3. If probability < sleep protection threshold (default: 0.2), inhibit outreach unless limbic state extreme (Cortisol/Dopamine > 0.9)
+     4. Build decision prompt with persona context, limbic state, activity probability, and hours inactive
+     5. LLM decides to send message or output `<WAIT>` token
+     6. If message sent, route to user's last active channel
+   - **Daemon Operation:**
+     - Runs every check interval (default: 60 minutes)
+     - Separate Discord client instance (shares token, independent event loop)
+     - Auto-started by `start.sh` if `AUTONOMY_ENABLED=true` in `.env`
+     - Logs to `autonomy_log.txt` for debugging
+   - **Configurable via environment:**
+     - `AUTONOMY_ENABLED=false` - Enable/disable Spontaneous Autonomy (default: disabled)
+     - `AUTONOMY_CHECK_INTERVAL_MINUTES=60` - How often daemon checks for outreach
+     - `AUTONOMY_INACTIVITY_THRESHOLD_HOURS=4.0` - Minimum inactivity before considering outreach
+     - `AUTONOMY_SLEEP_PROTECTION_THRESHOLD=0.2` - Activity probability below which to inhibit (0.0-1.0)
+     - `ACTIVITY_LOGS_DB_PATH=data/activity_logs.db` - Path to activity logs database
+   - This allows the bot to initiate conversations naturally while respecting user availability and sleep schedules

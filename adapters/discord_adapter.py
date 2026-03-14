@@ -18,6 +18,7 @@ from typing import Optional
 from core.agent_core import AgentCore
 from core.vision_bridge import VisionBridge
 from core.config import MyriadConfig
+from database.activity_tracker import ActivityTracker
 from adapters.commands.persona_commands import register_persona_commands
 from adapters.commands.memory_commands import register_memory_commands
 from adapters.commands.lives_commands import register_lives_commands
@@ -144,6 +145,9 @@ class MyriadDiscordBot(commands.Bot):
         self.agent_core = agent_core
         self.vision_bridge = vision_bridge
 
+        # Initialize activity tracker for circadian rhythm engine
+        self.activity_tracker = ActivityTracker()
+
     async def setup_hook(self):
         """Setup hook called when bot is ready."""
         # Sync slash commands
@@ -199,6 +203,12 @@ class MyriadDiscordBot(commands.Bot):
                 f"Available personas: {', '.join(self.agent_core.list_personas())}"
             )
             return
+
+        # Log activity for circadian rhythm tracking
+        self.activity_tracker.log_activity(user_id, active_persona.persona_id)
+
+        # Track last channel for spontaneous outreach
+        self.activity_tracker.update_last_channel(user_id, str(message.channel.id))
 
         # Process image attachments if present (Split-Brain Vision Pipeline)
         vision_description = None
