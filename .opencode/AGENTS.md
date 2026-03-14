@@ -178,7 +178,7 @@ Before implementing any feature or making changes, follow the **RDSSC** principl
 13. **Decoupled Frontend (The Adapter Pattern):** The core intelligence, memory routing, and LLM logic MUST be completely platform-agnostic. Create an `AgentCore` class that only deals in raw text and JSON. Do not import `discord` into the core logic. Discord support must be built as a separate "Frontend Adapter" that imports `AgentCore` and bridges the platform to the engine.
 14. **Spontaneous Autonomy (Circadian Rhythm Engine):** The bot can proactively initiate conversations based on user activity patterns:
    - **Architecture:**
-     - Independent background daemon (`autonomy_daemon.py`) running separately from main bot
+     - Independent background daemon (`core/autonomy_daemon.py`) running separately from main bot
      - Monitors user activity patterns via `ActivityTracker` database (SQLite)
      - Analyzes circadian rhythms to determine optimal outreach times
      - Respects sleep patterns via activity probability threshold

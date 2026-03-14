@@ -36,7 +36,7 @@ sleep 15
 # Check if Spontaneous Autonomy is enabled
 if grep -q "AUTONOMY_ENABLED=true" .env 2>/dev/null; then
     echo "🌙 Starting Autonomy Daemon (Circadian Rhythm Engine)..."
-    uv run python autonomy_daemon.py > autonomy_log.txt 2>&1 &
+    uv run python core/autonomy_daemon.py > autonomy_log.txt 2>&1 &
     sleep 2
 fi
 
