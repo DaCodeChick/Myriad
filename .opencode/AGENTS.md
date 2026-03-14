@@ -24,13 +24,15 @@ Before implementing any feature or making changes, follow the **RDSSC** principl
   - Don't mix different approaches (e.g., one error handling style in one place, different style elsewhere)
   - If one approach is clearly better, refactor to use it consistently UNLESS there's a specific technical reason not to
 
-### Testing During Refactoring
+### Testing Policy
 
-When performing large refactorings:
-1. Use `start.sh` to test functionality with local models (kobold-cpp) instead of consuming external API budgets
-2. Test between each refactoring phase to ensure nothing breaks
-3. Commit after each successful phase with descriptive messages
-4. If a phase breaks functionality, revert and adjust approach before continuing
+**All code changes (refactoring, new features, bug fixes) must be tested before committing:**
+
+1. **Use `start.sh` for testing:** Test functionality with local models (kobold-cpp) instead of consuming external API budgets
+2. **Test incrementally:** When working on multi-step changes, test between each logical phase to catch issues early
+3. **Commit after successful tests:** Only commit after verifying the code works as expected
+4. **Revert broken changes:** If a change breaks functionality, revert and adjust approach before continuing
+5. **Test scope:** At minimum, verify the bot starts without errors. For feature changes, test the specific functionality affected.
 
 ## Architecture Rules
 
