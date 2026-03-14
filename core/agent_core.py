@@ -31,6 +31,7 @@ from database.metacognition_engine import MetacognitionEngine
 from database.lives_engine import LivesEngine
 from database.save_states_engine import SaveStatesEngine
 from database.user_preferences import UserPreferences
+from database.mode_manager import ModeManager
 from core.persona_loader import PersonaLoader, PersonaCartridge
 from core.tool_registry import ToolRegistry
 from core.cadence_degrader import CadenceDegrader
@@ -98,6 +99,9 @@ class AgentCore:
         # User Preferences (Per-User Feature Toggles)
         self.user_preferences = UserPreferences(db_path=db_path)
 
+        # Mode Manager (Dynamic Behavioral Overrides)
+        self.mode_manager = ModeManager(db_path=db_path)
+
         # Knowledge Graph Memory
         self.graph_memory = (
             GraphMemory(db_path=config.database_paths.graph_db_path)
@@ -162,6 +166,7 @@ class AgentCore:
             digital_pharmacy=self.digital_pharmacy,
             metacognition_engine=self.metacognition_engine,
             tool_registry=self.base_tool_registry,
+            mode_manager=self.mode_manager,
         )
 
         # Message Processor
@@ -172,6 +177,7 @@ class AgentCore:
             limbic_engine=self.limbic_engine,
             metacognition_engine=self.metacognition_engine,
             cadence_degrader=self.cadence_degrader,
+            mode_manager=self.mode_manager,
             show_thoughts_inline=config.features.show_thoughts_inline,
         )
 

@@ -18,6 +18,7 @@ from core.persona_loader import PersonaCartridge
 from core.tool_registry import ToolRegistry, parse_tool_call, format_tool_response
 from database.limbic_engine import LimbicEngine
 from database.metacognition_engine import MetacognitionEngine
+from database.mode_manager import ModeManager
 from core.cadence_degrader import CadenceDegrader
 
 
@@ -41,6 +42,7 @@ class MessageProcessor:
         limbic_engine: Optional[LimbicEngine] = None,
         metacognition_engine: Optional[MetacognitionEngine] = None,
         cadence_degrader: Optional[CadenceDegrader] = None,
+        mode_manager: Optional[ModeManager] = None,
         show_thoughts_inline: bool = True,
     ):
         """
@@ -53,6 +55,7 @@ class MessageProcessor:
             limbic_engine: Optional limbic system for emotional processing
             metacognition_engine: Optional metacognition system for thought tracking
             cadence_degrader: Optional cadence degrader for text post-processing
+            mode_manager: Optional mode override manager
             show_thoughts_inline: Display thoughts inline vs terminal-only
         """
         self.client = client
@@ -61,6 +64,7 @@ class MessageProcessor:
         self.limbic_engine = limbic_engine
         self.metacognition_engine = metacognition_engine
         self.cadence_degrader = cadence_degrader
+        self.mode_manager = mode_manager
         self.show_thoughts_inline = show_thoughts_inline
 
     def process(
@@ -95,6 +99,19 @@ class MessageProcessor:
                 "metacognition_enabled": True,
                 "show_thoughts_inline": True,
             }
+
+        # Check for mode overrides
+        mode_override = None
+        if self.mode_manager:
+            mode_override = self.mode_manager.get_mode_override(user_id)
+
+            # Apply mode overrides to preferences
+            if mode_override.disable_limbic:
+                user_preferences["limbic_enabled"] = False
+            if mode_override.disable_cadence:
+                user_preferences["cadence_degrader_enabled"] = False
+            if mode_override.disable_metacognition:
+                user_preferences["metacognition_enabled"] = False
 
         # Execute tool loop and get final response
         final_response = self._execute_tool_loop(

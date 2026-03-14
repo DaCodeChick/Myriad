@@ -141,9 +141,9 @@ class MemoryRepository:
 
     def get_context(
         self,
-        user_id: str,
-        persona_id: str,
-        life_id: str,
+        user_id: Optional[str],
+        persona_id: Optional[str],
+        life_id: Optional[str],
         limit: int = 50,
     ) -> List[Dict[str, Any]]:
         """
@@ -154,10 +154,12 @@ class MemoryRepository:
         - Marked as GLOBAL (visible across all users and personas)
         - Marked as USER_SHARED (visible across all personas for this user)
 
+        OOC Mode: If user_id/persona_id are None, returns ALL memories (no filtering).
+
         Args:
-            user_id: User identifier
-            persona_id: Current active persona
-            life_id: Current timeline
+            user_id: User identifier (None for OOC global access)
+            persona_id: Current active persona (None for OOC global access)
+            life_id: Current timeline (None for OOC global access)
             limit: Maximum number of messages to retrieve
 
         Returns:
@@ -166,18 +168,31 @@ class MemoryRepository:
         conn = self._get_connection()
         cursor = conn.cursor()
 
-        cursor.execute(
-            """
-            SELECT id, role, content, timestamp
-            FROM memories
-            WHERE user_id = ?
-              AND life_id = ?
-              AND (origin_persona = ? OR visibility_scope = 'GLOBAL' OR visibility_scope = 'USER_SHARED')
-            ORDER BY id DESC
-            LIMIT ?
-        """,
-            (user_id, life_id, persona_id, limit),
-        )
+        # OOC Mode: Global access to ALL memories
+        if user_id is None:
+            cursor.execute(
+                """
+                SELECT id, role, content, timestamp, user_id, origin_persona, life_id
+                FROM memories
+                ORDER BY id DESC
+                LIMIT ?
+            """,
+                (limit,),
+            )
+        else:
+            # Normal mode: Automated Discretion Engine filtering
+            cursor.execute(
+                """
+                SELECT id, role, content, timestamp
+                FROM memories
+                WHERE user_id = ?
+                  AND life_id = ?
+                  AND (origin_persona = ? OR visibility_scope = 'GLOBAL' OR visibility_scope = 'USER_SHARED')
+                ORDER BY id DESC
+                LIMIT ?
+            """,
+                (user_id, life_id or "", persona_id, limit),
+            )
 
         rows = cursor.fetchall()
         conn.close()

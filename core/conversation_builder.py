@@ -16,6 +16,7 @@ from database.graph_memory import GraphMemory
 from database.limbic_engine import LimbicEngine
 from database.limbic_modifiers import DigitalPharmacy
 from database.metacognition_engine import MetacognitionEngine
+from database.mode_manager import ModeManager
 from core.tool_registry import ToolRegistry
 
 
@@ -44,6 +45,7 @@ class ConversationContextBuilder:
         digital_pharmacy: Optional[DigitalPharmacy] = None,
         metacognition_engine: Optional[MetacognitionEngine] = None,
         tool_registry: Optional[ToolRegistry] = None,
+        mode_manager: Optional[ModeManager] = None,
     ):
         """
         Initialize the conversation context builder.
@@ -58,6 +60,7 @@ class ConversationContextBuilder:
             digital_pharmacy: Optional substance-based limbic modifier
             metacognition_engine: Optional internal thought tracking system
             tool_registry: Optional tool registry for function calling
+            mode_manager: Optional mode override manager
         """
         self.memory_matrix = memory_matrix
         self.universal_rules = universal_rules
@@ -68,6 +71,7 @@ class ConversationContextBuilder:
         self.digital_pharmacy = digital_pharmacy
         self.metacognition_engine = metacognition_engine
         self.tool_registry = tool_registry
+        self.mode_manager = mode_manager
 
     def build(
         self,
@@ -90,6 +94,11 @@ class ConversationContextBuilder:
         Returns:
             List of messages in OpenAI chat format
         """
+        # Check for mode overrides
+        mode_override = None
+        if self.mode_manager:
+            mode_override = self.mode_manager.get_mode_override(user_id)
+
         # Default preferences if not provided
         if user_preferences is None:
             user_preferences = {
@@ -97,32 +106,59 @@ class ConversationContextBuilder:
                 "metacognition_enabled": True,
             }
 
+        # Apply mode overrides to preferences
+        if mode_override:
+            if mode_override.disable_limbic:
+                user_preferences["limbic_enabled"] = False
+            if mode_override.disable_metacognition:
+                user_preferences["metacognition_enabled"] = False
+
         messages = []
 
-        # 1. System Prompt
-        messages.append(
-            {
-                "role": "system",
-                "content": self._build_system_prompt(persona, user_preferences),
-            }
-        )
+        # 1. System Prompt (may be overridden by mode)
+        if (
+            mode_override
+            and mode_override.bypass_persona
+            and mode_override.system_prompt_override
+        ):
+            # OOC mode: Use assistant prompt instead of persona
+            messages.append(
+                {
+                    "role": "system",
+                    "content": mode_override.system_prompt_override,
+                }
+            )
+        else:
+            # Normal mode: Use persona system prompt
+            messages.append(
+                {
+                    "role": "system",
+                    "content": self._build_system_prompt(persona, user_preferences),
+                }
+            )
 
-        # 2. Limbic State Context (INHALE phase) - check user preference
-        if user_preferences.get("limbic_enabled", True):
+        # 2. Limbic State Context (INHALE phase) - check user preference and mode override
+        if user_preferences.get("limbic_enabled", True) and not (
+            mode_override and mode_override.disable_limbic
+        ):
             limbic_context = self._build_limbic_context(user_id, persona.persona_id)
             if limbic_context:
                 messages.append({"role": "system", "content": limbic_context})
 
-        # 3. Substance Modifier (Digital Pharmacy) - requires limbic
-        if user_preferences.get("limbic_enabled", True):
+        # 3. Substance Modifier (Digital Pharmacy) - requires limbic, disabled in OOC
+        if user_preferences.get("limbic_enabled", True) and not (
+            mode_override and mode_override.disable_limbic
+        ):
             substance_modifier = self._build_substance_modifier(
                 user_id, persona.persona_id
             )
             if substance_modifier:
                 messages.append({"role": "system", "content": substance_modifier})
 
-        # 4. Previous Internal Thought (Metacognition continuity) - check user preference
-        if user_preferences.get("metacognition_enabled", True):
+        # 4. Previous Internal Thought (Metacognition continuity) - check user preference and mode override
+        if user_preferences.get("metacognition_enabled", True) and not (
+            mode_override and mode_override.disable_metacognition
+        ):
             thought_context = self._build_thought_context(user_id, persona.persona_id)
             if thought_context:
                 messages.append({"role": "system", "content": thought_context})
@@ -130,7 +166,7 @@ class ConversationContextBuilder:
         # 5. Knowledge Graph Context (Automated Discretion Engine filtering)
         if current_message:
             kg_context = self._build_knowledge_graph_context(
-                current_message, user_id, persona.persona_id
+                current_message, user_id, persona.persona_id, mode_override
             )
             if kg_context:
                 messages.append({"role": "system", "content": kg_context})
@@ -138,14 +174,14 @@ class ConversationContextBuilder:
         # 6. Long-Term Semantic Memory
         if current_message:
             semantic_context = self._build_semantic_memory_context(
-                user_id, persona.persona_id, current_message, life_id
+                user_id, persona.persona_id, current_message, life_id, mode_override
             )
             if semantic_context:
                 messages.append({"role": "system", "content": semantic_context})
 
         # 7. Short-Term Chronological Memory
         short_term_messages = self._build_short_term_memory(
-            user_id, persona.persona_id, life_id
+            user_id, persona.persona_id, life_id, mode_override
         )
         messages.extend(short_term_messages)
 
@@ -260,6 +296,7 @@ class ConversationContextBuilder:
         current_message: str,
         user_id: str,
         persona_id: str,
+        mode_override=None,
     ) -> Optional[str]:
         """
         Build knowledge graph context from current message keywords.
@@ -267,16 +304,25 @@ class ConversationContextBuilder:
         Automated Discretion Engine: Filters knowledge to show only:
         - user_id == current_user AND (persona_id == current_persona OR scope == 'global')
 
+        OOC Mode Override: Access ALL knowledge across all users/personas/lives.
+
         Args:
             current_message: Current user message for keyword extraction
             user_id: User ID for filtering
             persona_id: Current persona ID for filtering
+            mode_override: Optional mode override configuration
 
         Returns:
             Formatted knowledge graph context or None
         """
         if not self.graph_memory:
             return None
+
+        # In OOC mode, bypass filtering for global access
+        if mode_override and mode_override.global_memory_access:
+            return self.graph_memory.get_knowledge_context(
+                current_message, user_id=None, current_persona=None
+            )
 
         return self.graph_memory.get_knowledge_context(
             current_message, user_id=user_id, current_persona=persona_id
@@ -288,46 +334,88 @@ class ConversationContextBuilder:
         persona_id: str,
         query: str,
         life_id: Optional[str] = None,
+        mode_override=None,
     ) -> Optional[str]:
-        """Build long-term semantic memory context from ChromaDB."""
+        """
+        Build long-term semantic memory context from ChromaDB.
+
+        OOC Mode Override: Access ALL memories across all users/personas/lives.
+        """
         if not self.memory_matrix.vector_memory_enabled:
             return None
 
-        semantic_memories = self.memory_matrix.search_semantic_memories(
-            user_id=user_id,
-            current_persona=persona_id,
-            query=query,
-            limit=self.semantic_recall_limit,
-            life_id=life_id,
-        )
+        # In OOC mode, bypass filtering for global access
+        if mode_override and mode_override.global_memory_access:
+            semantic_memories = self.memory_matrix.search_semantic_memories(
+                user_id=None,  # No user filtering in OOC
+                current_persona=None,  # No persona filtering in OOC
+                query=query,
+                limit=self.semantic_recall_limit,
+                life_id=None,  # No life filtering in OOC
+            )
+        else:
+            semantic_memories = self.memory_matrix.search_semantic_memories(
+                user_id=user_id,
+                current_persona=persona_id,
+                query=query,
+                limit=self.semantic_recall_limit,
+                life_id=life_id,
+            )
 
         if not semantic_memories:
             return None
 
         # Format semantic memories
-        content = "[Recalled Long-Term Context: Semantically relevant memories from past conversations]\n\n"
+        if mode_override and mode_override.global_memory_access:
+            content = "[OOC MODE - Global Memory Access: Memories from ALL personas and timelines]\n\n"
+        else:
+            content = "[Recalled Long-Term Context: Semantically relevant memories from past conversations]\n\n"
+
         for i, memory in enumerate(semantic_memories, 1):
             metadata = memory.get("metadata", {})
             memory_content = memory.get("content", "")
             role = metadata.get("role", "unknown")
             timestamp = metadata.get("timestamp", "unknown")
 
-            content += f"{i}. [{role.upper()} - {timestamp}]: {memory_content}\n\n"
+            # In OOC mode, show extra metadata
+            if mode_override and mode_override.global_memory_access:
+                origin_persona = metadata.get("origin_persona", "unknown")
+                user_id_meta = metadata.get("user_id", "unknown")
+                content += f"{i}. [User: {user_id_meta} | Persona: {origin_persona} | {role.upper()} - {timestamp}]: {memory_content}\n\n"
+            else:
+                content += f"{i}. [{role.upper()} - {timestamp}]: {memory_content}\n\n"
 
         content += "[End of Recalled Context]\n"
 
         return content
 
     def _build_short_term_memory(
-        self, user_id: str, persona_id: str, life_id: Optional[str] = None
+        self,
+        user_id: str,
+        persona_id: str,
+        life_id: Optional[str] = None,
+        mode_override=None,
     ) -> List[Dict[str, str]]:
-        """Build short-term chronological memory (last N messages)."""
-        short_term_memories = self.memory_matrix.get_context_memories(
-            user_id=user_id,
-            current_persona=persona_id,
-            limit=self.short_term_limit,
-            life_id=life_id,
-        )
+        """
+        Build short-term chronological memory (last N messages).
+
+        OOC Mode Override: Access ALL recent messages across all personas/lives.
+        """
+        # In OOC mode, bypass filtering for global access
+        if mode_override and mode_override.global_memory_access:
+            short_term_memories = self.memory_matrix.get_context_memories(
+                user_id=None,  # No user filtering in OOC
+                current_persona=None,  # No persona filtering in OOC
+                limit=self.short_term_limit,
+                life_id=None,  # No life filtering in OOC
+            )
+        else:
+            short_term_memories = self.memory_matrix.get_context_memories(
+                user_id=user_id,
+                current_persona=persona_id,
+                limit=self.short_term_limit,
+                life_id=life_id,
+            )
 
         # Convert to OpenAI format
         return [

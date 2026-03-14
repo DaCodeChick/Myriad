@@ -208,8 +208,8 @@ class MemoryMatrix:
 
     def get_context_memories(
         self,
-        user_id: str,
-        current_persona: str,
+        user_id: Optional[str],
+        current_persona: Optional[str],
         limit: int = 50,
         life_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
@@ -221,17 +221,19 @@ class MemoryMatrix:
         - origin_persona = current_persona (isolated to this persona)
         - life_id = current life (if provided)
 
+        OOC Mode: If user_id/current_persona are None, returns ALL memories (no filtering).
+
         Args:
-            user_id: Discord user ID
-            current_persona: The currently active persona_id
+            user_id: Discord user ID (None for OOC global access)
+            current_persona: The currently active persona_id (None for OOC global access)
             limit: Maximum number of memories to return (chronological, most recent)
-            life_id: Optional life/timeline ID to filter by
+            life_id: Optional life/timeline ID to filter by (None for OOC global access)
 
         Returns:
             List of memory dictionaries, ordered by timestamp (oldest first for LLM context)
         """
-        # Default life_id to empty string if None
-        if life_id is None:
+        # Default life_id to empty string if None (except in OOC mode)
+        if life_id is None and user_id is not None:
             life_id = ""
 
         return self.memory_repo.get_context(
@@ -239,6 +241,41 @@ class MemoryMatrix:
             persona_id=current_persona,
             life_id=life_id,
             limit=limit,
+        )
+
+    def search_semantic_memories(
+        self,
+        user_id: Optional[str],
+        current_persona: Optional[str],
+        query: str,
+        limit: int = 5,
+        life_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Search semantic vector memories using the Automated Discretion Engine.
+
+        OOC Mode: If user_id/current_persona are None, searches ALL memories (no filtering).
+
+        Args:
+            user_id: User identifier (None for OOC global access)
+            current_persona: Active persona (None for OOC global access)
+            query: Search query
+            limit: Number of results
+            life_id: Optional life ID (None for OOC global access)
+
+        Returns:
+            List of semantically relevant memories
+        """
+        # Default life_id to empty string if None (except in OOC mode)
+        if life_id is None and user_id is not None:
+            life_id = ""
+
+        return self.memory_repo.search_semantic(
+            user_id=user_id or "",  # VectorMemory needs a string, not None
+            persona_id=current_persona or "",
+            life_id=life_id or "",
+            query=query,
+            top_k=limit,
         )
 
     def get_all_memories_for_user(
@@ -257,45 +294,6 @@ class MemoryMatrix:
         """
         return self.memory_repo.get_all_memories(
             user_id=user_id, persona_id=persona_id, life_id=life_id
-        )
-
-    def search_semantic_memories(
-        self,
-        user_id: str,
-        current_persona: str,
-        query: str,
-        limit: int = 5,
-        life_id: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
-        """
-        Search for semantically similar memories using vector embeddings.
-
-        This uses the Automated Discretion Engine to filter results by:
-        - visibility_scope = 'GLOBAL' (shared across all personas), OR
-        - origin_persona = current_persona (isolated to this persona)
-        - life_id = current life (if provided)
-
-        Args:
-            user_id: Discord user ID
-            current_persona: The currently active persona_id
-            query: The text to search for semantically similar memories
-            limit: Maximum number of memories to return (default: 5)
-            life_id: Optional life/timeline ID to filter by
-
-        Returns:
-            List of memory dictionaries with semantic similarity scores,
-            ordered by relevance (most similar first)
-        """
-        # Default life_id to empty string if None
-        if life_id is None:
-            life_id = ""
-
-        return self.memory_repo.search_semantic(
-            user_id=user_id,
-            persona_id=current_persona,
-            life_id=life_id,
-            query=query,
-            top_k=limit,
         )
 
     def clear_user_memories(self, user_id: str, persona_id: Optional[str] = None):
