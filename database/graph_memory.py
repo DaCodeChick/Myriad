@@ -7,6 +7,7 @@ This module provides a unified interface to:
 3. Context formatting for LLM injection
 
 Part of RDSSC Phase 6: Refactored to delegate to focused modules.
+Updated for Automated Discretion Engine: user_id, persona_id, and scope support.
 """
 
 from typing import List, Dict, Any, Optional
@@ -47,6 +48,9 @@ class GraphMemory:
         entity_type: str,
         description: Optional[str] = None,
         importance_score: int = 5,
+        user_id: str = "",
+        persona_id: str = "",
+        scope: str = "isolated",
     ) -> int:
         """
         Add or update an entity in the knowledge graph.
@@ -56,12 +60,21 @@ class GraphMemory:
             entity_type: Category (e.g., "User", "Language", "Concept")
             description: Optional description of the entity
             importance_score: Importance rating 1-10 (default: 5)
+            user_id: User ID for scoping (Automated Discretion Engine)
+            persona_id: Persona ID for scoping (Automated Discretion Engine)
+            scope: Memory scope - 'isolated' or 'global' (Automated Discretion Engine)
 
         Returns:
             Entity ID (existing or newly created)
         """
         return self.repository.add_entity(
-            name, entity_type, description, importance_score
+            name,
+            entity_type,
+            description,
+            importance_score,
+            user_id=user_id,
+            persona_id=persona_id,
+            scope=scope,
         )
 
     def add_relationship(
@@ -72,6 +85,9 @@ class GraphMemory:
         entity2: str,
         entity2_type: str,
         importance_score: int = 5,
+        user_id: str = "",
+        persona_id: str = "",
+        scope: str = "isolated",
     ) -> bool:
         """
         Add a relationship between two entities.
@@ -84,52 +100,97 @@ class GraphMemory:
             entity2: Target entity name
             entity2_type: Target entity type
             importance_score: Importance rating 1-10 (default: 5)
+            user_id: User ID for scoping (Automated Discretion Engine)
+            persona_id: Persona ID for scoping (Automated Discretion Engine)
+            scope: Memory scope - 'isolated' or 'global' (Automated Discretion Engine)
 
         Returns:
             True if relationship was added/updated, False on error
 
         Example:
-            add_relationship("Bob", "User", "LIKES", "Gentle Possession", "Concept", importance_score=7)
+            add_relationship("Bob", "User", "LIKES", "Gentle Possession", "Concept",
+                            importance_score=7, user_id="123", persona_id="mira", scope="isolated")
         """
         return self.repository.add_relationship(
-            entity1, entity1_type, relation, entity2, entity2_type, importance_score
+            entity1,
+            entity1_type,
+            relation,
+            entity2,
+            entity2_type,
+            importance_score=importance_score,
+            user_id=user_id,
+            persona_id=persona_id,
+            scope=scope,
         )
 
-    def get_entity_by_name(self, name: str) -> Optional[Dict[str, Any]]:
+    def get_entity_by_name(
+        self,
+        name: str,
+        user_id: Optional[str] = None,
+        persona_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
         """
         Find an entity by name (case-insensitive).
 
         Args:
             name: Entity name to search for
+            user_id: Optional user ID filter
+            persona_id: Optional persona ID filter
 
         Returns:
             Entity dictionary or None if not found
         """
-        return self.repository.get_entity_by_name(name)
+        return self.repository.get_entity_by_name(
+            name, user_id=user_id, persona_id=persona_id
+        )
 
-    def get_relationships_for_entity(self, entity_name: str) -> List[Dict[str, Any]]:
+    def get_relationships_for_entity(
+        self,
+        entity_name: str,
+        user_id: Optional[str] = None,
+        current_persona: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
         """
         Get all relationships connected to an entity (incoming and outgoing).
 
+        Automated Discretion Engine: If user_id and current_persona provided,
+        filters to show only: user's memories AND (persona's isolated OR global scope).
+
         Args:
             entity_name: Name of the entity
+            user_id: User ID for filtering (Automated Discretion Engine)
+            current_persona: Current persona ID for filtering (Automated Discretion Engine)
 
         Returns:
             List of relationship dictionaries with entity details
         """
-        return self.repository.get_relationships_for_entity(entity_name)
+        return self.repository.get_relationships_for_entity(
+            entity_name, user_id=user_id, current_persona=current_persona
+        )
 
-    def get_all_relationships(self, limit: int = 100) -> List[Dict[str, Any]]:
+    def get_all_relationships(
+        self,
+        limit: int = 100,
+        user_id: Optional[str] = None,
+        current_persona: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
         """
         Get all relationships in the knowledge graph.
 
+        Automated Discretion Engine: If user_id and current_persona provided,
+        filters to show only: user's memories AND (persona's isolated OR global scope).
+
         Args:
             limit: Maximum number of relationships to return
+            user_id: User ID for filtering (Automated Discretion Engine)
+            current_persona: Current persona ID for filtering (Automated Discretion Engine)
 
         Returns:
             List of all relationships
         """
-        return self.repository.get_all_relationships(limit)
+        return self.repository.get_all_relationships(
+            limit, user_id=user_id, current_persona=current_persona
+        )
 
     def get_stats(self) -> Dict[str, int]:
         """
@@ -162,28 +223,52 @@ class GraphMemory:
         """
         return self.search.extract_keywords(text, min_length)
 
-    def search_entities_by_keywords(self, keywords: List[str]) -> List[Dict[str, Any]]:
+    def search_entities_by_keywords(
+        self,
+        keywords: List[str],
+        user_id: Optional[str] = None,
+        current_persona: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
         """
         Search for entities matching any of the provided keywords.
 
+        Automated Discretion Engine: If user_id and current_persona provided,
+        filters results by user and (persona OR global scope).
+
         Args:
             keywords: List of search terms
+            user_id: User ID for filtering (Automated Discretion Engine)
+            current_persona: Current persona ID for filtering (Automated Discretion Engine)
 
         Returns:
             List of matching entities with their relationships
         """
-        return self.search.search_entities_by_keywords(keywords)
+        return self.search.search_entities_by_keywords(
+            keywords, user_id=user_id, current_persona=current_persona
+        )
 
-    def get_knowledge_context(self, user_message: str) -> str:
+    def get_knowledge_context(
+        self,
+        user_message: str,
+        user_id: Optional[str] = None,
+        current_persona: Optional[str] = None,
+    ) -> str:
         """
         Extract keywords from user message and retrieve relevant knowledge graph context.
+
+        Automated Discretion Engine: If user_id and current_persona provided,
+        filters context to show only: user's memories AND (persona's isolated OR global scope).
 
         This is the main retrieval function called by AgentCore.
 
         Args:
             user_message: The user's input message
+            user_id: User ID for filtering (Automated Discretion Engine)
+            current_persona: Current persona ID for filtering (Automated Discretion Engine)
 
         Returns:
             Formatted knowledge graph context for injection into system prompt
         """
-        return self.search.get_knowledge_context(user_message)
+        return self.search.get_knowledge_context(
+            user_message, user_id=user_id, current_persona=current_persona
+        )

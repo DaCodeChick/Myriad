@@ -7,11 +7,12 @@ This module handles search and query operations for the knowledge graph:
 - Context formatting for LLM injection
 
 Part of RDSSC Phase 6: Split graph_memory.py into focused modules.
+Updated for Automated Discretion Engine: user_id, persona_id, and scope filtering (The Funnel).
 """
 
 import re
 import sqlite3
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 
 class GraphSearch:
@@ -91,13 +92,23 @@ class GraphSearch:
         # Return unique keywords, preserving case for proper noun matching
         return list(set(keywords))
 
-    def search_entities_by_keywords(self, keywords: List[str]) -> List[Dict[str, Any]]:
+    def search_entities_by_keywords(
+        self,
+        keywords: List[str],
+        user_id: Optional[str] = None,
+        current_persona: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
         """
         Search for entities matching any of the provided keywords.
         Results are sorted by importance_score (highest first).
 
+        Automated Discretion Engine (The Funnel): If user_id and current_persona provided,
+        filters results to: user_id == current_user AND (persona_id == current_persona OR scope == 'global')
+
         Args:
             keywords: List of search terms
+            user_id: User ID for filtering (Automated Discretion Engine)
+            current_persona: Current persona ID for filtering (Automated Discretion Engine)
 
         Returns:
             List of matching entities with their relationships, sorted by importance
@@ -110,48 +121,80 @@ class GraphSearch:
 
         # Build query to search for any keyword in entity names
         # Sort by importance_score descending (highest importance first)
-        placeholders = " OR ".join(["name LIKE ? COLLATE NOCASE"] * len(keywords))
+        keyword_placeholders = " OR ".join(
+            ["name LIKE ? COLLATE NOCASE"] * len(keywords)
+        )
         query_params = [f"%{kw}%" for kw in keywords]
 
-        cursor.execute(
-            f"""
-            SELECT DISTINCT name, importance_score
-            FROM entities
-            WHERE {placeholders}
-            ORDER BY importance_score DESC
-        """,
-            query_params,
-        )
+        if user_id is not None and current_persona is not None:
+            # Automated Discretion Engine: The Funnel
+            # user_id == current_user AND (persona_id == current_persona OR scope == 'global')
+            query = f"""
+                SELECT DISTINCT name, importance_score, scope
+                FROM entities
+                WHERE ({keyword_placeholders})
+                  AND user_id = ?
+                  AND (persona_id = ? OR scope = 'global')
+                ORDER BY importance_score DESC
+            """
+            query_params.extend([user_id, current_persona])
+        else:
+            # Legacy mode: no user/persona filtering
+            query = f"""
+                SELECT DISTINCT name, importance_score, scope
+                FROM entities
+                WHERE {keyword_placeholders}
+                ORDER BY importance_score DESC
+            """
+
+        cursor.execute(query, query_params)
 
         rows = cursor.fetchall()
         conn.close()
 
-        # Get relationships for each matching entity
+        # Get relationships for each matching entity (also filtered by The Funnel)
         results = []
         for row in rows:
             entity_name = row[0]
-            entity_importance = row[1] if len(row) > 1 else 5  # Default to 5 if missing
-            relationships = self.repository.get_relationships_for_entity(entity_name)
+            entity_importance = row[1] if len(row) > 1 else 5
+            entity_scope = row[2] if len(row) > 2 else "isolated"
+
+            # Get relationships, also filtered by user/persona/scope
+            relationships = self.repository.get_relationships_for_entity(
+                entity_name, user_id=user_id, current_persona=current_persona
+            )
+
             if relationships:
                 results.append(
                     {
                         "entity": entity_name,
                         "importance": entity_importance,
+                        "scope": entity_scope,
                         "relationships": relationships,
                     }
                 )
 
         return results
 
-    def get_knowledge_context(self, user_message: str) -> str:
+    def get_knowledge_context(
+        self,
+        user_message: str,
+        user_id: Optional[str] = None,
+        current_persona: Optional[str] = None,
+    ) -> str:
         """
         Extract keywords from user message and retrieve relevant knowledge graph context.
         Results are prioritized by importance_score.
+
+        Automated Discretion Engine (The Funnel): If user_id and current_persona provided,
+        filters context to: user_id == current_user AND (persona_id == current_persona OR scope == 'global')
 
         This is the main retrieval function called by AgentCore.
 
         Args:
             user_message: The user's input message
+            user_id: User ID for filtering (Automated Discretion Engine)
+            current_persona: Current persona ID for filtering (Automated Discretion Engine)
 
         Returns:
             Formatted knowledge graph context for injection into system prompt
@@ -162,13 +205,15 @@ class GraphSearch:
         if not keywords:
             return ""
 
-        # Search for matching entities
-        results = self.search_entities_by_keywords(keywords)
+        # Search for matching entities (filtered by The Funnel if user/persona provided)
+        results = self.search_entities_by_keywords(
+            keywords, user_id=user_id, current_persona=current_persona
+        )
 
         if not results:
             return ""
 
-        # Format as context for LLM with importance indicators
+        # Format as context for LLM with importance and scope indicators
         context = "\n\n## KNOWLEDGE GRAPH CONTEXT:\n\n"
         context += (
             "Relevant facts from your knowledge graph (sorted by importance):\n\n"
@@ -182,13 +227,20 @@ class GraphSearch:
             for rel in relationships:
                 # Add importance indicator for high-priority relationships
                 importance = rel.get("importance_score", 5)
-                indicator = ""
-                if importance >= 8:
-                    indicator = " [CRITICAL]"
-                elif importance >= 7:
-                    indicator = " [IMPORTANT]"
+                scope = rel.get("scope", "isolated")
 
-                context += f"  • {rel['source']} ({rel['source_type']}) {rel['relation']} {rel['target']} ({rel['target_type']}){indicator}\n"
+                # Build indicator string
+                indicators = []
+                if importance >= 8:
+                    indicators.append("CRITICAL")
+                elif importance >= 7:
+                    indicators.append("IMPORTANT")
+                if scope == "global":
+                    indicators.append("SHARED")
+
+                indicator = f" [{'/'.join(indicators)}]" if indicators else ""
+
+                context += f"  - {rel['source']} ({rel['source_type']}) {rel['relation']} {rel['target']} ({rel['target_type']}){indicator}\n"
             context += "\n"
 
         context += "Use this knowledge to inform your response, but only mention it if relevant to the conversation.\n"

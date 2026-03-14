@@ -127,9 +127,11 @@ class ConversationContextBuilder:
             if thought_context:
                 messages.append({"role": "system", "content": thought_context})
 
-        # 5. Knowledge Graph Context
+        # 5. Knowledge Graph Context (Automated Discretion Engine filtering)
         if current_message:
-            kg_context = self._build_knowledge_graph_context(current_message)
+            kg_context = self._build_knowledge_graph_context(
+                current_message, user_id, persona.persona_id
+            )
             if kg_context:
                 messages.append({"role": "system", "content": kg_context})
 
@@ -253,12 +255,32 @@ class ConversationContextBuilder:
 
         return None
 
-    def _build_knowledge_graph_context(self, current_message: str) -> Optional[str]:
-        """Build knowledge graph context from current message keywords."""
+    def _build_knowledge_graph_context(
+        self,
+        current_message: str,
+        user_id: str,
+        persona_id: str,
+    ) -> Optional[str]:
+        """
+        Build knowledge graph context from current message keywords.
+
+        Automated Discretion Engine: Filters knowledge to show only:
+        - user_id == current_user AND (persona_id == current_persona OR scope == 'global')
+
+        Args:
+            current_message: Current user message for keyword extraction
+            user_id: User ID for filtering
+            persona_id: Current persona ID for filtering
+
+        Returns:
+            Formatted knowledge graph context or None
+        """
         if not self.graph_memory:
             return None
 
-        return self.graph_memory.get_knowledge_context(current_message)
+        return self.graph_memory.get_knowledge_context(
+            current_message, user_id=user_id, current_persona=persona_id
+        )
 
     def _build_semantic_memory_context(
         self,
