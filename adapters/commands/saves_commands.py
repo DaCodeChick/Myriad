@@ -62,7 +62,7 @@ class ConfirmationView(discord.ui.View):
         await interaction.response.defer()
 
 
-def register_saves_commands(bot):
+def register_saves_commands(bot) -> None:
     """
     Register save states (checkpoint/rewind) commands to the bot.
 

@@ -10,22 +10,23 @@ without touching the core logic.
 """
 
 import os
+from typing import Optional
+
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
-from typing import Optional
 
-from core.agent_core import AgentCore
-from core.vision_bridge import VisionBridge
-from core.config import MyriadConfig
-from core.autonomy_engine import AutonomyEngine
-from database.activity_tracker import ActivityTracker
-from adapters.commands.persona_commands import register_persona_commands
-from adapters.commands.memory_commands import register_memory_commands
-from adapters.commands.lives_commands import register_lives_commands
-from adapters.commands.saves_commands import register_saves_commands
 from adapters.commands.config_commands import register_config_commands
+from adapters.commands.lives_commands import register_lives_commands
+from adapters.commands.memory_commands import register_memory_commands
 from adapters.commands.mode_commands import register_mode_commands
+from adapters.commands.persona_commands import register_persona_commands
+from adapters.commands.saves_commands import register_saves_commands
+from core.agent_core import AgentCore
+from core.autonomy_engine import AutonomyEngine
+from core.config import MyriadConfig
+from core.vision_bridge import VisionBridge
+from database.activity_tracker import ActivityTracker
 
 
 # ========================
@@ -185,7 +186,7 @@ class MyriadDiscordBot(commands.Bot):
             self._initialize_autonomy_engine()
             self._start_autonomy_loop()
 
-    def _initialize_autonomy_engine(self):
+    def _initialize_autonomy_engine(self) -> None:
         """Initialize the autonomy engine with shared resources from AgentCore."""
         try:
             self.autonomy_engine = AutonomyEngine(
@@ -203,7 +204,7 @@ class MyriadDiscordBot(commands.Bot):
             print(f"⚠ Autonomy Engine initialization failed: {e}")
             self.autonomy_enabled = False
 
-    def _start_autonomy_loop(self):
+    def _start_autonomy_loop(self) -> None:
         """Start the autonomy check loop."""
         if not self.autonomy_check_loop.is_running():
             # Dynamically set the loop interval based on config
@@ -429,7 +430,7 @@ def create_discord_bot(
 # ========================
 
 
-def run_discord_adapter():
+def run_discord_adapter() -> None:
     """Main entry point for the Discord adapter."""
     from dotenv import load_dotenv
 

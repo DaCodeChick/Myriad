@@ -275,7 +275,7 @@ class AgentCore:
         content: str,
         visibility: str = "ISOLATED",
         life_id: Optional[str] = None,
-    ):
+    ) -> None:
         """
         Save a message to the memory matrix.
 
@@ -389,7 +389,7 @@ class AgentCore:
         user_preferences = self.user_preferences.get_preferences(user_id)
 
         # Process message through pipeline
-        def save_message(role: str, content: str):
+        def save_message(role: str, content: str) -> None:
             self._save_message_to_memory(
                 user_id=user_id,
                 persona_id=persona.persona_id,
@@ -420,7 +420,7 @@ class AgentCore:
     # UTILITY METHODS
     # ========================
 
-    def clear_user_memory(self, user_id: str, persona_id: Optional[str] = None):
+    def clear_user_memory(self, user_id: str, persona_id: Optional[str] = None) -> None:
         """
         Clear memories for a user.
 

@@ -61,7 +61,7 @@ class ToolRegistry:
         # Load built-in tools
         self._load_builtin_tools()
 
-    def _load_builtin_tools(self):
+    def _load_builtin_tools(self) -> None:
         """Load all built-in tools from the core/tools/ directory."""
         for tool_class in BUILTIN_TOOLS:
             # Instantiate the tool with context
@@ -87,7 +87,7 @@ class ToolRegistry:
         description: str,
         parameters: Dict[str, Any],
         executor: "Tool",
-    ):
+    ) -> None:
         """
         Register a new tool in the registry.
 

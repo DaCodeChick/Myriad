@@ -225,7 +225,7 @@ class MessageProcessor:
         # Exhausted iterations without final response
         return "I apologize, but I encountered an issue processing your request."
 
-    def _apply_limbic_exhale(self, user_id: str, persona_id: str):
+    def _apply_limbic_exhale(self, user_id: str, persona_id: str) -> None:
         """
         Apply EXHALE phase - metabolic decay.
 

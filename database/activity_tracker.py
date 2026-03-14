@@ -8,9 +8,9 @@ Part of Project Myriad's Spontaneous Autonomy feature.
 """
 
 import sqlite3
+from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
-from collections import defaultdict
 
 
 class ActivityTracker:
@@ -26,7 +26,7 @@ class ActivityTracker:
         self.db_path = db_path
         self._init_database()
 
-    def _init_database(self):
+    def _init_database(self) -> None:
         """Create the user_activity_logs and last_channels tables if they don't exist."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -71,7 +71,7 @@ class ActivityTracker:
         conn.commit()
         conn.close()
 
-    def log_activity(self, user_id: str, persona_id: str):
+    def log_activity(self, user_id: str, persona_id: str) -> None:
         """
         Log a user activity event (message sent).
 
@@ -263,7 +263,7 @@ class ActivityTracker:
             "hour_distribution": dict(hour_counts),
         }
 
-    def update_last_channel(self, user_id: str, channel_id: str):
+    def update_last_channel(self, user_id: str, channel_id: str) -> None:
         """
         Update the last channel a user was active in.
 
@@ -314,7 +314,7 @@ class ActivityTracker:
 
         return result[0] if result else None
 
-    def clear_old_logs(self, days_to_keep: int = 30):
+    def clear_old_logs(self, days_to_keep: int = 30) -> None:
         """
         Clear activity logs older than specified days.
 

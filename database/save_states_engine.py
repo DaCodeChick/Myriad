@@ -26,11 +26,11 @@ Database Schema:
     )
 """
 
-import sqlite3
 import os
+import sqlite3
 import uuid
-from typing import Optional, List, Dict, Any
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 
 class SaveStatesEngine:
@@ -57,7 +57,7 @@ class SaveStatesEngine:
         conn.row_factory = sqlite3.Row
         return conn
 
-    def _init_schema(self):
+    def _init_schema(self) -> None:
         """Create save_states table if it doesn't exist."""
         conn = self._get_connection()
         cursor = conn.cursor()

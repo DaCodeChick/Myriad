@@ -31,6 +31,8 @@ __all__ = [
     # Limbic tools
     "InjectEmotionTool",
     "ConsumeSubstanceTool",
+    # Registry
+    "BUILTIN_TOOLS",
 ]
 
 # Registry of all available tool classes
@@ -41,15 +43,6 @@ BUILTIN_TOOLS = [
     # Memory tools
     AddKnowledgeTool,
     # Limbic tools
-    InjectEmotionTool,
-    ConsumeSubstanceTool,
-]
-
-# Registry of all available tool classes
-BUILTIN_TOOLS = [
-    GetCurrentTimeTool,
-    RollDiceTool,
-    AddKnowledgeTool,
     InjectEmotionTool,
     ConsumeSubstanceTool,
 ]

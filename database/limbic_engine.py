@@ -19,8 +19,8 @@ THE RESPIRATION CYCLE:
 """
 
 import sqlite3
-from typing import Dict, Optional
 from datetime import datetime
+from typing import Dict, Optional
 
 
 class LimbicEngine:
@@ -76,7 +76,7 @@ class LimbicEngine:
         self.db_path = db_path
         self._init_database()
 
-    def _init_database(self):
+    def _init_database(self) -> None:
         """Create the limbic_state table if it doesn't exist."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -378,7 +378,7 @@ class LimbicEngine:
 
         return {"total_limbic_states": total_states}
 
-    def clear_all(self):
+    def clear_all(self) -> None:
         """Clear all limbic states (for testing)."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()

@@ -13,9 +13,9 @@ Part of Project Myriad's Dynamic Mode Override system.
 """
 
 import sqlite3
-from typing import Optional, Dict, Any
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Dict, Optional
 
 
 class BehaviorMode(Enum):
@@ -111,7 +111,7 @@ class ModeManager:
         conn.row_factory = sqlite3.Row
         return conn
 
-    def _ensure_schema(self):
+    def _ensure_schema(self) -> None:
         """Ensure user_modes table exists."""
         conn = self._get_connection()
         cursor = conn.cursor()

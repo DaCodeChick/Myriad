@@ -32,7 +32,7 @@ class ConfirmationView(discord.ui.View):
         await interaction.response.defer()
 
 
-def register_lives_commands(bot):
+def register_lives_commands(bot) -> None:
     """
     Register lives (timeline branching) commands to the bot.
 

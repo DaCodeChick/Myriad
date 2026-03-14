@@ -10,14 +10,15 @@ This module provides a unified interface to:
 Part of RDSSC Phase 5: Refactored to delegate to focused modules.
 """
 
-import sqlite3
 import os
-from typing import Optional, List, Dict, Any
+import sqlite3
 from datetime import datetime
-from database.vector_memory import VectorMemory
-from database.user_state import UserStateManager
-from database.memory_repository import MemoryRepository
+from typing import Any, Dict, List, Optional
+
 from database.lives_memory import LivesMemoryManager
+from database.memory_repository import MemoryRepository
+from database.user_state import UserStateManager
+from database.vector_memory import VectorMemory
 
 
 class MemoryMatrix:
@@ -68,7 +69,7 @@ class MemoryMatrix:
         conn.row_factory = sqlite3.Row  # Allow dict-like access to rows
         return conn
 
-    def _init_schema(self):
+    def _init_schema(self) -> None:
         """Create all necessary tables if they don't exist."""
         conn = self._get_connection()
         cursor = conn.cursor()
@@ -145,7 +146,7 @@ class MemoryMatrix:
         """
         return self.user_state.get_active_persona(user_id)
 
-    def set_active_persona(self, user_id: str, persona_id: str):
+    def set_active_persona(self, user_id: str, persona_id: str) -> None:
         """
         Set or update the active persona for a user.
 
@@ -155,7 +156,7 @@ class MemoryMatrix:
         """
         self.user_state.set_active_persona(user_id, persona_id)
 
-    def update_user_interaction(self, user_id: str):
+    def update_user_interaction(self, user_id: str) -> None:
         """Update the last interaction timestamp for a user."""
         self.user_state.update_last_interaction(user_id)
 
@@ -296,7 +297,9 @@ class MemoryMatrix:
             user_id=user_id, persona_id=persona_id, life_id=life_id
         )
 
-    def clear_user_memories(self, user_id: str, persona_id: Optional[str] = None):
+    def clear_user_memories(
+        self, user_id: str, persona_id: Optional[str] = None
+    ) -> None:
         """
         Clear memories for a user.
 

@@ -177,6 +177,6 @@ class PersonaLoader:
         # Load fresh from disk
         return self.load_persona(persona_id)
 
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         """Clear all cached personas (forces reload on next access)."""
         self._cache.clear()

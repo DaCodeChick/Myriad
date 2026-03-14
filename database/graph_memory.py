@@ -10,7 +10,8 @@ Part of RDSSC Phase 6: Refactored to delegate to focused modules.
 Updated for Automated Discretion Engine: user_id, persona_id, and scope support.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
 from database.graph_repository import GraphRepository
 from database.graph_search import GraphSearch
 
@@ -201,7 +202,7 @@ class GraphMemory:
         """
         return self.repository.get_stats()
 
-    def clear_all(self):
+    def clear_all(self) -> None:
         """Clear all data from the knowledge graph (for testing)."""
         self.repository.clear_all()
 

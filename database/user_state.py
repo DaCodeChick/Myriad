@@ -33,7 +33,7 @@ class UserStateManager:
         conn.row_factory = sqlite3.Row
         return conn
 
-    def _ensure_schema(self):
+    def _ensure_schema(self) -> None:
         """Ensure user_state table exists."""
         conn = self._get_connection()
         cursor = conn.cursor()
@@ -73,7 +73,7 @@ class UserStateManager:
 
         return row["active_persona"] if row else None
 
-    def set_active_persona(self, user_id: str, persona: str):
+    def set_active_persona(self, user_id: str, persona: str) -> None:
         """
         Set the active persona for a user.
 
@@ -96,7 +96,7 @@ class UserStateManager:
         conn.commit()
         conn.close()
 
-    def update_last_interaction(self, user_id: str):
+    def update_last_interaction(self, user_id: str) -> None:
         """
         Update the last interaction timestamp for a user.
 

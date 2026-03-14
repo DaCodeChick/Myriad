@@ -11,7 +11,7 @@ Updated for Automated Discretion Engine: user_id, persona_id, and scope columns.
 """
 
 import sqlite3
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 
 class GraphRepository:
@@ -27,7 +27,7 @@ class GraphRepository:
         self.db_path = db_path
         self._init_database()
 
-    def _init_database(self):
+    def _init_database(self) -> None:
         """Create the entities and relationships tables if they don't exist."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -550,7 +550,7 @@ class GraphRepository:
             "total_relationships": relationship_count,
         }
 
-    def clear_all(self):
+    def clear_all(self) -> None:
         """Clear all data from the knowledge graph (for testing)."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()

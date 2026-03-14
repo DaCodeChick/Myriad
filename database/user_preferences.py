@@ -8,7 +8,7 @@ Part of Project Myriad's configurable feature system.
 """
 
 import sqlite3
-from typing import Dict, Optional, Union, Literal
+from typing import Dict, Literal, Optional, Union
 
 # Type alias for memory visibility modes
 MemoryVisibility = Literal["GLOBAL", "USER_SHARED", "ISOLATED"]
@@ -27,7 +27,7 @@ class UserPreferences:
         self.db_path = db_path
         self._init_database()
 
-    def _init_database(self):
+    def _init_database(self) -> None:
         """Create the user_preferences table if it doesn't exist."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -133,7 +133,7 @@ class UserPreferences:
 
     def set_preference(
         self, user_id: str, preference_name: str, value: Union[bool, float, str]
-    ):
+    ) -> None:
         """
         Set a specific preference for a user.
 
@@ -193,7 +193,7 @@ class UserPreferences:
         self.set_preference(user_id, preference_name, new_value)
         return new_value
 
-    def reset_preferences(self, user_id: str):
+    def reset_preferences(self, user_id: str) -> None:
         """
         Reset all preferences to defaults for a user.
 

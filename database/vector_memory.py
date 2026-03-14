@@ -11,12 +11,13 @@ Architecture:
 - Metadata: timestamp, role, user_id, origin_persona, visibility_scope
 """
 
+import os
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
 import chromadb
 from chromadb.config import Settings
 from sentence_transformers import SentenceTransformer
-from typing import List, Dict, Any, Optional
-from datetime import datetime
-import os
 
 
 class VectorMemory:
@@ -74,7 +75,7 @@ class VectorMemory:
         life_id: Optional[str] = None,
         timestamp: Optional[str] = None,
         importance_score: int = 5,
-    ):
+    ) -> None:
         """
         Add a memory to the vector database.
 
@@ -241,7 +242,9 @@ class VectorMemory:
         else:
             return self.collection.count()
 
-    def clear_user_memories(self, user_id: str, persona_id: Optional[str] = None):
+    def clear_user_memories(
+        self, user_id: str, persona_id: Optional[str] = None
+    ) -> None:
         """
         Clear memories for a user.
 
@@ -265,7 +268,7 @@ class VectorMemory:
         if results["ids"]:
             self.collection.delete(ids=results["ids"])
 
-    def delete_memories_by_ids(self, memory_ids: List[str]):
+    def delete_memories_by_ids(self, memory_ids: List[str]) -> None:
         """
         Delete specific memories by their IDs.
         Used when rewinding to a save state (FORGET option).

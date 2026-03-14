@@ -11,8 +11,8 @@ Part of RDSSC Phase 5: Split memory_matrix.py into focused modules.
 """
 
 import sqlite3
-from typing import List, Dict, Optional, Any
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 
 class MemoryRepository:
@@ -37,7 +37,7 @@ class MemoryRepository:
         conn.row_factory = sqlite3.Row
         return conn
 
-    def _ensure_schema(self):
+    def _ensure_schema(self) -> None:
         """Ensure memories table exists."""
         conn = self._get_connection()
         cursor = conn.cursor()
@@ -270,7 +270,7 @@ class MemoryRepository:
             print(f"Warning: Vector search failed: {e}")
             return []
 
-    def clear_memories(self, user_id: str, persona_id: Optional[str] = None):
+    def clear_memories(self, user_id: str, persona_id: Optional[str] = None) -> None:
         """
         Clear all memories for a user.
 
