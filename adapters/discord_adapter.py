@@ -17,6 +17,7 @@ from typing import Optional
 
 from core.agent_core import AgentCore
 from core.vision_bridge import VisionBridge
+from core.config import MyriadConfig
 
 
 # ========================
@@ -852,103 +853,43 @@ def run_discord_adapter():
     # Load environment variables
     load_dotenv()
 
-    discord_token = os.getenv("DISCORD_TOKEN")
-    api_key = os.getenv("LLM_API_KEY")
-    base_url = os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")
-    model = os.getenv("LLM_MODEL", "gpt-4")
-
-    # Memory configuration
-    short_term_limit = int(os.getenv("SHORT_TERM_MEMORY_LIMIT", "10"))
-
-    # Vector memory configuration
-    vector_memory_enabled = os.getenv("VECTOR_MEMORY_ENABLED", "true").lower() == "true"
-    semantic_recall_limit = int(os.getenv("SEMANTIC_RECALL_LIMIT", "5"))
-
-    # Tool use configuration
-    tools_enabled = os.getenv("TOOLS_ENABLED", "true").lower() == "true"
-    max_tool_iterations = int(os.getenv("MAX_TOOL_ITERATIONS", "5"))
-
-    # Knowledge graph memory configuration
-    graph_memory_enabled = os.getenv("GRAPH_MEMORY_ENABLED", "true").lower() == "true"
-    graph_db_path = os.getenv("GRAPH_DB_PATH", "data/knowledge_graph.db")
-
-    # Limbic system configuration (emotional neurochemistry)
-    limbic_enabled = os.getenv("LIMBIC_ENABLED", "true").lower() == "true"
-    limbic_db_path = os.getenv("LIMBIC_DB_PATH", "data/limbic_state.db")
-
-    # Digital Pharmacy configuration (substance-based limbic overrides)
-    digital_pharmacy_enabled = (
-        os.getenv("DIGITAL_PHARMACY_ENABLED", "true").lower() == "true"
-    )
-
-    # Cadence Degradation Engine configuration (text post-processing)
-    cadence_degrader_enabled = (
-        os.getenv("CADENCE_DEGRADER_ENABLED", "true").lower() == "true"
-    )
-
-    # Metacognition Engine configuration (internal thought tracking)
-    metacognition_enabled = os.getenv("METACOGNITION_ENABLED", "true").lower() == "true"
-    metacognition_db_path = os.getenv("METACOGNITION_DB_PATH", "data/metacognition.db")
-    show_thoughts_inline = os.getenv("SHOW_THOUGHTS_INLINE", "true").lower() == "true"
-
-    # Lives & Memories system configuration (timeline branching & save states)
-    lives_enabled = os.getenv("LIVES_ENABLED", "true").lower() == "true"
-
-    # Universal Rules configuration (global directives for all personas)
-    # Format: pipe-separated list of rules
-    # Example: "Rule 1 | Rule 2 | Rule 3"
-    universal_rules_env = os.getenv("UNIVERSAL_RULES")
-    universal_rules = None
-    if universal_rules_env:
-        # Split by pipe and strip whitespace
-        universal_rules = [
-            rule.strip() for rule in universal_rules_env.split("|") if rule.strip()
-        ]
-
-    # Vision API configuration (optional)
-    vision_api_key = os.getenv("VISION_API_KEY", "not-needed")
-    vision_base_url = os.getenv("VISION_BASE_URL")
-    vision_model = os.getenv("VISION_MODEL", "vision-model")
-
-    # Validate environment
-    if not discord_token:
-        raise ValueError("DISCORD_TOKEN not found in environment")
-    if not api_key:
-        raise ValueError("LLM_API_KEY not found in environment")
+    # Load configuration
+    config = MyriadConfig.from_env()
+    print(f"Loaded configuration: {config}")
 
     # Initialize AgentCore (platform-agnostic)
     agent_core = AgentCore(
-        api_key=api_key,
-        base_url=base_url,
-        model=model,
-        short_term_limit=short_term_limit,
-        vector_memory_enabled=vector_memory_enabled,
-        semantic_recall_limit=semantic_recall_limit,
-        tools_enabled=tools_enabled,
-        max_tool_iterations=max_tool_iterations,
-        graph_memory_enabled=graph_memory_enabled,
-        graph_db_path=graph_db_path,
-        limbic_enabled=limbic_enabled,
-        limbic_db_path=limbic_db_path,
-        digital_pharmacy_enabled=digital_pharmacy_enabled,
-        cadence_degrader_enabled=cadence_degrader_enabled,
-        metacognition_enabled=metacognition_enabled,
-        metacognition_db_path=metacognition_db_path,
-        show_thoughts_inline=show_thoughts_inline,
-        lives_enabled=lives_enabled,
-        universal_rules=universal_rules,
+        api_key=config.llm.api_key,
+        base_url=config.llm.base_url,
+        model=config.llm.model,
+        short_term_limit=config.memory.short_term_limit,
+        vector_memory_enabled=config.memory.vector_memory_enabled,
+        semantic_recall_limit=config.memory.semantic_recall_limit,
+        tools_enabled=config.tools.enabled,
+        max_tool_iterations=config.tools.max_iterations,
+        graph_memory_enabled=config.features.graph_memory_enabled,
+        graph_db_path=config.database_paths.graph_db_path,
+        limbic_enabled=config.features.limbic_enabled,
+        limbic_db_path=config.database_paths.limbic_db_path,
+        digital_pharmacy_enabled=config.features.digital_pharmacy_enabled,
+        cadence_degrader_enabled=config.features.cadence_degrader_enabled,
+        metacognition_enabled=config.features.metacognition_enabled,
+        metacognition_db_path=config.database_paths.metacognition_db_path,
+        show_thoughts_inline=config.features.show_thoughts_inline,
+        lives_enabled=config.features.lives_enabled,
+        universal_rules=config.universal_rules.rules,
     )
 
     # Initialize VisionBridge if configured
     vision_bridge = None
-    if vision_base_url:
+    if config.vision.enabled:
         try:
             vision_bridge = VisionBridge(
-                vision_api_key=vision_api_key,
-                vision_base_url=vision_base_url,
-                vision_model=vision_model,
+                vision_api_key=config.vision.api_key,
+                vision_base_url=config.vision.base_url,
+                vision_model=config.vision.model,
             )
-            print(f"✓ Vision Bridge enabled: {vision_base_url}")
+            print(f"✓ Vision Bridge enabled: {config.vision.base_url}")
         except Exception as e:
             print(f"⚠ Vision Bridge initialization failed: {e}")
             print("  Continuing without vision support...")
@@ -960,7 +901,7 @@ def run_discord_adapter():
 
     # Run bot
     print("Starting Myriad Discord Adapter...")
-    bot.run(discord_token)
+    bot.run(config.discord_token)
 
 
 if __name__ == "__main__":
