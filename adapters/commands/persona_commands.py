@@ -269,5 +269,113 @@ def register_persona_commands(bot: "MyriadDiscordBot") -> None:
                 ephemeral=True,
             )
 
+    @persona_group.command(
+        name="set_image",
+        description="Process character image and cache physical appearance",
+    )
+    @app_commands.describe(
+        persona_id="The ID of the persona to update",
+        image="Character image attachment",
+    )
+    async def set_persona_image(
+        interaction: discord.Interaction,
+        persona_id: str,
+        image: discord.Attachment,
+    ):
+        """Process a character image and cache the appearance description."""
+        # Check if vision cache service is available
+        if not hasattr(bot, "vision_cache_service") or bot.vision_cache_service is None:
+            await interaction.response.send_message(
+                ResponseFormatter.error(
+                    "Vision cache service is not configured. "
+                    "Please set VISION_BASE_URL and VISION_MODEL in your environment."
+                ),
+                ephemeral=True,
+            )
+            return
+
+        # Verify persona exists
+        persona = bot.agent_core.persona_loader.get_persona(persona_id)
+        if not persona:
+            available = bot.agent_core.list_personas()
+            await interaction.response.send_message(
+                ResponseFormatter.error(
+                    f"Persona '{persona_id}' not found.\n"
+                    f"Available personas: {', '.join(available)}"
+                ),
+                ephemeral=True,
+            )
+            return
+
+        # Check if attachment is an image
+        if not image.content_type or not image.content_type.startswith("image/"):
+            await interaction.response.send_message(
+                ResponseFormatter.error(
+                    "Attachment must be an image file (PNG, JPG, WEBP, etc.)"
+                ),
+                ephemeral=True,
+            )
+            return
+
+        # Defer response since vision processing may take time
+        await interaction.response.defer(ephemeral=True)
+
+        try:
+            # Download image bytes
+            image_bytes = await image.read()
+
+            # Determine image format
+            image_format = (
+                image.content_type.split("/")[1] if "/" in image.content_type else "png"
+            )
+
+            # Process image through vision model
+            appearance_description = (
+                bot.vision_cache_service.generate_appearance_description(
+                    image_bytes, image_format
+                )
+            )
+
+            if not appearance_description:
+                await interaction.followup.send(
+                    ResponseFormatter.error(
+                        "Failed to process image. The vision model may be unavailable or returned an empty description."
+                    ),
+                    ephemeral=True,
+                )
+                return
+
+            # Save to persona
+            success = bot.agent_core.persona_loader.update_persona_appearance(
+                persona_id, appearance_description
+            )
+
+            if success:
+                # Reload persona to clear cache
+                bot.agent_core.persona_loader.reload_persona(persona_id)
+
+                await interaction.followup.send(
+                    ResponseFormatter.success(
+                        f"✅ Image processed and cached for **{persona.name}** (`{persona_id}`)!\n\n"
+                        f"**Here is how the AI will see this character:**\n"
+                        f"{appearance_description}\n\n"
+                        f"This description will be injected into the system prompt whenever this persona is active."
+                    ),
+                    ephemeral=True,
+                )
+            else:
+                await interaction.followup.send(
+                    ResponseFormatter.error(
+                        f"Failed to save appearance cache for '{persona_id}'. Check logs for details."
+                    ),
+                    ephemeral=True,
+                )
+
+        except Exception as e:
+            await interaction.followup.send(
+                ResponseFormatter.error(f"Error processing image: {str(e)}"),
+                ephemeral=True,
+            )
+
     # Register the persona group
     bot.tree.add_command(persona_group)

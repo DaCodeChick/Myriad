@@ -28,6 +28,7 @@ from core.agent_core import AgentCore
 from core.autonomy_engine import AutonomyEngine
 from core.config import MyriadConfig
 from core.vision_bridge import VisionBridge
+from core.vision_cache_service import VisionCacheService
 from database.activity_tracker import ActivityTracker
 
 
@@ -132,7 +133,10 @@ class MyriadDiscordBot(commands.Bot):
     """Discord bot that wraps the AgentCore engine."""
 
     def __init__(
-        self, agent_core: AgentCore, vision_bridge: Optional[VisionBridge] = None
+        self,
+        agent_core: AgentCore,
+        vision_bridge: Optional[VisionBridge] = None,
+        vision_cache_service: Optional[VisionCacheService] = None,
     ):
         """
         Initialize the Discord bot.
@@ -140,6 +144,7 @@ class MyriadDiscordBot(commands.Bot):
         Args:
             agent_core: The platform-agnostic AI engine
             vision_bridge: Optional vision processing bridge for image handling
+            vision_cache_service: Optional vision cache service for character appearance
         """
         # Discord bot setup with message content intent
         intents = discord.Intents.default()
@@ -150,6 +155,7 @@ class MyriadDiscordBot(commands.Bot):
         # Store reference to core engine
         self.agent_core = agent_core
         self.vision_bridge = vision_bridge
+        self.vision_cache_service = vision_cache_service
 
         # Initialize activity tracker for circadian rhythm engine
         self.activity_tracker = ActivityTracker()
@@ -398,7 +404,9 @@ class MyriadDiscordBot(commands.Bot):
 
 
 def create_discord_bot(
-    agent_core: AgentCore, vision_bridge: Optional[VisionBridge] = None
+    agent_core: AgentCore,
+    vision_bridge: Optional[VisionBridge] = None,
+    vision_cache_service: Optional[VisionCacheService] = None,
 ) -> MyriadDiscordBot:
     """
     Factory function to create and configure the Discord bot.
@@ -406,11 +414,12 @@ def create_discord_bot(
     Args:
         agent_core: The platform-agnostic AI engine
         vision_bridge: Optional vision processing bridge
+        vision_cache_service: Optional vision cache service for character appearance
 
     Returns:
         Configured MyriadDiscordBot instance
     """
-    bot = MyriadDiscordBot(agent_core, vision_bridge)
+    bot = MyriadDiscordBot(agent_core, vision_bridge, vision_cache_service)
 
     # ========================
     # REGISTER COMMAND MODULES
@@ -464,8 +473,24 @@ def run_discord_adapter() -> None:
     else:
         print("ℹ Vision Bridge not configured (set VISION_BASE_URL to enable)")
 
+    # Initialize VisionCacheService if configured
+    vision_cache_service = None
+    if config.vision.enabled:
+        try:
+            vision_cache_service = VisionCacheService(
+                vision_api_key=config.vision.api_key,
+                vision_base_url=config.vision.base_url,
+                vision_model=config.vision.model,
+            )
+            print(f"✓ Vision Cache Service enabled: {config.vision.base_url}")
+        except Exception as e:
+            print(f"⚠ Vision Cache Service initialization failed: {e}")
+            print("  Continuing without vision cache support...")
+    else:
+        print("ℹ Vision Cache Service not configured (set VISION_BASE_URL to enable)")
+
     # Create Discord adapter
-    bot = create_discord_bot(agent_core, vision_bridge)
+    bot = create_discord_bot(agent_core, vision_bridge, vision_cache_service)
 
     # Run bot
     print("Starting Myriad Discord Adapter...")

@@ -385,5 +385,104 @@ def register_mask_commands(bot: "MyriadDiscordBot") -> None:
                 ephemeral=True,
             )
 
+    @mask_group.command(
+        name="set_image",
+        description="Process character image and cache physical appearance for your mask",
+    )
+    @app_commands.describe(
+        name="The name of the mask to update", image="Character image attachment"
+    )
+    async def set_mask_image(
+        interaction: discord.Interaction, name: str, image: discord.Attachment
+    ):
+        """Process a character image and cache the appearance description."""
+        user_id = str(interaction.user.id)
+
+        # Check if vision cache service is available
+        if not hasattr(bot, "vision_cache_service") or bot.vision_cache_service is None:
+            await interaction.response.send_message(
+                ResponseFormatter.error(
+                    "Vision cache service is not configured. "
+                    "Please set VISION_BASE_URL and VISION_MODEL in your environment."
+                ),
+                ephemeral=True,
+            )
+            return
+
+        # Verify mask exists
+        mask = bot.agent_core.user_mask_manager.get_mask(user_id, name)
+        if not mask:
+            await interaction.response.send_message(
+                ResponseFormatter.error(f"Mask '{name}' not found."), ephemeral=True
+            )
+            return
+
+        # Check if attachment is an image
+        if not image.content_type or not image.content_type.startswith("image/"):
+            await interaction.response.send_message(
+                ResponseFormatter.error(
+                    "Attachment must be an image file (PNG, JPG, WEBP, etc.)"
+                ),
+                ephemeral=True,
+            )
+            return
+
+        # Defer response since vision processing may take time
+        await interaction.response.defer(ephemeral=True)
+
+        try:
+            # Download image bytes
+            image_bytes = await image.read()
+
+            # Determine image format
+            image_format = (
+                image.content_type.split("/")[1] if "/" in image.content_type else "png"
+            )
+
+            # Process image through vision model
+            appearance_description = (
+                bot.vision_cache_service.generate_appearance_description(
+                    image_bytes, image_format
+                )
+            )
+
+            if not appearance_description:
+                await interaction.followup.send(
+                    ResponseFormatter.error(
+                        "Failed to process image. The vision model may be unavailable or returned an empty description."
+                    ),
+                    ephemeral=True,
+                )
+                return
+
+            # Save to mask
+            success = bot.agent_core.user_mask_manager.update_mask_appearance(
+                user_id, name, appearance_description
+            )
+
+            if success:
+                await interaction.followup.send(
+                    ResponseFormatter.success(
+                        f"✅ Image processed and cached for mask **{name}**!\n\n"
+                        f"**Here is how the AI will see this character:**\n"
+                        f"{appearance_description}\n\n"
+                        f"This description will be injected into the system prompt whenever you wear this mask."
+                    ),
+                    ephemeral=True,
+                )
+            else:
+                await interaction.followup.send(
+                    ResponseFormatter.error(
+                        f"Failed to save appearance cache for mask '{name}'. Check logs for details."
+                    ),
+                    ephemeral=True,
+                )
+
+        except Exception as e:
+            await interaction.followup.send(
+                ResponseFormatter.error(f"Error processing image: {str(e)}"),
+                ephemeral=True,
+            )
+
     # Register the mask group
     bot.tree.add_command(mask_group)

@@ -27,6 +27,7 @@ class UserMask:
     name: str
     description: str
     background: Optional[str] = None
+    cached_appearance: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert mask to dictionary format."""
@@ -36,6 +37,7 @@ class UserMask:
             "name": self.name,
             "description": self.description,
             "background": self.background,
+            "cached_appearance": self.cached_appearance,
         }
 
 
@@ -72,11 +74,24 @@ class UserMaskManager:
                 name TEXT NOT NULL,
                 description TEXT NOT NULL,
                 background TEXT,
+                cached_appearance TEXT,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(user_id, name)
             )
         """
         )
+
+        # Check if cached_appearance column exists, add it if not (migration)
+        cursor.execute("PRAGMA table_info(user_personas)")
+        columns = [row[1] for row in cursor.fetchall()]
+
+        if "cached_appearance" not in columns:
+            cursor.execute(
+                """
+                ALTER TABLE user_personas 
+                ADD COLUMN cached_appearance TEXT
+            """
+            )
 
         # Add active_mask_id column to user_state if it doesn't exist
         # First check if the column already exists
@@ -151,7 +166,7 @@ class UserMaskManager:
 
         cursor.execute(
             """
-            SELECT id, user_id, name, description, background
+            SELECT id, user_id, name, description, background, cached_appearance
             FROM user_personas
             WHERE user_id = ? AND name = ?
         """,
@@ -168,6 +183,7 @@ class UserMaskManager:
                 name=row["name"],
                 description=row["description"],
                 background=row["background"],
+                cached_appearance=row["cached_appearance"],
             )
 
         return None
@@ -187,7 +203,7 @@ class UserMaskManager:
 
         cursor.execute(
             """
-            SELECT id, user_id, name, description, background
+            SELECT id, user_id, name, description, background, cached_appearance
             FROM user_personas
             WHERE id = ?
         """,
@@ -204,6 +220,7 @@ class UserMaskManager:
                 name=row["name"],
                 description=row["description"],
                 background=row["background"],
+                cached_appearance=row["cached_appearance"],
             )
 
         return None
@@ -223,7 +240,7 @@ class UserMaskManager:
 
         cursor.execute(
             """
-            SELECT id, user_id, name, description, background
+            SELECT id, user_id, name, description, background, cached_appearance
             FROM user_personas
             WHERE user_id = ?
             ORDER BY name
@@ -241,6 +258,7 @@ class UserMaskManager:
                 name=row["name"],
                 description=row["description"],
                 background=row["background"],
+                cached_appearance=row["cached_appearance"],
             )
             for row in rows
         ]
@@ -374,6 +392,42 @@ class UserMaskManager:
         """
 
         cursor.execute(query, params)
+        updated = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+
+        return updated
+
+    def update_mask_appearance(
+        self, user_id: str, name: str, cached_appearance: Optional[str]
+    ) -> bool:
+        """
+        Update the cached_appearance field of an existing mask.
+
+        Args:
+            user_id: User identifier
+            name: Name of the mask to update
+            cached_appearance: New appearance description, or None to clear
+
+        Returns:
+            True if updated, False if mask not found
+        """
+        mask = self.get_mask(user_id, name)
+        if not mask:
+            return False
+
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            UPDATE user_personas
+            SET cached_appearance = ?
+            WHERE user_id = ? AND name = ?
+        """,
+            (cached_appearance, user_id, name),
+        )
+
         updated = cursor.rowcount > 0
         conn.commit()
         conn.close()

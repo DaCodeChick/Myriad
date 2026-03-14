@@ -24,6 +24,7 @@ class PersonaCartridge:
     max_tokens: int
     rules_of_engagement: Optional[List[str]] = None
     background: Optional[str] = None
+    cached_appearance: Optional[str] = None
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "PersonaCartridge":
@@ -37,6 +38,7 @@ class PersonaCartridge:
             max_tokens=data.get("max_tokens", 1000),
             rules_of_engagement=data.get("rules_of_engagement"),
             background=data.get("background"),
+            cached_appearance=data.get("cached_appearance"),
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -53,6 +55,8 @@ class PersonaCartridge:
             result["rules_of_engagement"] = self.rules_of_engagement
         if self.background:
             result["background"] = self.background
+        if self.cached_appearance:
+            result["cached_appearance"] = self.cached_appearance
         return result
 
 
@@ -221,6 +225,44 @@ class PersonaLoader:
 
         except (OSError, ValueError) as e:
             print(f"Error updating persona '{persona_id}': {e}")
+            return False
+
+    def update_persona_appearance(
+        self, persona_id: str, cached_appearance: Optional[str]
+    ) -> bool:
+        """
+        Update the cached_appearance field of an existing persona and save to disk.
+
+        Args:
+            persona_id: The ID of the persona to update
+            cached_appearance: The new appearance description, or None to clear it
+
+        Returns:
+            True if successful, False if persona doesn't exist or update failed
+        """
+        # Load the persona first to ensure it exists
+        persona = self.load_persona(persona_id)
+        if not persona:
+            return False
+
+        # Update the cached_appearance field
+        persona.cached_appearance = cached_appearance
+
+        # Build file path
+        file_path = os.path.join(self.personas_dir, f"{persona_id}.json")
+
+        try:
+            # Convert to dict and write to file with pretty formatting
+            with open(file_path, "w", encoding="utf-8") as f:
+                json.dump(persona.to_dict(), f, indent=2, ensure_ascii=False)
+
+            # Update cache
+            self._cache[persona_id] = persona
+
+            return True
+
+        except (OSError, ValueError) as e:
+            print(f"Error updating persona appearance '{persona_id}': {e}")
             return False
 
     def create_persona(

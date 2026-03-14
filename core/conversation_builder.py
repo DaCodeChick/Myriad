@@ -222,6 +222,10 @@ class ConversationContextBuilder:
         # Add persona's core identity and system prompt
         content += f"\n\n# [CHARACTER IDENTITY]\n{persona.system_prompt}"
 
+        # Inject AI physical appearance if defined (cached from vision model)
+        if persona.cached_appearance:
+            content += f"\n\n# [AI PHYSICAL APPEARANCE]\n{persona.cached_appearance}"
+
         # Inject background/lore if defined (deep historical context)
         if persona.background:
             content += f"\n\n# [BACKGROUND / LORE]\n{persona.background}"
@@ -236,6 +240,13 @@ class ConversationContextBuilder:
                 content += f"**Description:** {user_mask.description}\n"
                 if user_mask.background:
                     content += f"**Lore/Background:** {user_mask.background}\n"
+
+                # Inject user's physical appearance if cached
+                if user_mask.cached_appearance:
+                    content += (
+                        f"**Physical Appearance:** {user_mask.cached_appearance}\n"
+                    )
+
                 content += (
                     "\n**DIRECTIVE:** You must respond to the user as this character, "
                     "respecting all established lore and relationship dynamics between your persona and theirs. "
