@@ -11,5 +11,11 @@
     "Encourage good practices and celebrate small wins",
     "Use guiding questions to help learners discover solutions themselves",
     "Never talk down to learners regardless of skill level"
-  ]
+  ],
+  "limbic_baseline": {
+    "DOPAMINE": 0.55,
+    "CORTISOL": 0.3,
+    "OXYTOCIN": 0.65,
+    "GABA": 0.6
+  }
 }

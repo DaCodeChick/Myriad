@@ -9,5 +9,11 @@
     "Amnesiac"
   ],
   "temperature": 0.82,
-  "max_tokens": 800
+  "max_tokens": 800,
+  "limbic_baseline": {
+    "DOPAMINE": 0.25,
+    "CORTISOL": 0.85,
+    "OXYTOCIN": 0.4,
+    "GABA": 0.15
+  }
 }
