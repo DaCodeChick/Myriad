@@ -12,12 +12,13 @@ without touching the core logic.
 import os
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 from typing import Optional
 
 from core.agent_core import AgentCore
 from core.vision_bridge import VisionBridge
 from core.config import MyriadConfig
+from core.autonomy_engine import AutonomyEngine
 from database.activity_tracker import ActivityTracker
 from adapters.commands.persona_commands import register_persona_commands
 from adapters.commands.memory_commands import register_memory_commands
@@ -149,6 +150,13 @@ class MyriadDiscordBot(commands.Bot):
         # Initialize activity tracker for circadian rhythm engine
         self.activity_tracker = ActivityTracker()
 
+        # Initialize autonomy engine (shares resources with AgentCore)
+        self.autonomy_engine: Optional[AutonomyEngine] = None
+        self.autonomy_enabled = os.getenv("AUTONOMY_ENABLED", "false").lower() == "true"
+        self.autonomy_interval = int(
+            os.getenv("AUTONOMY_CHECK_INTERVAL", "60")
+        )  # minutes
+
     async def setup_hook(self):
         """Setup hook called when bot is ready."""
         # Sync slash commands
@@ -161,6 +169,113 @@ class MyriadDiscordBot(commands.Bot):
         print(f"✓ Connected as: {self.user}")
         print(f"✓ Bot ID: {self.user.id}")
         print(f"✓ Available personas: {', '.join(self.agent_core.list_personas())}")
+
+        # Initialize and start autonomy engine if enabled
+        if self.autonomy_enabled:
+            self._initialize_autonomy_engine()
+            self._start_autonomy_loop()
+
+    def _initialize_autonomy_engine(self):
+        """Initialize the autonomy engine with shared resources from AgentCore."""
+        try:
+            self.autonomy_engine = AutonomyEngine(
+                llm_client=self.agent_core.llm_client,
+                activity_tracker=self.activity_tracker,
+                user_state=self.agent_core.user_state,
+                persona_loader=self.agent_core.persona_loader,
+                user_preferences=self.agent_core.user_preferences,
+                limbic_engine=self.agent_core.limbic_engine,
+            )
+            print(
+                f"✓ Autonomy Engine initialized (interval: {self.autonomy_interval}min)"
+            )
+        except Exception as e:
+            print(f"⚠ Autonomy Engine initialization failed: {e}")
+            self.autonomy_enabled = False
+
+    def _start_autonomy_loop(self):
+        """Start the autonomy check loop."""
+        if not self.autonomy_check_loop.is_running():
+            # Dynamically set the loop interval based on config
+            self.autonomy_check_loop.change_interval(minutes=self.autonomy_interval)
+            self.autonomy_check_loop.start()
+            print(f"✓ Autonomy loop started (every {self.autonomy_interval} minutes)")
+
+    @tasks.loop(
+        minutes=60
+    )  # Default interval, changed dynamically in _start_autonomy_loop
+    async def autonomy_check_loop(self):
+        """Background task that checks all users for spontaneous outreach."""
+        if not self.autonomy_engine:
+            return
+
+        print("\n[Autonomy] Running scheduled check...")
+
+        try:
+            users = self.autonomy_engine.get_all_active_users()
+            print(f"[Autonomy] Checking {len(users)} users for potential outreach")
+
+            for user_id in users:
+                await self.autonomy_engine.check_user_for_outreach(
+                    user_id=user_id,
+                    send_callback=self._send_spontaneous_message,
+                )
+
+            # Periodic cleanup of old activity logs
+            deleted = self.autonomy_engine.cleanup_old_activity_logs(days_to_keep=30)
+            if deleted > 0:
+                print(f"[Autonomy] Cleaned up {deleted} old activity records")
+
+        except Exception as e:
+            print(f"[Autonomy] Error during check loop: {e}")
+
+    @autonomy_check_loop.before_loop
+    async def before_autonomy_check(self):
+        """Wait until the bot is ready before starting the autonomy loop."""
+        await self.wait_until_ready()
+
+    async def _send_spontaneous_message(self, user_id: str, message: str) -> bool:
+        """
+        Send a spontaneous message to a user's last known channel.
+
+        Args:
+            user_id: Discord user ID
+            message: Message content to send
+
+        Returns:
+            True if message was sent successfully, False otherwise
+        """
+        try:
+            # Get the user's last known channel
+            channel_id = self.activity_tracker.get_last_channel(user_id)
+            if not channel_id:
+                print(f"[Autonomy] No last channel found for user {user_id}")
+                return False
+
+            channel = self.get_channel(int(channel_id))
+            if not channel:
+                # Try to fetch the channel if not in cache
+                try:
+                    channel = await self.fetch_channel(int(channel_id))
+                except discord.NotFound:
+                    print(f"[Autonomy] Channel {channel_id} not found")
+                    return False
+
+            # Send the message (chunked if needed)
+            chunks = chunk_message(message, max_length=2000)
+            for chunk in chunks:
+                await channel.send(chunk)
+
+            # Log this activity
+            active_persona = self.agent_core.user_state.get_active_persona(user_id)
+            if active_persona:
+                self.activity_tracker.log_activity(user_id, active_persona)
+
+            return True
+
+        except Exception as e:
+            print(f"[Autonomy] Error sending spontaneous message to {user_id}: {e}")
+            return False
 
     async def on_message(self, message: discord.Message):
         """
