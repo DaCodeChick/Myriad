@@ -6,8 +6,40 @@ Provides type-safe configuration objects with validation and defaults.
 """
 
 import os
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Optional, Set
+
+
+@dataclass
+class DiscordConfig:
+    """Discord-specific configuration."""
+
+    token: str
+    whitelisted_bot_ids: Set[int] = field(default_factory=set)
+
+    @classmethod
+    def from_env(cls) -> "DiscordConfig":
+        """Load Discord configuration from environment variables."""
+        token = os.getenv("DISCORD_TOKEN")
+        if not token:
+            raise ValueError("DISCORD_TOKEN not found in environment")
+
+        # Parse comma-separated bot IDs into a set of integers
+        whitelisted_bot_ids: Set[int] = set()
+        bot_ids_str = os.getenv("WHITELISTED_BOT_IDS", "")
+        if bot_ids_str.strip():
+            for id_str in bot_ids_str.split(","):
+                id_str = id_str.strip()
+                if id_str:
+                    try:
+                        whitelisted_bot_ids.add(int(id_str))
+                    except ValueError:
+                        print(f"⚠ Invalid bot ID in WHITELISTED_BOT_IDS: {id_str}")
+
+        return cls(
+            token=token,
+            whitelisted_bot_ids=whitelisted_bot_ids,
+        )
 
 
 @dataclass
@@ -177,7 +209,7 @@ class MyriadConfig:
     Aggregates all configuration sections for easy access.
     """
 
-    discord_token: str
+    discord: DiscordConfig
     llm: LLMConfig
     vision: VisionConfig
     memory: MemoryConfig
@@ -186,6 +218,11 @@ class MyriadConfig:
     features: FeatureFlags
     universal_rules: UniversalRulesConfig
 
+    @property
+    def discord_token(self) -> str:
+        """Backward compatibility: access token via discord.token."""
+        return self.discord.token
+
     @classmethod
     def from_env(cls) -> "MyriadConfig":
         """Load complete configuration from environment variables.
@@ -193,12 +230,8 @@ class MyriadConfig:
         Raises:
             ValueError: If required configuration is missing
         """
-        discord_token = os.getenv("DISCORD_TOKEN")
-        if not discord_token:
-            raise ValueError("DISCORD_TOKEN not found in environment")
-
         return cls(
-            discord_token=discord_token,
+            discord=DiscordConfig.from_env(),
             llm=LLMConfig.from_env(),
             vision=VisionConfig.from_env(),
             memory=MemoryConfig.from_env(),
@@ -210,11 +243,13 @@ class MyriadConfig:
 
     def __repr__(self) -> str:
         """Return a safe string representation without sensitive data."""
+        whitelist_count = len(self.discord.whitelisted_bot_ids)
         return (
             f"MyriadConfig(\n"
             f"  llm={self.llm.model} @ {self.llm.base_url}\n"
             f"  vision={'enabled' if self.vision.enabled else 'disabled'}\n"
             f"  memory=short_term({self.memory.short_term_limit}), semantic({self.memory.semantic_recall_limit})\n"
             f"  features={sum([self.features.graph_memory_enabled, self.features.limbic_enabled, self.features.digital_pharmacy_enabled, self.features.cadence_degrader_enabled, self.features.metacognition_enabled, self.features.lives_enabled])} enabled\n"
+            f"  bot_whitelist={whitelist_count} bot(s)\n"
             f")"
         )

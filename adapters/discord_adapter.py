@@ -170,6 +170,15 @@ class MyriadDiscordBot(commands.Bot):
         print(f"✓ Bot ID: {self.user.id}")
         print(f"✓ Available personas: {', '.join(self.agent_core.list_personas())}")
 
+        # Log whitelisted bots
+        whitelisted_bots = self.agent_core.config.discord.whitelisted_bot_ids
+        if whitelisted_bots:
+            print(
+                f"✓ Whitelisted bot IDs: {', '.join(str(id) for id in whitelisted_bots)}"
+            )
+        else:
+            print("ℹ No whitelisted bots configured (ignoring all bot messages)")
+
         # Initialize and start autonomy engine if enabled
         if self.autonomy_enabled:
             self._initialize_autonomy_engine()
@@ -283,10 +292,18 @@ class MyriadDiscordBot(commands.Bot):
 
         Messages that mention the bot OR are in DMs are processed by the AgentCore.
         If image attachments are present, they are processed through the vision bridge.
+
+        Bot messages are ignored unless the bot ID is in WHITELISTED_BOT_IDS.
         """
         # Ignore bot's own messages
         if message.author == self.user:
             return
+
+        # Handle bot messages: check whitelist
+        if message.author.bot:
+            whitelisted_bots = self.agent_core.config.discord.whitelisted_bot_ids
+            if message.author.id not in whitelisted_bots:
+                return  # Ignore non-whitelisted bots
 
         # Check if this is a DM or a mention
         is_dm = isinstance(message.channel, discord.DMChannel)
