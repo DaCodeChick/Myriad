@@ -64,9 +64,14 @@ def register_mode_commands(bot: "MyriadDiscordBot") -> None:
             elif mode_enum == BehaviorMode.HENTAI:
                 response = (
                     "🔞 **HENTAI Mode Activated**\n\n"
-                    "Adult content filtering override enabled.\n"
-                    "(Future implementation - currently behaves as NORMAL mode)\n\n"
-                    "Use `/mode normal` to return to standard mode."
+                    "Behavioral override applied. Your persona will now:\n"
+                    "• Adopt exaggerated anime/hentai visual novel tropes\n"
+                    "• React with unnaturally intense, vocal responses\n"
+                    "• Escalate physiological reactions beyond realistic limits\n"
+                    "• Use excessive punctuation and anime-style verbal tics\n"
+                    "• Display hyper-dramatic emotional/physical responses\n\n"
+                    "⚠️ This override supersedes baseline personality constraints.\n\n"
+                    "Use `/mode normal` to return to standard roleplay mode."
                 )
             else:  # NORMAL
                 response = (
@@ -114,6 +119,13 @@ def register_mode_commands(bot: "MyriadDiscordBot") -> None:
             response += "**Active Overrides:**\n"
             if mode_override.bypass_persona:
                 response += "• Persona bypassed (using Assistant prompt)\n"
+            if (
+                mode_override.system_prompt_override
+                and not mode_override.bypass_persona
+            ):
+                response += (
+                    "• Prompt override appended to persona (behavioral modification)\n"
+                )
             if mode_override.disable_limbic:
                 response += "• Limbic System disabled\n"
             if mode_override.disable_cadence:

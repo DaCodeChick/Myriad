@@ -121,7 +121,7 @@ class ConversationContextBuilder:
             and mode_override.bypass_persona
             and mode_override.system_prompt_override
         ):
-            # OOC mode: Use assistant prompt instead of persona
+            # OOC mode: Use assistant prompt instead of persona (complete bypass)
             messages.append(
                 {
                     "role": "system",
@@ -129,11 +129,21 @@ class ConversationContextBuilder:
                 }
             )
         else:
-            # Normal mode: Use persona system prompt
+            # Normal mode or HENTAI mode: Use persona system prompt
+            system_prompt = self._build_system_prompt(persona, user_preferences)
+
+            # HENTAI mode: Append behavioral override at the end (does NOT bypass persona)
+            if (
+                mode_override
+                and not mode_override.bypass_persona
+                and mode_override.system_prompt_override
+            ):
+                system_prompt += "\n\n" + mode_override.system_prompt_override
+
             messages.append(
                 {
                     "role": "system",
-                    "content": self._build_system_prompt(persona, user_preferences),
+                    "content": system_prompt,
                 }
             )
 
