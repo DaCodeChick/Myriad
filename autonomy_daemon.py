@@ -25,6 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from database.activity_tracker import ActivityTracker
 from database.user_state import UserState
 from database.limbic_engine import LimbicEngine
+from database.user_preferences import UserPreferences
 from core.persona_loader import PersonaLoader
 
 
@@ -59,6 +60,7 @@ class AutonomyDaemon:
         self.activity_tracker = ActivityTracker()
         self.user_state = UserState()
         self.persona_loader = PersonaLoader()
+        self.user_preferences = UserPreferences()
 
         # Initialize limbic engine if enabled
         limbic_enabled = os.getenv("LIMBIC_ENABLED", "true").lower() == "true"
@@ -81,6 +83,11 @@ class AutonomyDaemon:
         Args:
             user_id: Discord user ID
         """
+        # Check if user has autonomy enabled
+        if not self.user_preferences.get_preference(user_id, "autonomy_enabled"):
+            # User has disabled autonomy, skip
+            return
+
         # Get user's active persona
         active_persona = self.user_state.get_active_persona(user_id)
         if not active_persona:

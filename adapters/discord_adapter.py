@@ -23,6 +23,7 @@ from adapters.commands.persona_commands import register_persona_commands
 from adapters.commands.memory_commands import register_memory_commands
 from adapters.commands.lives_commands import register_lives_commands
 from adapters.commands.saves_commands import register_saves_commands
+from adapters.commands.config_commands import register_config_commands
 
 
 # ========================
@@ -284,6 +285,7 @@ def create_discord_bot(
     register_memory_commands(bot)
     register_lives_commands(bot)
     register_saves_commands(bot)
+    register_config_commands(bot)
 
     return bot
 

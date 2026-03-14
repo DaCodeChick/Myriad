@@ -75,6 +75,7 @@ class ConversationContextBuilder:
         persona: PersonaCartridge,
         current_message: Optional[str] = None,
         life_id: Optional[str] = None,
+        user_preferences: Optional[Dict[str, bool]] = None,
     ) -> List[Dict[str, str]]:
         """
         Build the complete conversation context for LLM injection.
@@ -84,31 +85,47 @@ class ConversationContextBuilder:
             persona: Current active persona
             current_message: Optional current user message for semantic search
             life_id: Optional timeline/session ID for memory scoping
+            user_preferences: Optional user preference flags
 
         Returns:
             List of messages in OpenAI chat format
         """
+        # Default preferences if not provided
+        if user_preferences is None:
+            user_preferences = {
+                "limbic_enabled": True,
+                "metacognition_enabled": True,
+            }
+
         messages = []
 
         # 1. System Prompt
         messages.append(
-            {"role": "system", "content": self._build_system_prompt(persona)}
+            {
+                "role": "system",
+                "content": self._build_system_prompt(persona, user_preferences),
+            }
         )
 
-        # 2. Limbic State Context (INHALE phase)
-        limbic_context = self._build_limbic_context(user_id, persona.persona_id)
-        if limbic_context:
-            messages.append({"role": "system", "content": limbic_context})
+        # 2. Limbic State Context (INHALE phase) - check user preference
+        if user_preferences.get("limbic_enabled", True):
+            limbic_context = self._build_limbic_context(user_id, persona.persona_id)
+            if limbic_context:
+                messages.append({"role": "system", "content": limbic_context})
 
-        # 3. Substance Modifier (Digital Pharmacy)
-        substance_modifier = self._build_substance_modifier(user_id, persona.persona_id)
-        if substance_modifier:
-            messages.append({"role": "system", "content": substance_modifier})
+        # 3. Substance Modifier (Digital Pharmacy) - requires limbic
+        if user_preferences.get("limbic_enabled", True):
+            substance_modifier = self._build_substance_modifier(
+                user_id, persona.persona_id
+            )
+            if substance_modifier:
+                messages.append({"role": "system", "content": substance_modifier})
 
-        # 4. Previous Internal Thought (Metacognition continuity)
-        thought_context = self._build_thought_context(user_id, persona.persona_id)
-        if thought_context:
-            messages.append({"role": "system", "content": thought_context})
+        # 4. Previous Internal Thought (Metacognition continuity) - check user preference
+        if user_preferences.get("metacognition_enabled", True):
+            thought_context = self._build_thought_context(user_id, persona.persona_id)
+            if thought_context:
+                messages.append({"role": "system", "content": thought_context})
 
         # 5. Knowledge Graph Context
         if current_message:
@@ -132,7 +149,9 @@ class ConversationContextBuilder:
 
         return messages
 
-    def _build_system_prompt(self, persona: PersonaCartridge) -> str:
+    def _build_system_prompt(
+        self, persona: PersonaCartridge, user_preferences: Dict[str, bool]
+    ) -> str:
         """
         Build the complete system prompt including universal rules, persona identity,
         tool definitions, and metacognition instructions.
@@ -185,8 +204,10 @@ class ConversationContextBuilder:
                     "High-importance memories (8-10) will be surfaced more frequently in retrieval, even if semantically distant from the current topic."
                 )
 
-        # Inject metacognition instruction if enabled
-        if self.metacognition_engine:
+        # Inject metacognition instruction if enabled (check both global and user preference)
+        if self.metacognition_engine and user_preferences.get(
+            "metacognition_enabled", True
+        ):
             content += (
                 "\n\n## METACOGNITION PROTOCOL:\n"
                 "Before you reply, you MUST wrap your internal monologue and planning in <thought> and </thought> tags. "

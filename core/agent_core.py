@@ -30,6 +30,7 @@ from database.limbic_modifiers import DigitalPharmacy
 from database.metacognition_engine import MetacognitionEngine
 from database.lives_engine import LivesEngine
 from database.save_states_engine import SaveStatesEngine
+from database.user_preferences import UserPreferences
 from core.persona_loader import PersonaLoader, PersonaCartridge
 from core.tool_registry import ToolRegistry
 from core.cadence_degrader import CadenceDegrader
@@ -93,6 +94,9 @@ class AgentCore:
             db_path=db_path, vector_memory_enabled=config.memory.vector_memory_enabled
         )
         self.persona_loader = PersonaLoader(personas_dir=personas_dir)
+
+        # User Preferences (Per-User Feature Toggles)
+        self.user_preferences = UserPreferences(db_path=db_path)
 
         # Knowledge Graph Memory
         self.graph_memory = (
@@ -246,11 +250,15 @@ class AgentCore:
         Returns:
             List of messages in OpenAI chat format
         """
+        # Get user preferences
+        user_preferences = self.user_preferences.get_preferences(user_id)
+
         return self.context_builder.build(
             user_id=user_id,
             persona=persona,
             current_message=current_message,
             life_id=life_id,
+            user_preferences=user_preferences,
         )
 
     def _save_message_to_memory(
@@ -361,6 +369,9 @@ class AgentCore:
         # Add current message
         messages.append({"role": "user", "content": full_message})
 
+        # Get user preferences for processing
+        user_preferences = self.user_preferences.get_preferences(user_id)
+
         # Process message through pipeline
         def save_message(role: str, content: str):
             self._save_message_to_memory(
@@ -378,6 +389,7 @@ class AgentCore:
             user_id=user_id,
             tool_registry=tool_registry,
             on_message_saved=save_message,
+            user_preferences=user_preferences,
         )
 
         if not final_response:

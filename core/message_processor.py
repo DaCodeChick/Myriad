@@ -70,6 +70,7 @@ class MessageProcessor:
         user_id: str,
         tool_registry: Optional[ToolRegistry] = None,
         on_message_saved: Optional[callable] = None,
+        user_preferences: Optional[Dict[str, bool]] = None,
     ) -> Optional[str]:
         """
         Process messages through the complete AI pipeline.
@@ -81,10 +82,20 @@ class MessageProcessor:
             tool_registry: Optional tool registry for function calling
             on_message_saved: Optional callback for saving messages (assistant/tool messages)
                             Signature: on_message_saved(role: str, content: str)
+            user_preferences: Optional user preference flags
 
         Returns:
             Final AI response string, or None on error
         """
+        # Default preferences if not provided
+        if user_preferences is None:
+            user_preferences = {
+                "limbic_enabled": True,
+                "cadence_degrader_enabled": True,
+                "metacognition_enabled": True,
+                "show_thoughts_inline": True,
+            }
+
         # Execute tool loop and get final response
         final_response = self._execute_tool_loop(
             messages, persona, tool_registry, on_message_saved
@@ -93,18 +104,21 @@ class MessageProcessor:
         if not final_response:
             return None
 
-        # Apply EXHALE phase (metabolic decay)
-        self._apply_limbic_exhale(user_id, persona.persona_id)
+        # Apply EXHALE phase (metabolic decay) - check user preference
+        if user_preferences.get("limbic_enabled", True):
+            self._apply_limbic_exhale(user_id, persona.persona_id)
 
-        # Apply cadence degradation
-        final_response = self._apply_cadence_degradation(
-            final_response, user_id, persona.persona_id
-        )
+        # Apply cadence degradation - check user preference
+        if user_preferences.get("cadence_degrader_enabled", True):
+            final_response = self._apply_cadence_degradation(
+                final_response, user_id, persona.persona_id
+            )
 
-        # Extract and process metacognition
-        final_response = self._extract_metacognition(
-            final_response, user_id, persona.persona_id
-        )
+        # Extract and process metacognition - check user preference
+        if user_preferences.get("metacognition_enabled", True):
+            final_response = self._extract_metacognition(
+                final_response, user_id, persona.persona_id, user_preferences
+            )
 
         return final_response
 
@@ -232,19 +246,24 @@ class MessageProcessor:
         return response
 
     def _extract_metacognition(
-        self, response: str, user_id: str, persona_id: str
+        self,
+        response: str,
+        user_id: str,
+        persona_id: str,
+        user_preferences: Dict[str, bool],
     ) -> str:
         """
         Extract and process internal thoughts from response.
 
         Extracts <thought>...</thought> tags, saves to database, and either:
-        - Formats inline with emoji (if show_thoughts_inline=True)
+        - Formats inline with emoji (if show_thoughts_inline=True in user_preferences)
         - Strips from response and prints to terminal (if show_thoughts_inline=False)
 
         Args:
             response: Response text potentially containing thought tags
             user_id: User identifier
             persona_id: Persona identifier
+            user_preferences: User preference flags
 
         Returns:
             Response with thoughts formatted or stripped
@@ -265,8 +284,9 @@ class MessageProcessor:
                 thought=thought_content,
             )
 
-            # Format or strip thought based on display mode
-            if self.show_thoughts_inline:
+            # Format or strip thought based on user preference
+            show_inline = user_preferences.get("show_thoughts_inline", False)
+            if show_inline:
                 # Display thought inline in italics with emoji
                 formatted_thought = f"*💭 [Thought: {thought_content}]*\n\n"
                 response = re.sub(
