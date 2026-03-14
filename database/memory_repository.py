@@ -244,12 +244,12 @@ class MemoryRepository:
             return []
 
         try:
-            return self.vector_memory.search_memories(
-                user_id=user_id,
-                persona_id=persona_id,
-                life_id=life_id,
+            return self.vector_memory.search_semantic_memories(
                 query=query,
+                user_id=user_id,
+                current_persona=persona_id,
                 top_k=top_k,
+                life_id=life_id,
             )
         except Exception as e:
             print(f"Warning: Vector search failed: {e}")
