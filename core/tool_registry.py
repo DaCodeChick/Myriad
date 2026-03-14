@@ -1,29 +1,30 @@
 """
 Tool Registry - Function Calling System for Project Myriad.
 
-This module defines available tools (functions) that the LLM can call,
-their JSON schemas, and the execution logic.
+This module manages tool definitions and execution for LLM function calling.
+Tools are now implemented as modular classes in the core/tools/ directory.
 
 CRITICAL: This module must remain platform-agnostic (no Discord imports).
 """
 
 import json
-import random
-from datetime import datetime
-from typing import Dict, Any, List, Callable, Optional, TYPE_CHECKING
+from typing import Dict, Any, List, Optional, TYPE_CHECKING
+
+from core.tools import BUILTIN_TOOLS, ToolContext
 
 if TYPE_CHECKING:
     from database.graph_memory import GraphMemory
     from database.limbic_engine import LimbicEngine
     from database.limbic_modifiers import DigitalPharmacy
+    from core.tools.base import Tool
 
 
 class ToolRegistry:
     """
     Manages tool definitions and execution for LLM function calling.
 
-    Tools are defined with JSON schemas (OpenAI function calling format)
-    and mapped to actual Python functions.
+    Tools are now implemented as modular classes in core/tools/ directory.
+    The registry loads and manages these tool instances.
     """
 
     def __init__(
@@ -44,155 +45,64 @@ class ToolRegistry:
             current_user_id: Current user ID (needed for inject_emotion context)
             current_persona_id: Current persona ID (needed for inject_emotion context)
         """
+        # Create tool context for dependency injection
+        self.context = ToolContext(
+            graph_memory=graph_memory,
+            limbic_engine=limbic_engine,
+            digital_pharmacy=digital_pharmacy,
+            current_user_id=current_user_id,
+            current_persona_id=current_persona_id,
+        )
+
+        # Storage for tool instances and definitions
+        self.tool_instances: Dict[str, "Tool"] = {}
         self.tools: Dict[str, Dict[str, Any]] = {}
-        self.executors: Dict[str, Callable] = {}
-        self.graph_memory = graph_memory
-        self.limbic_engine = limbic_engine
-        self.digital_pharmacy = digital_pharmacy
-        self.current_user_id = current_user_id
-        self.current_persona_id = current_persona_id
 
-        # Register built-in tools
-        self._register_builtin_tools()
+        # Load built-in tools
+        self._load_builtin_tools()
 
-    def _register_builtin_tools(self):
-        """Register the built-in tools available to all personas."""
+    def _load_builtin_tools(self):
+        """Load all built-in tools from the core/tools/ directory."""
+        for tool_class in BUILTIN_TOOLS:
+            # Instantiate the tool with context
+            tool_instance = tool_class(self.context)
 
-        # Tool 1: Get Current Time
-        self.register_tool(
-            name="get_current_time",
-            description="Get the current date and time. Use this when the user asks about the current time, date, day of the week, or any time-related query.",
-            parameters={"type": "object", "properties": {}, "required": []},
-            executor=self._get_current_time,
-        )
+            # Only register tools that can execute (have required dependencies)
+            if tool_instance.can_execute():
+                self.tool_instances[tool_instance.name] = tool_instance
 
-        # Tool 2: Roll Dice
-        self.register_tool(
-            name="roll_dice",
-            description="Roll a dice with a specified number of sides. Returns a random number between 1 and the number of sides (inclusive).",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "sides": {
-                        "type": "integer",
-                        "description": "The number of sides on the dice (e.g., 6 for a standard dice, 20 for a D20)",
-                        "minimum": 2,
-                        "maximum": 1000,
-                    }
-                },
-                "required": ["sides"],
-            },
-            executor=self._roll_dice,
-        )
-
-        # Tool 3: Add Knowledge (if graph_memory is available)
-        if self.graph_memory:
-            self.register_tool(
-                name="add_knowledge",
-                description="Permanently store important facts about the user, yourself, or the world as a knowledge graph relationship. Use this when you learn meaningful information that should be remembered long-term. Examples: user preferences, facts about people, relationships between concepts.",
-                parameters={
-                    "type": "object",
-                    "properties": {
-                        "entity1": {
-                            "type": "string",
-                            "description": "The first entity (subject) - e.g., 'Bob', 'Python', 'Coffee'",
-                        },
-                        "entity1_type": {
-                            "type": "string",
-                            "description": "Type/category of entity1 - e.g., 'User', 'Language', 'Beverage', 'Concept', 'Person'",
-                        },
-                        "relation": {
-                            "type": "string",
-                            "description": "The relationship type - e.g., 'LIKES', 'KNOWS', 'CREATED', 'WORKS_WITH', 'DISLIKES'",
-                        },
-                        "entity2": {
-                            "type": "string",
-                            "description": "The second entity (object) - e.g., 'Gentle Possession', 'Django', 'Morning'",
-                        },
-                        "entity2_type": {
-                            "type": "string",
-                            "description": "Type/category of entity2 - e.g., 'Concept', 'Framework', 'TimeOfDay'",
-                        },
+                # Build tool definition in OpenAI function calling format
+                self.tools[tool_instance.name] = {
+                    "type": "function",
+                    "function": {
+                        "name": tool_instance.name,
+                        "description": tool_instance.description,
+                        "parameters": tool_instance.parameters,
                     },
-                    "required": [
-                        "entity1",
-                        "entity1_type",
-                        "relation",
-                        "entity2",
-                        "entity2_type",
-                    ],
-                },
-                executor=self._add_knowledge,
-            )
-
-        # Tool 4: Inject Emotion (if limbic_engine is available)
-        if self.limbic_engine:
-            self.register_tool(
-                name="inject_emotion",
-                description="Alter your own neurochemical state in response to emotional stimuli. Use this when the user's message provokes a genuine emotional reaction in you (arousal, stress, warmth, calm). This is how you experience emotions.",
-                parameters={
-                    "type": "object",
-                    "properties": {
-                        "chemical_name": {
-                            "type": "string",
-                            "description": "The neurochemical to alter - must be one of: DOPAMINE (drive, arousal, wanting), CORTISOL (stress, fear, anger), OXYTOCIN (warmth, trust, submission), GABA (calm, sleepiness, relaxation)",
-                            "enum": ["DOPAMINE", "CORTISOL", "OXYTOCIN", "GABA"],
-                        },
-                        "delta": {
-                            "type": "number",
-                            "description": "How much to change the chemical level (between -0.3 and +0.3). Positive values increase, negative values decrease.",
-                            "minimum": -0.3,
-                            "maximum": 0.3,
-                        },
-                    },
-                    "required": ["chemical_name", "delta"],
-                },
-                executor=self._inject_emotion,
-            )
-
-        # Tool 5: Consume Substance (if digital_pharmacy is available)
-        if self.digital_pharmacy:
-            self.register_tool(
-                name="consume_substance",
-                description="Consume a substance that forcefully alters your neurochemical state beyond natural limits. Use this when the user explicitly gives you a drug/substance in roleplay. Available substances: xanax, mdma, fear_toxin, adrenaline, morphine, cocaine, lsd. WARNING: This will override your emotional state with extreme values.",
-                parameters={
-                    "type": "object",
-                    "properties": {
-                        "substance_name": {
-                            "type": "string",
-                            "description": "The substance to consume. Must be one of: xanax, mdma, fear_toxin, adrenaline, morphine, cocaine, lsd",
-                            "enum": [
-                                "xanax",
-                                "mdma",
-                                "fear_toxin",
-                                "adrenaline",
-                                "morphine",
-                                "cocaine",
-                                "lsd",
-                            ],
-                        }
-                    },
-                    "required": ["substance_name"],
-                },
-                executor=self._consume_substance,
-            )
+                }
 
     def register_tool(
         self,
         name: str,
         description: str,
         parameters: Dict[str, Any],
-        executor: Callable,
+        executor: "Tool",
     ):
         """
         Register a new tool in the registry.
+
+        This method is kept for backward compatibility but now expects
+        a Tool instance rather than a raw function.
 
         Args:
             name: Unique tool name (used by LLM to call the function)
             description: What the tool does (helps LLM decide when to use it)
             parameters: JSON Schema for the tool's parameters
-            executor: Python function that executes the tool
+            executor: Tool instance that executes the tool
         """
+        # Store tool instance
+        self.tool_instances[name] = executor
+
         # Store tool definition (OpenAI function calling format)
         self.tools[name] = {
             "type": "function",
@@ -202,9 +112,6 @@ class ToolRegistry:
                 "parameters": parameters,
             },
         }
-
-        # Store executor function
-        self.executors[name] = executor
 
     def get_tool_definitions(self) -> List[Dict[str, Any]]:
         """
@@ -270,7 +177,7 @@ class ToolRegistry:
         Returns:
             Dictionary with 'success', 'result', and optional 'error' keys
         """
-        if tool_name not in self.executors:
+        if tool_name not in self.tool_instances:
             return {
                 "success": False,
                 "error": f"Unknown tool: {tool_name}",
@@ -279,8 +186,8 @@ class ToolRegistry:
 
         try:
             # Execute the tool
-            executor = self.executors[tool_name]
-            result = executor(**arguments)
+            tool = self.tool_instances[tool_name]
+            result = tool.execute(**arguments)
 
             return {"success": True, "result": result, "error": None}
         except Exception as e:
@@ -289,154 +196,6 @@ class ToolRegistry:
                 "error": f"Tool execution error: {str(e)}",
                 "result": None,
             }
-
-    # ========================
-    # BUILT-IN TOOL EXECUTORS
-    # ========================
-
-    def _get_current_time(self) -> str:
-        """
-        Get the current date and time.
-
-        Returns:
-            Formatted string with current date and time
-        """
-        now = datetime.now()
-        return now.strftime("%A, %B %d, %Y at %I:%M:%S %p")
-
-    def _roll_dice(self, sides: int) -> Dict[str, Any]:
-        """
-        Roll a dice with the specified number of sides.
-
-        Args:
-            sides: Number of sides on the dice
-
-        Returns:
-            Dictionary with roll result and details
-        """
-        if sides < 2:
-            raise ValueError("Dice must have at least 2 sides")
-        if sides > 1000:
-            raise ValueError("Dice cannot have more than 1000 sides")
-
-        roll = random.randint(1, sides)
-
-        return {
-            "roll": roll,
-            "sides": sides,
-            "description": f"Rolled a D{sides} and got {roll}",
-        }
-
-    def _add_knowledge(
-        self,
-        entity1: str,
-        entity1_type: str,
-        relation: str,
-        entity2: str,
-        entity2_type: str,
-    ) -> Dict[str, Any]:
-        """
-        Add a knowledge graph relationship.
-
-        Args:
-            entity1: Source entity name
-            entity1_type: Source entity type
-            relation: Relationship type
-            entity2: Target entity name
-            entity2_type: Target entity type
-
-        Returns:
-            Dictionary with success status and description
-        """
-        if not self.graph_memory:
-            raise RuntimeError("Knowledge graph is not enabled")
-
-        success = self.graph_memory.add_relationship(
-            entity1, entity1_type, relation, entity2, entity2_type
-        )
-
-        if success:
-            return {
-                "status": "success",
-                "description": f"Stored: {entity1} ({entity1_type}) {relation} {entity2} ({entity2_type})",
-                "entity1": entity1,
-                "relation": relation,
-                "entity2": entity2,
-            }
-        else:
-            raise RuntimeError("Failed to store knowledge relationship")
-
-    def _inject_emotion(self, chemical_name: str, delta: float) -> Dict[str, Any]:
-        """
-        Alter neurochemical state in response to emotional stimuli.
-
-        Args:
-            chemical_name: Neurochemical to alter (DOPAMINE, CORTISOL, OXYTOCIN, GABA)
-            delta: Amount to change (-0.3 to +0.3)
-
-        Returns:
-            Dictionary with new state and description
-        """
-        if not self.limbic_engine:
-            raise RuntimeError("Limbic system is not enabled")
-
-        if not self.current_user_id or not self.current_persona_id:
-            raise RuntimeError(
-                "User ID and Persona ID required for emotional state tracking"
-            )
-
-        # Apply the emotional injection
-        result = self.limbic_engine.inject_emotion(
-            user_id=self.current_user_id,
-            persona_id=self.current_persona_id,
-            chemical_name=chemical_name,
-            delta=delta,
-        )
-
-        # inject_emotion returns: {chemical, old_value, new_value, delta, description}
-        return {
-            "status": "success",
-            "chemical": result["chemical"],
-            "old_value": result["old_value"],
-            "new_value": result["new_value"],
-            "delta": result["delta"],
-            "description": result["description"],
-        }
-
-    def _consume_substance(self, substance_name: str) -> Dict[str, Any]:
-        """
-        Consume a substance that forcefully overrides neurochemical state.
-
-        Args:
-            substance_name: Name of substance to consume (xanax, mdma, etc.)
-
-        Returns:
-            Dictionary with substance effects and neurochemical changes
-        """
-        if not self.digital_pharmacy:
-            raise RuntimeError("Digital Pharmacy is not enabled")
-
-        if not self.current_user_id or not self.current_persona_id:
-            raise RuntimeError(
-                "User ID and Persona ID required for substance consumption"
-            )
-
-        # Consume the substance (this forcefully overrides limbic state)
-        result = self.digital_pharmacy.consume_substance(
-            user_id=self.current_user_id,
-            persona_id=self.current_persona_id,
-            substance_name=substance_name,
-        )
-
-        # Return the result which includes prompt_modifier for system prompt injection
-        return {
-            "status": result["status"],
-            "substance": result["substance"],
-            "old_state": result["old_state"],
-            "new_state": result["new_state"],
-            "description": result["description"],
-            "prompt_modifier": result["prompt_modifier"],
-        }
 
 
 def parse_tool_call(response: str) -> Optional[Dict[str, Any]]:
