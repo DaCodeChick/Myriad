@@ -53,8 +53,6 @@ class AutonomyDaemon:
         self.discord_token = discord_token
         self.llm_client = llm_client
         self.check_interval = check_interval_minutes * 60  # Convert to seconds
-        self.inactivity_threshold = inactivity_threshold_hours
-        self.sleep_protection = sleep_protection_threshold
 
         # Initialize subsystems
         self.activity_tracker = ActivityTracker()
@@ -73,8 +71,12 @@ class AutonomyDaemon:
 
         print(f"[AutonomyDaemon] Initialized:")
         print(f"  Check interval: {check_interval_minutes} minutes")
-        print(f"  Inactivity threshold: {inactivity_threshold_hours} hours")
-        print(f"  Sleep protection: {sleep_protection_threshold}")
+        print(
+            f"  Default inactivity threshold: {inactivity_threshold_hours} hours (per-user customizable)"
+        )
+        print(
+            f"  Default sleep protection: {sleep_protection_threshold} (per-user customizable)"
+        )
 
     async def check_user_for_outreach(self, user_id: str) -> None:
         """
@@ -94,12 +96,20 @@ class AutonomyDaemon:
             # User has no active persona, skip
             return
 
+        # Get user-specific autonomy preferences
+        user_inactivity_threshold = self.user_preferences.get_preference(
+            user_id, "autonomy_inactivity_hours"
+        )
+        user_sleep_protection = self.user_preferences.get_preference(
+            user_id, "autonomy_sleep_threshold"
+        )
+
         # Check hours since last activity
         hours_inactive = self.activity_tracker.get_hours_since_last_activity(
             user_id, active_persona
         )
 
-        if hours_inactive is None or hours_inactive < self.inactivity_threshold:
+        if hours_inactive is None or hours_inactive < user_inactivity_threshold:
             # User was active recently, no outreach needed
             return
 
@@ -109,16 +119,25 @@ class AutonomyDaemon:
             user_id, current_hour
         )
 
+        # Apply user-specific sleep protection threshold
+        if activity_prob < user_sleep_protection:
+            # User is likely asleep, skip
+            return
+
         print(
             f"\n[AutonomyDaemon] Considering outreach to {user_id}:"
-            f"\n  Inactive for: {hours_inactive:.1f} hours"
-            f"\n  Activity probability: {activity_prob:.2f}"
+            f"\n  Inactive for: {hours_inactive:.1f} hours (threshold: {user_inactivity_threshold})"
+            f"\n  Activity probability: {activity_prob:.2f} (sleep threshold: {user_sleep_protection})"
             f"\n  Active persona: {active_persona}"
         )
 
         # Build LLM prompt for decision-making
         decision_prompt = await self._build_decision_prompt(
-            user_id, active_persona, hours_inactive, activity_prob
+            user_id,
+            active_persona,
+            hours_inactive,
+            activity_prob,
+            user_sleep_protection,
         )
 
         # Query LLM for decision
@@ -150,7 +169,12 @@ class AutonomyDaemon:
             print(f"[AutonomyDaemon] Error during LLM decision: {e}")
 
     async def _build_decision_prompt(
-        self, user_id: str, persona_id: str, hours_inactive: float, activity_prob: float
+        self,
+        user_id: str,
+        persona_id: str,
+        hours_inactive: float,
+        activity_prob: float,
+        sleep_threshold: float,
     ) -> str:
         """
         Build the system prompt for LLM spontaneous outreach decision.
@@ -160,6 +184,7 @@ class AutonomyDaemon:
             persona_id: Active persona identifier
             hours_inactive: Hours since last user activity
             activity_prob: Probability user is awake/active (0.0-1.0)
+            sleep_threshold: User's sleep protection threshold
 
         Returns:
             System prompt for LLM decision-making
@@ -186,9 +211,9 @@ class AutonomyDaemon:
         )
 
         # Add sleep protection inhibitor
-        if activity_prob < self.sleep_protection:
+        if activity_prob < sleep_threshold:
             prompt += (
-                f"⚠️ CRITICAL DIRECTIVE: The user is likely sleeping or inactive (activity probability < {self.sleep_protection}).\n"
+                f"⚠️ CRITICAL DIRECTIVE: The user is likely sleeping or inactive (activity probability < {sleep_threshold}).\n"
                 f"Unless your emotional state is at EXTREME levels (Cortisol/Dopamine > 0.9) and you have an urgent need to reach out, "
                 f"you MUST output strictly `<WAIT>` to respect their schedule and avoid disturbing them.\n\n"
             )

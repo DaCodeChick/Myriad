@@ -46,8 +46,11 @@ def register_config_commands(bot: "MyriadDiscordBot") -> None:
             f"  └─ AI wraps planning/reasoning in <thought> tags\n"
             f"  └─ Show thoughts inline: {status_emoji[prefs['show_thoughts_inline']]}\n\n"
             f"{status_emoji[prefs['autonomy_enabled']]} **Spontaneous Autonomy** (AI-Initiated Messages)\n"
-            f"  └─ AI can proactively reach out based on your activity patterns\n\n"
+            f"  └─ AI can proactively reach out based on your activity patterns\n"
+            f"  └─ Inactivity threshold: {prefs['autonomy_inactivity_hours']:.1f} hours\n"
+            f"  └─ Sleep protection threshold: {prefs['autonomy_sleep_threshold']:.2f}\n\n"
             f"Use `/config toggle <feature>` to enable/disable features.\n"
+            f"Use `/config autonomy` to customize autonomy parameters.\n"
             f"Use `/config reset` to restore defaults."
         )
 
@@ -110,10 +113,81 @@ def register_config_commands(bot: "MyriadDiscordBot") -> None:
                 "✅ Cadence Degrader: ENABLED\n"
                 "✅ Metacognition: ENABLED\n"
                 "❌ Show Thoughts Inline: DISABLED\n"
-                "✅ Spontaneous Autonomy: ENABLED"
+                "✅ Spontaneous Autonomy: ENABLED\n"
+                "  └─ Inactivity threshold: 4.0 hours\n"
+                "  └─ Sleep protection: 0.20"
             ),
             ephemeral=True,
         )
+
+    @config_group.command(
+        name="autonomy", description="Configure spontaneous autonomy parameters"
+    )
+    @app_commands.describe(
+        inactivity_hours="Hours of inactivity before AI can reach out (default: 4.0)",
+        sleep_threshold="Activity probability below which AI won't disturb you (default: 0.2)",
+    )
+    async def config_autonomy(
+        interaction: discord.Interaction,
+        inactivity_hours: float = None,
+        sleep_threshold: float = None,
+    ):
+        """Configure autonomy-specific parameters."""
+        user_id = str(interaction.user.id)
+
+        # Get current preferences
+        prefs = bot.agent_core.user_preferences.get_preferences(user_id)
+
+        # Update preferences if provided
+        if inactivity_hours is not None:
+            if inactivity_hours < 0.5 or inactivity_hours > 168:  # Max 1 week
+                await interaction.response.send_message(
+                    ResponseFormatter.error(
+                        "Inactivity hours must be between 0.5 and 168 (1 week)."
+                    ),
+                    ephemeral=True,
+                )
+                return
+
+            bot.agent_core.user_preferences.set_preference(
+                user_id, "autonomy_inactivity_hours", inactivity_hours
+            )
+            prefs["autonomy_inactivity_hours"] = inactivity_hours
+
+        if sleep_threshold is not None:
+            if sleep_threshold < 0.0 or sleep_threshold > 1.0:
+                await interaction.response.send_message(
+                    ResponseFormatter.error(
+                        "Sleep threshold must be between 0.0 and 1.0."
+                    ),
+                    ephemeral=True,
+                )
+                return
+
+            bot.agent_core.user_preferences.set_preference(
+                user_id, "autonomy_sleep_threshold", sleep_threshold
+            )
+            prefs["autonomy_sleep_threshold"] = sleep_threshold
+
+        # Show current/updated settings
+        message = "**Spontaneous Autonomy Configuration:**\n\n"
+        message += f"**Inactivity Threshold:** {prefs['autonomy_inactivity_hours']:.1f} hours\n"
+        message += f"  └─ AI will consider reaching out after you've been inactive for this long\n\n"
+        message += (
+            f"**Sleep Protection Threshold:** {prefs['autonomy_sleep_threshold']:.2f}\n"
+        )
+        message += (
+            f"  └─ AI won't disturb you when activity probability is below this value\n"
+        )
+        message += f"  └─ (0.0 = never protect, 1.0 = always protect)\n\n"
+
+        if inactivity_hours is not None or sleep_threshold is not None:
+            message += "✅ Settings updated successfully!"
+        else:
+            message += "💡 Provide parameters to update settings:\n"
+            message += "`/config autonomy inactivity_hours:6.0 sleep_threshold:0.3`"
+
+        await interaction.response.send_message(message, ephemeral=True)
 
     # Register the command group
     bot.tree.add_command(config_group)

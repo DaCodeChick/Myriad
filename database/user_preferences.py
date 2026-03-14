@@ -8,7 +8,7 @@ Part of Project Myriad's configurable feature system.
 """
 
 import sqlite3
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
 
 class UserPreferences:
@@ -37,7 +37,9 @@ class UserPreferences:
                 cadence_degrader_enabled INTEGER DEFAULT 1,
                 metacognition_enabled INTEGER DEFAULT 1,
                 show_thoughts_inline INTEGER DEFAULT 0,
-                autonomy_enabled INTEGER DEFAULT 1
+                autonomy_enabled INTEGER DEFAULT 1,
+                autonomy_inactivity_hours REAL DEFAULT 4.0,
+                autonomy_sleep_threshold REAL DEFAULT 0.2
             )
         """
         )
@@ -45,7 +47,7 @@ class UserPreferences:
         conn.commit()
         conn.close()
 
-    def get_preferences(self, user_id: str) -> Dict[str, bool]:
+    def get_preferences(self, user_id: str) -> Dict[str, Union[bool, float]]:
         """
         Get all preferences for a user.
 
@@ -53,7 +55,7 @@ class UserPreferences:
             user_id: User identifier
 
         Returns:
-            Dictionary of preference flags (all booleans)
+            Dictionary of preference flags (booleans and floats)
         """
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -61,7 +63,8 @@ class UserPreferences:
         cursor.execute(
             """
             SELECT limbic_enabled, cadence_degrader_enabled, metacognition_enabled,
-                   show_thoughts_inline, autonomy_enabled
+                   show_thoughts_inline, autonomy_enabled, autonomy_inactivity_hours,
+                   autonomy_sleep_threshold
             FROM user_preferences
             WHERE user_id = ?
         """,
@@ -78,6 +81,8 @@ class UserPreferences:
                 "metacognition_enabled": bool(row[2]),
                 "show_thoughts_inline": bool(row[3]),
                 "autonomy_enabled": bool(row[4]),
+                "autonomy_inactivity_hours": float(row[5]),
+                "autonomy_sleep_threshold": float(row[6]),
             }
         else:
             # Return defaults if no preferences found
@@ -87,9 +92,11 @@ class UserPreferences:
                 "metacognition_enabled": True,
                 "show_thoughts_inline": False,
                 "autonomy_enabled": True,
+                "autonomy_inactivity_hours": 4.0,
+                "autonomy_sleep_threshold": 0.2,
             }
 
-    def get_preference(self, user_id: str, preference_name: str) -> bool:
+    def get_preference(self, user_id: str, preference_name: str) -> Union[bool, float]:
         """
         Get a specific preference for a user.
 
@@ -98,19 +105,33 @@ class UserPreferences:
             preference_name: Name of preference flag
 
         Returns:
-            Boolean value of the preference
+            Boolean or float value of the preference
         """
         prefs = self.get_preferences(user_id)
-        return prefs.get(preference_name, True)
 
-    def set_preference(self, user_id: str, preference_name: str, value: bool):
+        # Default values based on type
+        defaults = {
+            "limbic_enabled": True,
+            "cadence_degrader_enabled": True,
+            "metacognition_enabled": True,
+            "show_thoughts_inline": False,
+            "autonomy_enabled": True,
+            "autonomy_inactivity_hours": 4.0,
+            "autonomy_sleep_threshold": 0.2,
+        }
+
+        return prefs.get(preference_name, defaults.get(preference_name, True))
+
+    def set_preference(
+        self, user_id: str, preference_name: str, value: Union[bool, float]
+    ):
         """
         Set a specific preference for a user.
 
         Args:
             user_id: User identifier
             preference_name: Name of preference flag
-            value: Boolean value to set
+            value: Boolean or float value to set
         """
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -122,11 +143,16 @@ class UserPreferences:
             "metacognition_enabled",
             "show_thoughts_inline",
             "autonomy_enabled",
+            "autonomy_inactivity_hours",
+            "autonomy_sleep_threshold",
         ]
 
         if preference_name not in valid_preferences:
             conn.close()
             raise ValueError(f"Invalid preference name: {preference_name}")
+
+        # Convert boolean to int for storage, keep floats as-is
+        stored_value = int(value) if isinstance(value, bool) else value
 
         # Insert or update preference
         cursor.execute(
@@ -135,7 +161,7 @@ class UserPreferences:
             VALUES (?, ?)
             ON CONFLICT(user_id) DO UPDATE SET {preference_name} = ?
         """,
-            (user_id, int(value), int(value)),
+            (user_id, stored_value, stored_value),
         )
 
         conn.commit()
