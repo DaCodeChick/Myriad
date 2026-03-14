@@ -44,15 +44,26 @@ Before implementing any feature or making changes, follow the **RDSSC** principl
    - **Short-Term Memory:** Last N messages (default: 10) in exact chronological order for immediate conversation flow
    - **Long-Term Semantic Memory:** ChromaDB vector search for recalling older, contextually relevant conversations
    - **Knowledge Graph Memory:** Entity-relationship storage for factual knowledge (people, preferences, facts about the world)
+   - **Weighted Priority Memory System:** Importance scoring (1-10) to distinguish between trivial information and critical psychological anchors
+     - **Importance Scale:**
+       - 1-3: Trivial/casual (favorite color, small talk)
+       - 4-6: Standard facts (work, hobbies) [DEFAULT]
+       - 7-9: Significant (values, boundaries, major life events)
+       - 10: CORE ANCHORS (trauma, hard limits, life-threatening info)
+     - **Weighted Retrieval:** `final_score = (semantic_similarity × SIMILARITY_WEIGHT) + (importance × IMPORTANCE_WEIGHT)`
+     - **Configurable via environment:**
+       - `MEMORY_SIMILARITY_WEIGHT=0.5` - Weight for semantic similarity (default: 0.5)
+       - `MEMORY_IMPORTANCE_WEIGHT=0.5` - Weight for importance score (default: 0.5)
+     - High-importance memories (8-10) surface even when semantically distant from current topic
    - **Limbic System (Emotional Neurochemistry):** Dynamic emotional state tracking via four neurochemicals (DOPAMINE, CORTISOL, OXYTOCIN, GABA)
    - **Context Construction Order:**
-     1. System Prompt (persona + rules + tool definitions)
+     1. System Prompt (persona + rules + tool definitions + importance scoring guidelines)
      2. **Limbic State Context (INHALE - first-person somatic emotional state)**
-     3. Knowledge Graph Context (relevant facts extracted by keywords from user message)
-     4. Long-Term Recalled Context (from ChromaDB semantic search)
+     3. Knowledge Graph Context (relevant facts extracted by keywords from user message, sorted by importance)
+     4. Long-Term Recalled Context (from ChromaDB semantic search with weighted priority scoring)
      5. Short-Term Conversation History (last 10 messages chronologically)
      6. Current user message
-   - This prevents "Alzheimer's disease" while maintaining long-term semantic recall, factual knowledge, and emotional continuity.
+   - This prevents "Alzheimer's disease" while maintaining long-term semantic recall, factual knowledge, emotional continuity, and critical information preservation.
 6. **Code Style:** Keep files modular. Do not dump everything into `main.py`. Separate the database logic, the Discord event loop, and the LLM API calls.
 7. **Tool Use (Function Calling):** The bot supports tool/function calling where the LLM can request to execute predefined Python functions. Tools are registered in `core/tool_registry.py` and executed through a loop in `core/agent_core.py`:
    - **Tool Execution Loop:**
@@ -66,25 +77,26 @@ Before implementing any feature or making changes, follow the **RDSSC** principl
    - **Built-in Tools:**
      - `get_current_time()` - Returns current date/time
      - `roll_dice(sides)` - Rolls a dice with N sides
-     - `add_knowledge(entity1, entity1_type, relation, entity2, entity2_type)` - Stores facts in knowledge graph
+      - `add_knowledge(entity1, entity1_type, relation, entity2, entity2_type, importance_score)` - Stores facts in knowledge graph with importance rating (1-10)
      - `inject_emotion(chemical_name, delta)` - Alters neurochemical state (DOPAMINE/CORTISOL/OXYTOCIN/GABA by ±0.3)
      - `consume_substance(substance_name)` - Digital Pharmacy: Consume a substance that forcefully overrides limbic state beyond natural limits
    - Tools remain platform-agnostic (no Discord imports in tool logic)
 8. **Knowledge Graph Memory:** The bot can permanently store factual knowledge as entity-relationship triplets:
    - **Database:** SQLite-based graph (`database/graph_memory.py`) with two tables:
-     - `entities` - Nodes (people, concepts, objects, etc.) with id, name, type, description
-     - `relationships` - Edges (source_id, target_id, relation_type)
-   - **Storage Tool:** LLM can call `add_knowledge()` to store facts:
-     - Example: `add_knowledge("Bob", "User", "LIKES", "Gentle Possession", "Concept")`
+     - `entities` - Nodes (people, concepts, objects, etc.) with id, name, type, description, importance_score (1-10)
+     - `relationships` - Edges (source_id, target_id, relation_type, importance_score)
+   - **Storage Tool:** LLM can call `add_knowledge()` to store facts with importance ratings:
+     - Example: `add_knowledge("Bob", "User", "LIKES", "Gentle Possession", "Concept", importance_score=4)`
+     - Example: `add_knowledge("Bob", "User", "HAS_PTSD_FROM", "Car Accidents", "Trauma", importance_score=10)`
    - **Retrieval Pipeline:** 
      1. Extract keywords from user message
-     2. Search entities table for matching names
-     3. Retrieve all connected relationships
-     4. Inject as `[Knowledge Graph Context]` at top of system prompt
+     2. Search entities table for matching names (sorted by importance_score)
+     3. Retrieve all connected relationships (sorted by importance_score)
+     4. Inject as `[Knowledge Graph Context]` with visual indicators ([CRITICAL], [IMPORTANT]) for high-priority facts
    - **Configurable via environment:**
      - `GRAPH_MEMORY_ENABLED=true` - Enable/disable knowledge graph
      - `GRAPH_DB_PATH=data/knowledge_graph.db` - Path to graph database
-   - The graph is automatically queried on every message to inject relevant factual context
+   - The graph is automatically queried on every message to inject relevant factual context, prioritizing critical information
 9. **Limbic System (Emotional Neurochemistry):** The bot simulates emotional state via a neurochemical model:
    - **Architecture:**
      - Four neurochemicals: DOPAMINE (drive, arousal), CORTISOL (stress, anger), OXYTOCIN (warmth, trust), GABA (calm, relaxation)
