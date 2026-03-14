@@ -19,7 +19,7 @@ from typing import Optional, Callable, Awaitable, Tuple
 from openai import OpenAI
 
 from database.activity_tracker import ActivityTracker
-from database.user_state import UserState
+from database.user_state import UserStateManager
 from database.limbic_engine import LimbicEngine
 from database.user_preferences import UserPreferences
 from core.persona_loader import PersonaLoader
@@ -43,7 +43,7 @@ class AutonomyEngine:
         self,
         llm_client: OpenAI,
         activity_tracker: ActivityTracker,
-        user_state: UserState,
+        user_state: UserStateManager,
         persona_loader: PersonaLoader,
         user_preferences: UserPreferences,
         limbic_engine: Optional[LimbicEngine] = None,
