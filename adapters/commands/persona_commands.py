@@ -94,11 +94,9 @@ def register_persona_commands(bot: "MyriadDiscordBot") -> None:
             )
 
             if persona.background:
-                # Truncate background if too long for display
-                bg_preview = persona.background[:200]
-                if len(persona.background) > 200:
-                    bg_preview += "..."
-                response += f"\n• Background: {bg_preview}"
+                # Show "Has background" indicator with character count
+                # User can use /persona view_background to see full text
+                response += f"\n• Background: ✓ Defined ({len(persona.background)} chars) - use `/persona view_background {persona.persona_id}` to view"
 
             await interaction.response.send_message(
                 response,
