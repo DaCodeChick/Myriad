@@ -79,6 +79,7 @@ class MemoryRepository:
         content: str,
         visibility_scope: str,
         life_id: str,
+        importance_score: int = 5,
     ) -> int:
         """
         Add a memory to both SQL and vector storage.
@@ -90,6 +91,7 @@ class MemoryRepository:
             content: Message content
             visibility_scope: GLOBAL or ISOLATED
             life_id: Timeline identifier
+            importance_score: Importance rating 1-10 (default: 5)
 
         Returns:
             Memory ID (primary key)
@@ -114,11 +116,11 @@ class MemoryRepository:
             ),
         )
 
-        memory_id = cursor.lastrowid
+        memory_id = cursor.lastrowid or 0
         conn.commit()
         conn.close()
 
-        # Also add to vector memory if enabled
+        # Also add to vector memory if enabled (with importance_score)
         if self.vector_memory_enabled and self.vector_memory:
             try:
                 self.vector_memory.add_memory(
@@ -130,6 +132,7 @@ class MemoryRepository:
                     visibility_scope=visibility_scope,
                     life_id=life_id,
                     timestamp=timestamp,
+                    importance_score=importance_score,
                 )
             except Exception as e:
                 print(f"Warning: Failed to add to vector memory: {e}")

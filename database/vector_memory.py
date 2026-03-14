@@ -73,6 +73,7 @@ class VectorMemory:
         visibility_scope: str = "ISOLATED",
         life_id: Optional[str] = None,
         timestamp: Optional[str] = None,
+        importance_score: int = 5,
     ):
         """
         Add a memory to the vector database.
@@ -86,9 +87,17 @@ class VectorMemory:
             visibility_scope: 'GLOBAL' or 'ISOLATED'
             life_id: Timeline/session ID (optional)
             timestamp: ISO timestamp (defaults to now)
+            importance_score: Importance rating 1-10 (default=5)
+                1-3: Trivial/casual information
+                4-6: Standard facts
+                7-9: Significant information
+                10: Core anchors (trauma, hard limits)
         """
         if timestamp is None:
             timestamp = datetime.utcnow().isoformat()
+
+        # Clamp importance_score to valid range
+        importance_score = max(1, min(10, importance_score))
 
         # Generate embedding
         embedding = self.embedding_model.encode(content).tolist()
@@ -100,6 +109,7 @@ class VectorMemory:
             "role": role,
             "visibility_scope": visibility_scope,
             "timestamp": timestamp,
+            "importance_score": importance_score,
         }
 
         # Add life_id if provided
@@ -123,12 +133,16 @@ class VectorMemory:
         life_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Search for semantically similar memories using vector similarity.
+        Search for semantically similar memories using weighted priority scoring.
 
         Applies the Automated Discretion Engine filters:
         - visibility_scope = 'GLOBAL' (shared), OR
         - origin_persona = current_persona (isolated to this persona)
         - life_id = current life (if provided)
+
+        Weighted Priority Scoring:
+        - Final Score = (semantic_similarity × SIMILARITY_WEIGHT) + (importance × IMPORTANCE_WEIGHT)
+        - Memories are ranked by final score, not just semantic distance
 
         Args:
             query: The query text to search for
@@ -138,8 +152,12 @@ class VectorMemory:
             life_id: Optional life/timeline ID to filter by
 
         Returns:
-            List of memory dictionaries with content, metadata, and distance scores
+            List of memory dictionaries with content, metadata, and weighted scores
         """
+        # Load weights from environment (fallback to 50/50 split)
+        similarity_weight = float(os.getenv("MEMORY_SIMILARITY_WEIGHT", "0.5"))
+        importance_weight = float(os.getenv("MEMORY_IMPORTANCE_WEIGHT", "0.5"))
+
         # Generate query embedding
         query_embedding = self.embedding_model.encode(query).tolist()
 
@@ -160,27 +178,50 @@ class VectorMemory:
         if life_id:
             where_filter["$and"].append({"life_id": {"$eq": life_id}})
 
-        # Query ChromaDB
+        # Query ChromaDB - fetch more results than needed for re-ranking
+        # We fetch 3x top_k to ensure we have enough high-importance memories
+        fetch_limit = min(top_k * 3, 50)  # Cap at 50 to avoid excessive fetching
+
         results = self.collection.query(
             query_embeddings=[query_embedding],
-            n_results=top_k,
+            n_results=fetch_limit,
             where=where_filter,
             include=["documents", "metadatas", "distances"],
         )
 
-        # Format results
+        # Format and apply weighted scoring
         memories = []
         if results["ids"] and results["ids"][0]:
             for i in range(len(results["ids"][0])):
+                metadata = results["metadatas"][0][i]
+                distance = results["distances"][0][i]
+
+                # Convert distance to similarity score (0.0-1.0)
+                # ChromaDB typically uses L2 distance, range ~0.0-2.0
+                similarity = max(0.0, 1.0 - (distance / 2.0))
+
+                # Get importance score from metadata (default to 5 if missing)
+                importance_score = metadata.get("importance_score", 5)
+                normalized_importance = importance_score / 10.0
+
+                # Calculate weighted final score
+                final_score = (similarity * similarity_weight) + (
+                    normalized_importance * importance_weight
+                )
+
                 memory = {
                     "id": results["ids"][0][i],
                     "content": results["documents"][0][i],
-                    "metadata": results["metadatas"][0][i],
-                    "distance": results["distances"][0][i],
+                    "metadata": metadata,
+                    "distance": distance,
+                    "similarity": similarity,
+                    "final_score": final_score,
                 }
                 memories.append(memory)
 
-        return memories
+        # Sort by final_score (highest first) and return top_k
+        memories.sort(key=lambda m: m["final_score"], reverse=True)
+        return memories[:top_k]
 
     def get_memory_count(self, user_id: Optional[str] = None) -> int:
         """

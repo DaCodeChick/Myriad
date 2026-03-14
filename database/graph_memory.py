@@ -42,7 +42,11 @@ class GraphMemory:
     # ========================
 
     def add_entity(
-        self, name: str, entity_type: str, description: Optional[str] = None
+        self,
+        name: str,
+        entity_type: str,
+        description: Optional[str] = None,
+        importance_score: int = 5,
     ) -> int:
         """
         Add or update an entity in the knowledge graph.
@@ -51,11 +55,14 @@ class GraphMemory:
             name: Entity name (e.g., "Bob", "Python", "Gentle Possession")
             entity_type: Category (e.g., "User", "Language", "Concept")
             description: Optional description of the entity
+            importance_score: Importance rating 1-10 (default: 5)
 
         Returns:
             Entity ID (existing or newly created)
         """
-        return self.repository.add_entity(name, entity_type, description)
+        return self.repository.add_entity(
+            name, entity_type, description, importance_score
+        )
 
     def add_relationship(
         self,
@@ -64,6 +71,7 @@ class GraphMemory:
         relation: str,
         entity2: str,
         entity2_type: str,
+        importance_score: int = 5,
     ) -> bool:
         """
         Add a relationship between two entities.
@@ -75,15 +83,16 @@ class GraphMemory:
             relation: Relationship type (e.g., "LIKES", "KNOWS", "CREATED")
             entity2: Target entity name
             entity2_type: Target entity type
+            importance_score: Importance rating 1-10 (default: 5)
 
         Returns:
             True if relationship was added/updated, False on error
 
         Example:
-            add_relationship("Bob", "User", "LIKES", "Gentle Possession", "Concept")
+            add_relationship("Bob", "User", "LIKES", "Gentle Possession", "Concept", importance_score=7)
         """
         return self.repository.add_relationship(
-            entity1, entity1_type, relation, entity2, entity2_type
+            entity1, entity1_type, relation, entity2, entity2_type, importance_score
         )
 
     def get_entity_by_name(self, name: str) -> Optional[Dict[str, Any]]:

@@ -159,6 +159,32 @@ class ConversationContextBuilder:
             if tool_definitions:
                 content += tool_definitions
 
+                # Add importance scoring guidelines for memory tools
+                content += (
+                    "\n\n## MEMORY IMPORTANCE SCORING:\n"
+                    "When storing information using memory tools (like add_knowledge), use the importance_score parameter (1-10) to indicate how critical the information is:\n\n"
+                    "**1-3: Trivial/Casual**\n"
+                    "- Small talk preferences (favorite color, weather opinions)\n"
+                    "- Casual interests or passing remarks\n"
+                    "- Easily changeable preferences\n\n"
+                    "**4-6: Standard Facts** [DEFAULT]\n"
+                    "- Work, occupation, or hobbies\n"
+                    "- General interests and activities\n"
+                    "- Normal biographical information\n\n"
+                    "**7-9: Significant Information**\n"
+                    "- Personal values and core beliefs\n"
+                    "- Important boundaries or preferences\n"
+                    "- Major life events or relationships\n"
+                    "- Strong emotional attachments or aversions\n\n"
+                    "**10: CORE ANCHORS (Critical)**\n"
+                    "- Severe trauma or PTSD triggers\n"
+                    "- Hard limits and absolute boundaries\n"
+                    "- Life-threatening allergies or medical conditions\n"
+                    "- Core identity elements that must never be violated\n\n"
+                    "Score information accurately based on its impact on the user's wellbeing and your future interactions. "
+                    "High-importance memories (8-10) will be surfaced more frequently in retrieval, even if semantically distant from the current topic."
+                )
+
         # Inject metacognition instruction if enabled
         if self.metacognition_engine:
             content += (

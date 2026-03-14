@@ -39,6 +39,7 @@ class GraphRepository:
                 name TEXT NOT NULL COLLATE NOCASE,
                 type TEXT NOT NULL,
                 description TEXT,
+                importance_score INTEGER DEFAULT 5,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(name, type)
             )
@@ -61,6 +62,7 @@ class GraphRepository:
                 source_id INTEGER NOT NULL,
                 target_id INTEGER NOT NULL,
                 relation_type TEXT NOT NULL,
+                importance_score INTEGER DEFAULT 5,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (source_id) REFERENCES entities(id) ON DELETE CASCADE,
                 FOREIGN KEY (target_id) REFERENCES entities(id) ON DELETE CASCADE,
@@ -88,7 +90,11 @@ class GraphRepository:
         conn.close()
 
     def add_entity(
-        self, name: str, entity_type: str, description: Optional[str] = None
+        self,
+        name: str,
+        entity_type: str,
+        description: Optional[str] = None,
+        importance_score: int = 5,
     ) -> int:
         """
         Add or update an entity in the knowledge graph.
@@ -97,27 +103,37 @@ class GraphRepository:
             name: Entity name (e.g., "Bob", "Python", "Gentle Possession")
             entity_type: Category (e.g., "User", "Language", "Concept")
             description: Optional description of the entity
+            importance_score: Importance rating 1-10 (default=5)
+                1-3: Trivial/casual information
+                4-6: Standard facts
+                7-9: Significant information
+                10: Core anchors (trauma, hard limits)
 
         Returns:
             Entity ID (existing or newly created)
         """
+        # Clamp importance_score to valid range
+        importance_score = max(1, min(10, importance_score))
+
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
+
+        entity_id: int = 0  # Initialize to satisfy type checker
 
         try:
             # Try to insert new entity
             cursor.execute(
                 """
-                INSERT INTO entities (name, type, description)
-                VALUES (?, ?, ?)
+                INSERT INTO entities (name, type, description, importance_score)
+                VALUES (?, ?, ?, ?)
             """,
-                (name.strip(), entity_type.strip(), description),
+                (name.strip(), entity_type.strip(), description, importance_score),
             )
-            entity_id = cursor.lastrowid
+            entity_id = cursor.lastrowid or 0
             conn.commit()
 
         except sqlite3.IntegrityError:
-            # Entity already exists, get its ID and update description if provided
+            # Entity already exists, get its ID and update description/importance if provided
             cursor.execute(
                 """
                 SELECT id FROM entities 
@@ -125,17 +141,22 @@ class GraphRepository:
             """,
                 (name.strip(), entity_type.strip()),
             )
-            entity_id = cursor.fetchone()[0]
+            result = cursor.fetchone()
+            if result is None:
+                conn.close()
+                raise ValueError(f"Entity lookup failed for: {name} ({entity_type})")
+            entity_id = int(result[0])
 
-            # Update description if provided
-            if description:
+            # Update description and importance if provided
+            if description or importance_score != 5:
                 cursor.execute(
                     """
                     UPDATE entities 
-                    SET description = ? 
+                    SET description = COALESCE(?, description),
+                        importance_score = ?
                     WHERE id = ?
                 """,
-                    (description, entity_id),
+                    (description, importance_score, entity_id),
                 )
                 conn.commit()
 
@@ -149,6 +170,7 @@ class GraphRepository:
         relation: str,
         entity2: str,
         entity2_type: str,
+        importance_score: int = 5,
     ) -> bool:
         """
         Add a relationship between two entities.
@@ -160,14 +182,22 @@ class GraphRepository:
             relation: Relationship type (e.g., "LIKES", "KNOWS", "CREATED")
             entity2: Target entity name
             entity2_type: Target entity type
+            importance_score: Importance rating 1-10 (default=5)
+                1-3: Trivial/casual information
+                4-6: Standard facts
+                7-9: Significant information
+                10: Core anchors (trauma, hard limits)
 
         Returns:
             True if relationship was added/updated, False on error
 
         Example:
-            add_relationship("Bob", "User", "LIKES", "Gentle Possession", "Concept")
+            add_relationship("Bob", "User", "LIKES", "Gentle Possession", "Concept", importance_score=7)
         """
         try:
+            # Clamp importance_score to valid range
+            importance_score = max(1, min(10, importance_score))
+
             # Ensure both entities exist
             source_id = self.add_entity(entity1, entity1_type)
             target_id = self.add_entity(entity2, entity2_type)
@@ -178,10 +208,10 @@ class GraphRepository:
 
             cursor.execute(
                 """
-                INSERT OR IGNORE INTO relationships (source_id, target_id, relation_type)
-                VALUES (?, ?, ?)
+                INSERT OR IGNORE INTO relationships (source_id, target_id, relation_type, importance_score)
+                VALUES (?, ?, ?, ?)
             """,
-                (source_id, target_id, relation.strip().upper()),
+                (source_id, target_id, relation.strip().upper(), importance_score),
             )
 
             conn.commit()
@@ -207,7 +237,7 @@ class GraphRepository:
 
         cursor.execute(
             """
-            SELECT id, name, type, description, created_at
+            SELECT id, name, type, description, importance_score, created_at
             FROM entities
             WHERE name = ? COLLATE NOCASE
             LIMIT 1
@@ -224,19 +254,21 @@ class GraphRepository:
                 "name": row[1],
                 "type": row[2],
                 "description": row[3],
-                "created_at": row[4],
+                "importance_score": row[4],
+                "created_at": row[5],
             }
         return None
 
     def get_relationships_for_entity(self, entity_name: str) -> List[Dict[str, Any]]:
         """
         Get all relationships connected to an entity (incoming and outgoing).
+        Sorted by importance_score (highest first).
 
         Args:
             entity_name: Name of the entity
 
         Returns:
-            List of relationship dictionaries with entity details
+            List of relationship dictionaries with entity details and importance scores
 
         Example result:
             [
@@ -245,7 +277,8 @@ class GraphRepository:
                     "source_type": "User",
                     "relation": "LIKES",
                     "target": "Gentle Possession",
-                    "target_type": "Concept"
+                    "target_type": "Concept",
+                    "importance_score": 7
                 }
             ]
         """
@@ -257,6 +290,7 @@ class GraphRepository:
         cursor = conn.cursor()
 
         # Get all relationships where this entity is source or target
+        # Sort by importance_score descending (highest importance first)
         cursor.execute(
             """
             SELECT 
@@ -264,12 +298,13 @@ class GraphRepository:
                 e1.type as source_type,
                 r.relation_type,
                 e2.name as target_name,
-                e2.type as target_type
+                e2.type as target_type,
+                r.importance_score
             FROM relationships r
             JOIN entities e1 ON r.source_id = e1.id
             JOIN entities e2 ON r.target_id = e2.id
             WHERE r.source_id = ? OR r.target_id = ?
-            ORDER BY r.created_at DESC
+            ORDER BY r.importance_score DESC, r.created_at DESC
         """,
             (entity["id"], entity["id"]),
         )
@@ -286,6 +321,9 @@ class GraphRepository:
                     "relation": row[2],
                     "target": row[3],
                     "target_type": row[4],
+                    "importance_score": row[5]
+                    if len(row) > 5
+                    else 5,  # Default to 5 if missing
                 }
             )
 
@@ -294,12 +332,13 @@ class GraphRepository:
     def get_all_relationships(self, limit: int = 100) -> List[Dict[str, Any]]:
         """
         Get all relationships in the knowledge graph.
+        Sorted by importance_score (highest first).
 
         Args:
             limit: Maximum number of relationships to return
 
         Returns:
-            List of all relationships
+            List of all relationships with importance scores
         """
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -311,11 +350,12 @@ class GraphRepository:
                 e1.type as source_type,
                 r.relation_type,
                 e2.name as target_name,
-                e2.type as target_type
+                e2.type as target_type,
+                r.importance_score
             FROM relationships r
             JOIN entities e1 ON r.source_id = e1.id
             JOIN entities e2 ON r.target_id = e2.id
-            ORDER BY r.created_at DESC
+            ORDER BY r.importance_score DESC, r.created_at DESC
             LIMIT ?
         """,
             (limit,),
@@ -333,6 +373,9 @@ class GraphRepository:
                     "relation": row[2],
                     "target": row[3],
                     "target_type": row[4],
+                    "importance_score": row[5]
+                    if len(row) > 5
+                    else 5,  # Default to 5 if missing
                 }
             )
 

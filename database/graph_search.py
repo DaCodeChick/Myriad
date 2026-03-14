@@ -94,12 +94,13 @@ class GraphSearch:
     def search_entities_by_keywords(self, keywords: List[str]) -> List[Dict[str, Any]]:
         """
         Search for entities matching any of the provided keywords.
+        Results are sorted by importance_score (highest first).
 
         Args:
             keywords: List of search terms
 
         Returns:
-            List of matching entities with their relationships
+            List of matching entities with their relationships, sorted by importance
         """
         if not keywords:
             return []
@@ -108,14 +109,16 @@ class GraphSearch:
         cursor = conn.cursor()
 
         # Build query to search for any keyword in entity names
+        # Sort by importance_score descending (highest importance first)
         placeholders = " OR ".join(["name LIKE ? COLLATE NOCASE"] * len(keywords))
         query_params = [f"%{kw}%" for kw in keywords]
 
         cursor.execute(
             f"""
-            SELECT DISTINCT name
+            SELECT DISTINCT name, importance_score
             FROM entities
             WHERE {placeholders}
+            ORDER BY importance_score DESC
         """,
             query_params,
         )
@@ -127,15 +130,23 @@ class GraphSearch:
         results = []
         for row in rows:
             entity_name = row[0]
+            entity_importance = row[1] if len(row) > 1 else 5  # Default to 5 if missing
             relationships = self.repository.get_relationships_for_entity(entity_name)
             if relationships:
-                results.append({"entity": entity_name, "relationships": relationships})
+                results.append(
+                    {
+                        "entity": entity_name,
+                        "importance": entity_importance,
+                        "relationships": relationships,
+                    }
+                )
 
         return results
 
     def get_knowledge_context(self, user_message: str) -> str:
         """
         Extract keywords from user message and retrieve relevant knowledge graph context.
+        Results are prioritized by importance_score.
 
         This is the main retrieval function called by AgentCore.
 
@@ -157,9 +168,11 @@ class GraphSearch:
         if not results:
             return ""
 
-        # Format as context for LLM
+        # Format as context for LLM with importance indicators
         context = "\n\n## KNOWLEDGE GRAPH CONTEXT:\n\n"
-        context += "Relevant facts from your knowledge graph:\n\n"
+        context += (
+            "Relevant facts from your knowledge graph (sorted by importance):\n\n"
+        )
 
         for result in results:
             entity = result["entity"]
@@ -167,7 +180,15 @@ class GraphSearch:
 
             context += f"**{entity}:**\n"
             for rel in relationships:
-                context += f"  • {rel['source']} ({rel['source_type']}) {rel['relation']} {rel['target']} ({rel['target_type']})\n"
+                # Add importance indicator for high-priority relationships
+                importance = rel.get("importance_score", 5)
+                indicator = ""
+                if importance >= 8:
+                    indicator = " [CRITICAL]"
+                elif importance >= 7:
+                    indicator = " [IMPORTANT]"
+
+                context += f"  • {rel['source']} ({rel['source_type']}) {rel['relation']} {rel['target']} ({rel['target_type']}){indicator}\n"
             context += "\n"
 
         context += "Use this knowledge to inform your response, but only mention it if relevant to the conversation.\n"
