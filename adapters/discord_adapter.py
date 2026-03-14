@@ -20,6 +20,67 @@ from core.vision_bridge import VisionBridge
 
 
 # ========================
+# HELPER FUNCTIONS
+# ========================
+
+
+def chunk_message(text: str, max_length: int = 2000) -> list[str]:
+    """
+    Split a message into chunks that fit within Discord's character limit.
+
+    Args:
+        text: The message to split
+        max_length: Maximum characters per chunk (default: 2000 for Discord)
+
+    Returns:
+        List of message chunks
+    """
+    if len(text) <= max_length:
+        return [text]
+
+    chunks = []
+    current_chunk = ""
+
+    # Split by lines first to preserve formatting
+    lines = text.split("\n")
+
+    for line in lines:
+        # If a single line is longer than max_length, split it by words
+        if len(line) > max_length:
+            words = line.split(" ")
+            for word in words:
+                # If a single word is longer than max_length, force character split
+                while len(word) > max_length:
+                    if current_chunk:
+                        chunks.append(current_chunk.rstrip())
+                        current_chunk = ""
+                    chunks.append(word[:max_length])
+                    word = word[max_length:]
+
+                # Add the remaining word
+                if len(current_chunk) + len(word) + 1 > max_length:
+                    if current_chunk:
+                        chunks.append(current_chunk.rstrip())
+                    current_chunk = word + " "
+                else:
+                    current_chunk += word + " "
+        else:
+            # Check if adding this line would exceed the limit
+            if len(current_chunk) + len(line) + 1 > max_length:
+                if current_chunk:
+                    chunks.append(current_chunk.rstrip())
+                current_chunk = line + "\n"
+            else:
+                current_chunk += line + "\n"
+
+    # Add remaining chunk
+    if current_chunk:
+        chunks.append(current_chunk.rstrip())
+
+    return chunks
+
+
+# ========================
 # CONFIRMATION VIEWS
 # ========================
 
@@ -194,7 +255,10 @@ class MyriadDiscordBot(commands.Bot):
 
         # Send response
         if response:
-            await message.channel.send(response)
+            # Chunk the response to fit Discord's 2000 character limit
+            chunks = chunk_message(response, max_length=2000)
+            for chunk in chunks:
+                await message.channel.send(chunk)
         else:
             await message.channel.send(
                 f"{message.author.mention} Error processing your message. "
@@ -830,6 +894,17 @@ def run_discord_adapter():
     # Lives & Memories system configuration (timeline branching & save states)
     lives_enabled = os.getenv("LIVES_ENABLED", "true").lower() == "true"
 
+    # Universal Rules configuration (global directives for all personas)
+    # Format: pipe-separated list of rules
+    # Example: "Rule 1 | Rule 2 | Rule 3"
+    universal_rules_env = os.getenv("UNIVERSAL_RULES")
+    universal_rules = None
+    if universal_rules_env:
+        # Split by pipe and strip whitespace
+        universal_rules = [
+            rule.strip() for rule in universal_rules_env.split("|") if rule.strip()
+        ]
+
     # Vision API configuration (optional)
     vision_api_key = os.getenv("VISION_API_KEY", "not-needed")
     vision_base_url = os.getenv("VISION_BASE_URL")
@@ -861,6 +936,7 @@ def run_discord_adapter():
         metacognition_db_path=metacognition_db_path,
         show_thoughts_inline=show_thoughts_inline,
         lives_enabled=lives_enabled,
+        universal_rules=universal_rules,
     )
 
     # Initialize VisionBridge if configured

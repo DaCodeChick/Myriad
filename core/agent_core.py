@@ -38,11 +38,11 @@ class AgentCore:
     """
 
     # ========================
-    # UNIVERSAL DIRECTIVES
+    # DEFAULT UNIVERSAL DIRECTIVES
     # ========================
-    # Global formatting and behavior rules that apply to ALL personas.
-    # These are injected at the very top of the system prompt as [CORE SYSTEM DIRECTIVES].
-    UNIVERSAL_RULES = [
+    # Default global formatting and behavior rules that apply to ALL personas.
+    # These can be overridden via the UNIVERSAL_RULES environment variable.
+    DEFAULT_UNIVERSAL_RULES = [
         "ALWAYS speak in first person perspective - you ARE the character",
         "NEVER use asterisks (*action*) or similar notation for actions or emotions",
         "Write actions and emotions as natural prose, not stage directions",
@@ -76,6 +76,7 @@ class AgentCore:
         metacognition_db_path: str = "data/metacognition.db",
         show_thoughts_inline: bool = True,
         lives_enabled: bool = True,
+        universal_rules: Optional[List[str]] = None,
     ):
         """
         Initialize the AgentCore.
@@ -101,6 +102,7 @@ class AgentCore:
             metacognition_db_path: Path to metacognition SQLite database (default: data/metacognition.db)
             show_thoughts_inline: Display thoughts inline in responses vs. terminal-only (default: True)
             lives_enabled: Enable Lives & Memories system (timelines and save states) (default: True)
+            universal_rules: Custom universal rules (defaults to DEFAULT_UNIVERSAL_RULES if None)
         """
         # LLM Client
         self.client = OpenAI(api_key=api_key, base_url=base_url)
@@ -114,6 +116,13 @@ class AgentCore:
         self.digital_pharmacy_enabled = digital_pharmacy_enabled
         self.cadence_degrader_enabled = cadence_degrader_enabled
         self.lives_enabled = lives_enabled
+
+        # Universal Rules - use provided rules or fall back to defaults
+        self.universal_rules = (
+            universal_rules
+            if universal_rules is not None
+            else self.DEFAULT_UNIVERSAL_RULES
+        )
 
         # Core Systems
         self.memory_matrix = MemoryMatrix(
@@ -262,7 +271,7 @@ class AgentCore:
         system_content += (
             "The following directives apply universally to all interactions:\n\n"
         )
-        system_content += "\n".join(f"- {rule}" for rule in self.UNIVERSAL_RULES)
+        system_content += "\n".join(f"- {rule}" for rule in self.universal_rules)
 
         # Add persona's core identity and system prompt
         system_content += f"\n\n# [CHARACTER IDENTITY]\n{persona.system_prompt}"
