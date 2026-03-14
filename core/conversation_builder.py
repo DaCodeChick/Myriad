@@ -161,7 +161,7 @@ class ConversationContextBuilder:
         if user_preferences.get("limbic_enabled", True) and not (
             mode_override and mode_override.disable_limbic
         ):
-            limbic_context = self._build_limbic_context(user_id, persona.persona_id)
+            limbic_context = self._build_limbic_context(user_id, persona)
             if limbic_context:
                 messages.append({"role": "system", "content": limbic_context})
 
@@ -348,13 +348,17 @@ class ConversationContextBuilder:
 
         return content
 
-    def _build_limbic_context(self, user_id: str, persona_id: str) -> Optional[str]:
+    def _build_limbic_context(
+        self, user_id: str, persona: "PersonaCartridge"
+    ) -> Optional[str]:
         """Build limbic state context (emotional state as first-person somatic context)."""
         if not self.limbic_engine:
             return None
 
         return self.limbic_engine.get_limbic_context(
-            user_id=user_id, persona_id=persona_id
+            user_id=user_id,
+            persona_id=persona.persona_id,
+            persona_baseline=persona.limbic_baseline,
         )
 
     def _build_substance_modifier(self, user_id: str, persona_id: str) -> Optional[str]:

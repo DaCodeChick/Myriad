@@ -199,7 +199,9 @@ class AutonomyEngine:
 
         # Add limbic context if available
         if self.limbic_engine:
-            limbic_context = self.limbic_engine.get_limbic_context(user_id, persona_id)
+            limbic_context = self.limbic_engine.get_limbic_context(
+                user_id, persona_id, persona_baseline=persona.limbic_baseline
+            )
             if limbic_context:
                 prompt += f"{limbic_context}\n\n"
 

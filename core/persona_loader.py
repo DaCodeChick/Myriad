@@ -25,6 +25,7 @@ class PersonaCartridge:
     rules_of_engagement: Optional[List[str]] = None
     background: Optional[str] = None
     cached_appearance: Optional[str] = None
+    limbic_baseline: Optional[Dict[str, float]] = None
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "PersonaCartridge":
@@ -39,6 +40,7 @@ class PersonaCartridge:
             rules_of_engagement=data.get("rules_of_engagement"),
             background=data.get("background"),
             cached_appearance=data.get("cached_appearance"),
+            limbic_baseline=data.get("limbic_baseline"),
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -57,6 +59,8 @@ class PersonaCartridge:
             result["background"] = self.background
         if self.cached_appearance:
             result["cached_appearance"] = self.cached_appearance
+        if self.limbic_baseline:
+            result["limbic_baseline"] = self.limbic_baseline
         return result
 
 

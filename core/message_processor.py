@@ -123,7 +123,7 @@ class MessageProcessor:
 
         # Apply EXHALE phase (metabolic decay) - check user preference
         if user_preferences.get("limbic_enabled", True):
-            self._apply_limbic_exhale(user_id, persona.persona_id)
+            self._apply_limbic_exhale(user_id, persona)
 
         # Apply cadence degradation - check user preference
         if user_preferences.get("cadence_degrader_enabled", True):
@@ -225,15 +225,22 @@ class MessageProcessor:
         # Exhausted iterations without final response
         return "I apologize, but I encountered an issue processing your request."
 
-    def _apply_limbic_exhale(self, user_id: str, persona_id: str) -> None:
+    def _apply_limbic_exhale(self, user_id: str, persona: "PersonaCartridge") -> None:
         """
         Apply EXHALE phase - metabolic decay.
 
-        Apply 10% decay toward baseline (0.5) to prevent indefinite emotional extremes.
+        Apply 10% decay toward baseline to prevent indefinite emotional extremes.
+        Uses persona-specific baseline if defined.
+
+        Args:
+            user_id: User identifier
+            persona: Current persona (for accessing limbic baseline)
         """
         if self.limbic_engine:
             self.limbic_engine.apply_metabolic_decay(
-                user_id=user_id, persona_id=persona_id
+                user_id=user_id,
+                persona_id=persona.persona_id,
+                persona_baseline=persona.limbic_baseline,
             )
 
     def _apply_cadence_degradation(

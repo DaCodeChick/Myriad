@@ -111,13 +111,46 @@ class LimbicEngine:
         """
         return max(self.MIN_VALUE, min(self.MAX_VALUE, value))
 
-    def get_state(self, user_id: str, persona_id: str) -> Dict[str, float]:
+    def _get_baseline_state(
+        self, persona_baseline: Optional[Dict[str, float]] = None
+    ) -> Dict[str, float]:
+        """
+        Get the baseline limbic state, using persona-specific overrides if provided.
+
+        Args:
+            persona_baseline: Optional persona-specific baseline values
+
+        Returns:
+            Dictionary with baseline chemical levels
+        """
+        baseline = {
+            "DOPAMINE": self.BASELINE,
+            "CORTISOL": self.BASELINE,
+            "OXYTOCIN": self.BASELINE,
+            "GABA": self.BASELINE,
+        }
+
+        # Override with persona-specific baselines if provided
+        if persona_baseline:
+            for chemical in ["DOPAMINE", "CORTISOL", "OXYTOCIN", "GABA"]:
+                if chemical in persona_baseline:
+                    baseline[chemical] = self._clamp(persona_baseline[chemical])
+
+        return baseline
+
+    def get_state(
+        self,
+        user_id: str,
+        persona_id: str,
+        persona_baseline: Optional[Dict[str, float]] = None,
+    ) -> Dict[str, float]:
         """
         Get the current limbic state for a user-persona pair.
 
         Args:
             user_id: User identifier
             persona_id: Persona identifier
+            persona_baseline: Optional persona-specific baseline overrides
 
         Returns:
             Dictionary with chemical levels (DOPAMINE, CORTISOL, OXYTOCIN, GABA)
@@ -146,12 +179,8 @@ class LimbicEngine:
             }
         else:
             # Return baseline state if no record exists
-            return {
-                "DOPAMINE": self.BASELINE,
-                "CORTISOL": self.BASELINE,
-                "OXYTOCIN": self.BASELINE,
-                "GABA": self.BASELINE,
-            }
+            # Use persona-specific baseline if provided, otherwise use universal baseline
+            return self._get_baseline_state(persona_baseline)
 
     def set_state(self, user_id: str, persona_id: str, state: Dict[str, float]) -> None:
         """
@@ -248,7 +277,12 @@ class LimbicEngine:
             "description": f"{chemical_name} {change_desc} from {round(old_value, 2)} to {round(new_value, 2)}. {intensity_desc}",
         }
 
-    def apply_metabolic_decay(self, user_id: str, persona_id: str) -> Dict[str, float]:
+    def apply_metabolic_decay(
+        self,
+        user_id: str,
+        persona_id: str,
+        persona_baseline: Optional[Dict[str, float]] = None,
+    ) -> Dict[str, float]:
         """
         Apply metabolic decay - pull all chemicals toward baseline by DECAY_RATE.
 
@@ -258,16 +292,18 @@ class LimbicEngine:
         Args:
             user_id: User identifier
             persona_id: Persona identifier
+            persona_baseline: Optional persona-specific baseline overrides
 
         Returns:
             New state after decay
         """
-        state = self.get_state(user_id, persona_id)
+        state = self.get_state(user_id, persona_id, persona_baseline)
+        baseline_state = self._get_baseline_state(persona_baseline)
 
         # Apply decay to each chemical
         for chemical in self.CHEMICALS.keys():
             current = state[chemical]
-            baseline = self.BASELINE
+            baseline = baseline_state[chemical]
 
             # Move toward baseline by DECAY_RATE
             if current > baseline:
@@ -283,27 +319,46 @@ class LimbicEngine:
 
         return state
 
-    def _get_intensity_description(self, chemical_name: str, value: float) -> str:
+    def _get_intensity_description(
+        self,
+        chemical_name: str,
+        value: float,
+        persona_baseline: Optional[Dict[str, float]] = None,
+    ) -> str:
         """
         Get a somatic description based on chemical intensity.
 
         Args:
             chemical_name: Name of the chemical
             value: Current value (0.0 - 1.0)
+            persona_baseline: Optional persona-specific baseline
 
         Returns:
             First-person somatic description
         """
         chemical_info = self.CHEMICALS[chemical_name]
 
-        if value < 0.35:
+        # Get the baseline for this specific chemical
+        baseline_state = self._get_baseline_state(persona_baseline)
+        baseline = baseline_state[chemical_name]
+
+        # Use relative thresholds based on persona baseline
+        low_threshold = baseline - 0.15
+        high_threshold = baseline + 0.15
+
+        if value < low_threshold:
             return chemical_info["low_desc"]
-        elif value > 0.65:
+        elif value > high_threshold:
             return chemical_info["high_desc"]
         else:
             return chemical_info["baseline_desc"]
 
-    def get_limbic_context(self, user_id: str, persona_id: str) -> str:
+    def get_limbic_context(
+        self,
+        user_id: str,
+        persona_id: str,
+        persona_baseline: Optional[Dict[str, float]] = None,
+    ) -> str:
         """
         Get formatted limbic state for injection into system prompt (INHALE phase).
 
@@ -312,17 +367,20 @@ class LimbicEngine:
         Args:
             user_id: User identifier
             persona_id: Persona identifier
+            persona_baseline: Optional persona-specific baseline overrides
 
         Returns:
             Formatted limbic context string
         """
-        state = self.get_state(user_id, persona_id)
+        state = self.get_state(user_id, persona_id, persona_baseline)
 
         context = "\n\n## LIMBIC STATE (Your Current Neurochemistry):\n\n"
         context += "You are experiencing the following emotional-somatic state:\n\n"
 
         for chemical, value in state.items():
-            intensity_desc = self._get_intensity_description(chemical, value)
+            intensity_desc = self._get_intensity_description(
+                chemical, value, persona_baseline
+            )
             bar = self._get_visual_bar(value)
             context += f"**{chemical}**: {round(value, 2)} {bar}\n"
             context += f"  → {intensity_desc}\n\n"
@@ -345,20 +403,21 @@ class LimbicEngine:
         empty = 10 - filled
         return f"[{'█' * filled}{'░' * empty}]"
 
-    def reset_state(self, user_id: str, persona_id: str) -> None:
+    def reset_state(
+        self,
+        user_id: str,
+        persona_id: str,
+        persona_baseline: Optional[Dict[str, float]] = None,
+    ) -> None:
         """
         Reset limbic state to baseline for a user-persona pair.
 
         Args:
             user_id: User identifier
             persona_id: Persona identifier
+            persona_baseline: Optional persona-specific baseline overrides
         """
-        baseline_state = {
-            "DOPAMINE": self.BASELINE,
-            "CORTISOL": self.BASELINE,
-            "OXYTOCIN": self.BASELINE,
-            "GABA": self.BASELINE,
-        }
+        baseline_state = self._get_baseline_state(persona_baseline)
         self.set_state(user_id, persona_id, baseline_state)
 
     def get_stats(self) -> Dict[str, int]:
