@@ -298,7 +298,7 @@ def create_discord_bot(
     # LIVES COMMAND GROUP (Timeline Branching)
     # ========================
 
-    if bot.agent_core.lives_enabled:
+    if bot.agent_core.lives_engine:
         life_group = app_commands.Group(
             name="life", description="Manage alternate timelines (Lives)"
         )
@@ -460,7 +460,7 @@ def create_discord_bot(
     # MEMORY COMMAND GROUP (Save States)
     # ========================
 
-    if bot.agent_core.lives_enabled:
+    if bot.agent_core.save_states_engine:
         memory_group = app_commands.Group(
             name="memory", description="Manage save states (Memories)"
         )
@@ -759,28 +759,8 @@ def run_discord_adapter():
     config = MyriadConfig.from_env()
     print(f"Loaded configuration: {config}")
 
-    # Initialize AgentCore (platform-agnostic)
-    agent_core = AgentCore(
-        api_key=config.llm.api_key,
-        base_url=config.llm.base_url,
-        model=config.llm.model,
-        short_term_limit=config.memory.short_term_limit,
-        vector_memory_enabled=config.memory.vector_memory_enabled,
-        semantic_recall_limit=config.memory.semantic_recall_limit,
-        tools_enabled=config.tools.enabled,
-        max_tool_iterations=config.tools.max_iterations,
-        graph_memory_enabled=config.features.graph_memory_enabled,
-        graph_db_path=config.database_paths.graph_db_path,
-        limbic_enabled=config.features.limbic_enabled,
-        limbic_db_path=config.database_paths.limbic_db_path,
-        digital_pharmacy_enabled=config.features.digital_pharmacy_enabled,
-        cadence_degrader_enabled=config.features.cadence_degrader_enabled,
-        metacognition_enabled=config.features.metacognition_enabled,
-        metacognition_db_path=config.database_paths.metacognition_db_path,
-        show_thoughts_inline=config.features.show_thoughts_inline,
-        lives_enabled=config.features.lives_enabled,
-        universal_rules=config.universal_rules.rules,
-    )
+    # Initialize AgentCore (platform-agnostic) - now simplified with MyriadConfig
+    agent_core = AgentCore(config=config)
 
     # Initialize VisionBridge if configured
     vision_bridge = None
