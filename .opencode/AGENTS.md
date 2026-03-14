@@ -11,6 +11,19 @@
 - **`core/`**: Platform-agnostic AI engine
 - **`adapters/`**: Platform-specific frontends (Discord, etc.)
 
+## Code Quality Policy: RDSSC
+
+Before implementing any feature or making changes, follow the **RDSSC** principles:
+
+- **Refactor:** Clean up existing code before adding new features
+- **Despaghettify:** Eliminate tangled dependencies and unclear control flow
+- **Simplify:** Reduce complexity wherever possible - prefer clarity over cleverness
+- **Split big modules:** Break large files into focused, single-responsibility modules
+- **Consistency:** Keep code consistent throughout the codebase
+  - Use the same API/pattern for similar operations across different modules
+  - Don't mix different approaches (e.g., one error handling style in one place, different style elsewhere)
+  - If one approach is clearly better, refactor to use it consistently UNLESS there's a specific technical reason not to
+
 ## Architecture Rules
 
 1. **Language & Ecosystem:** All code must be written in Python 3.10+. Use `discord.py` for the bot framework. Do not use heavy ORMs like SQLAlchemy; use native `sqlite3` for absolute speed and control.
