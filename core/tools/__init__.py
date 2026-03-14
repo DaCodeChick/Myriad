@@ -1,29 +1,48 @@
 """
 Tool system for Project Myriad.
 
-This module provides a modular tool system where each tool is a self-contained
-module that can be easily added, removed, or modified without touching a central
-monolithic registry.
+This module provides a modular, categorized tool system where each tool is a
+self-contained module organized by category (utility, memory, limbic).
 
 Tools are implemented as classes inheriting from the Tool base class and are
 automatically discovered and registered.
+
+Categories:
+- utility: General-purpose helper tools (time, dice, etc.)
+- memory: Knowledge graph and memory management tools
+- limbic: Neurochemical state and emotional regulation tools (including pharmacy)
 """
 
 from core.tools.base import Tool, ToolContext
-from core.tools.get_current_time import GetCurrentTimeTool
-from core.tools.roll_dice import RollDiceTool
-from core.tools.add_knowledge import AddKnowledgeTool
-from core.tools.inject_emotion import InjectEmotionTool
-from core.tools.consume_substance import ConsumeSubstanceTool
+
+# Import tools from categorized subdirectories
+from core.tools.utility import GetCurrentTimeTool, RollDiceTool
+from core.tools.memory import AddKnowledgeTool
+from core.tools.limbic import InjectEmotionTool, ConsumeSubstanceTool
 
 __all__ = [
     "Tool",
     "ToolContext",
+    # Utility tools
     "GetCurrentTimeTool",
     "RollDiceTool",
+    # Memory tools
     "AddKnowledgeTool",
+    # Limbic tools
     "InjectEmotionTool",
     "ConsumeSubstanceTool",
+]
+
+# Registry of all available tool classes
+BUILTIN_TOOLS = [
+    # Utility tools
+    GetCurrentTimeTool,
+    RollDiceTool,
+    # Memory tools
+    AddKnowledgeTool,
+    # Limbic tools
+    InjectEmotionTool,
+    ConsumeSubstanceTool,
 ]
 
 # Registry of all available tool classes
