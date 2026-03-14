@@ -17,6 +17,7 @@ from database.limbic_engine import LimbicEngine
 from database.limbic_modifiers import DigitalPharmacy
 from database.metacognition_engine import MetacognitionEngine
 from database.mode_manager import ModeManager
+from database.user_masks import UserMaskManager
 from core.tool_registry import ToolRegistry
 
 
@@ -46,6 +47,7 @@ class ConversationContextBuilder:
         metacognition_engine: Optional[MetacognitionEngine] = None,
         tool_registry: Optional[ToolRegistry] = None,
         mode_manager: Optional[ModeManager] = None,
+        user_mask_manager: Optional[UserMaskManager] = None,
     ):
         """
         Initialize the conversation context builder.
@@ -61,6 +63,7 @@ class ConversationContextBuilder:
             metacognition_engine: Optional internal thought tracking system
             tool_registry: Optional tool registry for function calling
             mode_manager: Optional mode override manager
+            user_mask_manager: Optional user mask (persona) system
         """
         self.memory_matrix = memory_matrix
         self.universal_rules = universal_rules
@@ -72,6 +75,7 @@ class ConversationContextBuilder:
         self.metacognition_engine = metacognition_engine
         self.tool_registry = tool_registry
         self.mode_manager = mode_manager
+        self.user_mask_manager = user_mask_manager
 
     def build(
         self,
@@ -130,7 +134,9 @@ class ConversationContextBuilder:
             )
         else:
             # Normal mode or HENTAI mode: Use persona system prompt
-            system_prompt = self._build_system_prompt(persona, user_preferences)
+            system_prompt = self._build_system_prompt(
+                persona, user_preferences, user_id
+            )
 
             # HENTAI mode: Append behavioral override at the end (does NOT bypass persona)
             if (
@@ -198,11 +204,11 @@ class ConversationContextBuilder:
         return messages
 
     def _build_system_prompt(
-        self, persona: PersonaCartridge, user_preferences: Dict[str, bool]
+        self, persona: PersonaCartridge, user_preferences: Dict[str, bool], user_id: str
     ) -> str:
         """
         Build the complete system prompt including universal rules, persona identity,
-        background/lore, tool definitions, and metacognition instructions.
+        background/lore, user mask, tool definitions, and metacognition instructions.
         """
         # Start with [CORE SYSTEM DIRECTIVES]
         content = "# [CORE SYSTEM DIRECTIVES]\n"
@@ -215,6 +221,22 @@ class ConversationContextBuilder:
         # Inject background/lore if defined (deep historical context)
         if persona.background:
             content += f"\n\n# [BACKGROUND / LORE]\n{persona.background}"
+
+        # Inject User Mask (if user is wearing a persona)
+        if self.user_mask_manager:
+            user_mask = self.user_mask_manager.get_active_mask(user_id)
+            if user_mask:
+                content += "\n\n# [ACTIVE INTERLOCUTOR IDENTITY]\n"
+                content += "The user is currently embodying the following persona:\n\n"
+                content += f"**Name:** {user_mask.name}\n"
+                content += f"**Description:** {user_mask.description}\n"
+                if user_mask.background:
+                    content += f"**Lore/Background:** {user_mask.background}\n"
+                content += (
+                    "\n**DIRECTIVE:** You must respond to the user as this character, "
+                    "respecting all established lore and relationship dynamics between your persona and theirs. "
+                    "Address them by their character name when appropriate and maintain consistency with their backstory."
+                )
 
         # Add persona-specific behavioral rules if they exist
         if persona.rules_of_engagement:

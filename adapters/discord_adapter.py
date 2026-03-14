@@ -18,6 +18,7 @@ from discord.ext import commands, tasks
 
 from adapters.commands.config_commands import register_config_commands
 from adapters.commands.lives_commands import register_lives_commands
+from adapters.commands.mask_commands import register_mask_commands
 from adapters.commands.memory_commands import register_memory_commands
 from adapters.commands.mode_commands import register_mode_commands
 from adapters.commands.persona_commands import register_persona_commands
@@ -416,6 +417,7 @@ def create_discord_bot(
 
     # Persona management commands (swap, personas, whoami)
     register_persona_commands(bot)
+    register_mask_commands(bot)
     register_memory_commands(bot)
     register_lives_commands(bot)
     register_saves_commands(bot)
