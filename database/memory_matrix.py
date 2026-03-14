@@ -1,11 +1,13 @@
 """
-SQLite Memory Matrix - The central database for Project Myriad.
+SQLite Memory Matrix - Facade for Project Myriad's memory subsystems.
 
-This module handles:
-1. User state tracking (active_persona_id per user)
-2. Conversation memory with visibility scoping (GLOBAL vs ISOLATED)
-3. The Automated Discretion Engine routing logic
+This module provides a unified interface to:
+1. User state management (active persona tracking)
+2. Memory repository (conversation storage and retrieval)
+3. Lives memory operations (timeline branching and management)
 4. Semantic vector memory integration via ChromaDB
+
+Part of RDSSC Phase 5: Refactored to delegate to focused modules.
 """
 
 import sqlite3
@@ -13,27 +15,34 @@ import os
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from database.vector_memory import VectorMemory
+from database.user_state import UserStateManager
+from database.memory_repository import MemoryRepository
+from database.lives_memory import LivesMemoryManager
 
 
 class MemoryMatrix:
-    """Manages all database operations for Project Myriad."""
+    """
+    Facade for memory operations.
+
+    Delegates to specialized modules:
+    - UserStateManager: Active persona and interaction tracking
+    - MemoryRepository: Core memory CRUD operations
+    - LivesMemoryManager: Timeline-specific memory operations
+    """
 
     def __init__(
         self,
         db_path: str = "data/myriad_state.db",
         vector_memory_enabled: bool = True,
     ):
-        """Initialize the database connection and ensure schema exists."""
+        """Initialize the memory subsystems."""
         self.db_path = db_path
         self.vector_memory_enabled = vector_memory_enabled
 
         # Ensure database directory exists
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
-        # Initialize SQLite schema
-        self._init_schema()
-
-        # Initialize VectorMemory if enabled
+        # Initialize vector memory first (if enabled)
         if self.vector_memory_enabled:
             try:
                 self.vector_memory = VectorMemory()
@@ -44,6 +53,14 @@ class MemoryMatrix:
                 self.vector_memory = None
         else:
             self.vector_memory = None
+
+        # Initialize SQLite schema (ensures tables exist)
+        self._init_schema()
+
+        # Initialize subsystem managers
+        self.user_state = UserStateManager(db_path)
+        self.memory_repo = MemoryRepository(db_path, self.vector_memory)
+        self.lives_memory = LivesMemoryManager(db_path, self.vector_memory)
 
     def _get_connection(self) -> sqlite3.Connection:
         """Create a new database connection."""
@@ -60,8 +77,8 @@ class MemoryMatrix:
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS user_state (
                 user_id TEXT PRIMARY KEY,
-                active_persona_id TEXT NOT NULL,
-                last_interaction TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                active_persona TEXT,
+                last_interaction_time TEXT
             )
         """)
 
@@ -75,9 +92,7 @@ class MemoryMatrix:
                 content TEXT NOT NULL,
                 visibility_scope TEXT NOT NULL CHECK(visibility_scope IN ('GLOBAL', 'ISOLATED')),
                 life_id TEXT,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                
-                FOREIGN KEY (user_id) REFERENCES user_state(user_id)
+                timestamp TEXT NOT NULL
             )
         """)
 
@@ -115,6 +130,7 @@ class MemoryMatrix:
 
     # ========================
     # USER STATE MANAGEMENT
+    # (Delegated to UserStateManager)
     # ========================
 
     def get_active_persona(self, user_id: str) -> Optional[str]:
@@ -127,17 +143,7 @@ class MemoryMatrix:
         Returns:
             persona_id if user exists, None otherwise
         """
-        conn = self._get_connection()
-        cursor = conn.cursor()
-
-        cursor.execute(
-            "SELECT active_persona_id FROM user_state WHERE user_id = ?", (user_id,)
-        )
-
-        result = cursor.fetchone()
-        conn.close()
-
-        return result["active_persona_id"] if result else None
+        return self.user_state.get_active_persona(user_id)
 
     def set_active_persona(self, user_id: str, persona_id: str):
         """
@@ -147,42 +153,15 @@ class MemoryMatrix:
             user_id: Discord user ID (as string)
             persona_id: The persona to activate
         """
-        conn = self._get_connection()
-        cursor = conn.cursor()
-
-        cursor.execute(
-            """
-            INSERT INTO user_state (user_id, active_persona_id, last_interaction)
-            VALUES (?, ?, CURRENT_TIMESTAMP)
-            ON CONFLICT(user_id) DO UPDATE SET
-                active_persona_id = excluded.active_persona_id,
-                last_interaction = CURRENT_TIMESTAMP
-        """,
-            (user_id, persona_id),
-        )
-
-        conn.commit()
-        conn.close()
+        self.user_state.set_active_persona(user_id, persona_id)
 
     def update_user_interaction(self, user_id: str):
         """Update the last interaction timestamp for a user."""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-
-        cursor.execute(
-            """
-            UPDATE user_state 
-            SET last_interaction = CURRENT_TIMESTAMP 
-            WHERE user_id = ?
-        """,
-            (user_id,),
-        )
-
-        conn.commit()
-        conn.close()
+        self.user_state.update_last_interaction(user_id)
 
     # ========================
     # MEMORY MANAGEMENT
+    # (Delegated to MemoryRepository)
     # ========================
 
     def add_memory(
@@ -214,39 +193,18 @@ class MemoryMatrix:
         if role not in ("user", "assistant", "system"):
             raise ValueError("role must be 'user', 'assistant', or 'system'")
 
-        conn = self._get_connection()
-        cursor = conn.cursor()
+        # Default life_id to empty string if None (for backwards compatibility)
+        if life_id is None:
+            life_id = ""
 
-        cursor.execute(
-            """
-            INSERT INTO memories (user_id, origin_persona, role, content, visibility_scope, life_id)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """,
-            (user_id, origin_persona, role, content, visibility_scope, life_id),
+        return self.memory_repo.add_memory(
+            user_id=user_id,
+            origin_persona=origin_persona,
+            role=role,
+            content=content,
+            visibility_scope=visibility_scope,
+            life_id=life_id,
         )
-
-        memory_id = cursor.lastrowid
-        conn.commit()
-        conn.close()
-
-        # Also add to vector memory if enabled
-        if self.vector_memory_enabled and self.vector_memory:
-            try:
-                self.vector_memory.add_memory(
-                    memory_id=str(memory_id),
-                    user_id=user_id,
-                    origin_persona=origin_persona,
-                    role=role,
-                    content=content,
-                    visibility_scope=visibility_scope,
-                    life_id=life_id,
-                )
-            except Exception as e:
-                print(f"Warning: Failed to add memory to vector store: {e}")
-
-        # lastrowid should always exist for INSERT, but satisfy type checker
-        assert memory_id is not None
-        return memory_id
 
     def get_context_memories(
         self,
@@ -272,71 +230,34 @@ class MemoryMatrix:
         Returns:
             List of memory dictionaries, ordered by timestamp (oldest first for LLM context)
         """
-        conn = self._get_connection()
-        cursor = conn.cursor()
+        # Default life_id to empty string if None
+        if life_id is None:
+            life_id = ""
 
-        if life_id:
-            cursor.execute(
-                """
-                SELECT id, origin_persona, role, content, visibility_scope, timestamp, life_id
-                FROM memories
-                WHERE user_id = ?
-                  AND (visibility_scope = 'GLOBAL' OR origin_persona = ?)
-                  AND (life_id = ? OR life_id IS NULL)
-                ORDER BY timestamp DESC
-                LIMIT ?
-            """,
-                (user_id, current_persona, life_id, limit),
-            )
-        else:
-            cursor.execute(
-                """
-                SELECT id, origin_persona, role, content, visibility_scope, timestamp, life_id
-                FROM memories
-                WHERE user_id = ?
-                  AND (visibility_scope = 'GLOBAL' OR origin_persona = ?)
-                ORDER BY timestamp DESC
-                LIMIT ?
-            """,
-                (user_id, current_persona, limit),
-            )
+        return self.memory_repo.get_context(
+            user_id=user_id,
+            persona_id=current_persona,
+            life_id=life_id,
+            limit=limit,
+        )
 
-        rows = cursor.fetchall()
-        conn.close()
-
-        # Convert to list of dicts and reverse (oldest first for context)
-        memories = [dict(row) for row in rows]
-        memories.reverse()
-
-        return memories
-
-    def get_all_memories_for_user(self, user_id: str) -> List[Dict[str, Any]]:
+    def get_all_memories_for_user(
+        self, user_id: str, persona_id: str = "", life_id: str = ""
+    ) -> List[Dict[str, Any]]:
         """
         Get ALL memories for a specific user (admin/debug function).
 
         Args:
             user_id: Discord user ID
+            persona_id: Optional persona filter (default: empty = all personas)
+            life_id: Optional life filter (default: empty = current life)
 
         Returns:
             List of all memory dictionaries for this user
         """
-        conn = self._get_connection()
-        cursor = conn.cursor()
-
-        cursor.execute(
-            """
-            SELECT id, origin_persona, role, content, visibility_scope, timestamp
-            FROM memories
-            WHERE user_id = ?
-            ORDER BY timestamp ASC
-        """,
-            (user_id,),
+        return self.memory_repo.get_all_memories(
+            user_id=user_id, persona_id=persona_id, life_id=life_id
         )
-
-        rows = cursor.fetchall()
-        conn.close()
-
-        return [dict(row) for row in rows]
 
     def search_semantic_memories(
         self,
@@ -365,21 +286,17 @@ class MemoryMatrix:
             List of memory dictionaries with semantic similarity scores,
             ordered by relevance (most similar first)
         """
-        if not self.vector_memory_enabled or not self.vector_memory:
-            # Fallback: return empty list if vector memory is disabled
-            return []
+        # Default life_id to empty string if None
+        if life_id is None:
+            life_id = ""
 
-        try:
-            return self.vector_memory.search_semantic_memories(
-                query=query,
-                user_id=user_id,
-                current_persona=current_persona,
-                top_k=limit,
-                life_id=life_id,
-            )
-        except Exception as e:
-            print(f"Warning: Semantic search failed: {e}")
-            return []
+        return self.memory_repo.search_semantic(
+            user_id=user_id,
+            persona_id=current_persona,
+            life_id=life_id,
+            query=query,
+            top_k=limit,
+        )
 
     def clear_user_memories(self, user_id: str, persona_id: Optional[str] = None):
         """
@@ -390,29 +307,11 @@ class MemoryMatrix:
             persona_id: If provided, only clear memories from this persona.
                        If None, clear ALL memories for the user.
         """
-        conn = self._get_connection()
-        cursor = conn.cursor()
-
-        if persona_id:
-            cursor.execute(
-                "DELETE FROM memories WHERE user_id = ? AND origin_persona = ?",
-                (user_id, persona_id),
-            )
-        else:
-            cursor.execute("DELETE FROM memories WHERE user_id = ?", (user_id,))
-
-        conn.commit()
-        conn.close()
-
-        # Also clear from vector memory if enabled
-        if self.vector_memory_enabled and self.vector_memory:
-            try:
-                self.vector_memory.clear_user_memories(user_id, persona_id)
-            except Exception as e:
-                print(f"Warning: Failed to clear vector memories: {e}")
+        self.memory_repo.clear_memories(user_id=user_id, persona_id=persona_id)
 
     # ========================
     # LIVES & MEMORIES SYSTEM
+    # (Delegated to LivesMemoryManager)
     # ========================
 
     def delete_memories_after_checkpoint(
@@ -429,42 +328,9 @@ class MemoryMatrix:
         Returns:
             Number of memories deleted
         """
-        conn = self._get_connection()
-        cursor = conn.cursor()
-
-        # First, get the IDs of memories to delete (for vector cleanup)
-        cursor.execute(
-            """
-            SELECT id
-            FROM memories
-            WHERE life_id = ? AND id > ?
-        """,
-            (life_id, checkpoint_message_id),
+        return self.lives_memory.delete_memories_after_checkpoint(
+            life_id=life_id, checkpoint_message_id=checkpoint_message_id
         )
-
-        memory_ids = [str(row["id"]) for row in cursor.fetchall()]
-
-        # Delete from SQL
-        cursor.execute(
-            """
-            DELETE FROM memories
-            WHERE life_id = ? AND id > ?
-        """,
-            (life_id, checkpoint_message_id),
-        )
-
-        deleted_count = cursor.rowcount
-        conn.commit()
-        conn.close()
-
-        # Delete from vector memory
-        if self.vector_memory_enabled and self.vector_memory and memory_ids:
-            try:
-                self.vector_memory.delete_memories_by_ids(memory_ids)
-            except Exception as e:
-                print(f"Warning: Failed to delete vectors: {e}")
-
-        return deleted_count
 
     def clone_life_memories(
         self,
@@ -484,62 +350,8 @@ class MemoryMatrix:
         Returns:
             Number of memories cloned
         """
-        conn = self._get_connection()
-        cursor = conn.cursor()
-
-        if up_to_message_id:
-            cursor.execute(
-                """
-                INSERT INTO memories (user_id, origin_persona, role, content, visibility_scope, life_id, timestamp)
-                SELECT user_id, origin_persona, role, content, visibility_scope, ?, timestamp
-                FROM memories
-                WHERE life_id = ? AND id <= ?
-                ORDER BY id ASC
-            """,
-                (target_life_id, source_life_id, up_to_message_id),
-            )
-        else:
-            cursor.execute(
-                """
-                INSERT INTO memories (user_id, origin_persona, role, content, visibility_scope, life_id, timestamp)
-                SELECT user_id, origin_persona, role, content, visibility_scope, ?, timestamp
-                FROM memories
-                WHERE life_id = ?
-                ORDER BY id ASC
-            """,
-                (target_life_id, source_life_id),
-            )
-
-        cloned_count = cursor.rowcount
-        conn.commit()
-
-        # Now clone to vector memory
-        if self.vector_memory_enabled and self.vector_memory:
-            # Get the newly inserted memories
-            cursor.execute(
-                """
-                SELECT id, role, content, user_id, origin_persona, visibility_scope, timestamp
-                FROM memories
-                WHERE life_id = ?
-                ORDER BY id ASC
-            """,
-                (target_life_id,),
-            )
-
-            for row in cursor.fetchall():
-                try:
-                    self.vector_memory.add_memory(
-                        memory_id=str(row["id"]),
-                        user_id=row["user_id"],
-                        origin_persona=row["origin_persona"],
-                        role=row["role"],
-                        content=row["content"],
-                        visibility_scope=row["visibility_scope"],
-                        life_id=target_life_id,
-                        timestamp=row["timestamp"],
-                    )
-                except Exception as e:
-                    print(f"Warning: Failed to clone vector memory {row['id']}: {e}")
-
-        conn.close()
-        return cloned_count
+        return self.lives_memory.clone_life_memories(
+            source_life_id=source_life_id,
+            target_life_id=target_life_id,
+            up_to_message_id=up_to_message_id,
+        )
