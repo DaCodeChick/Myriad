@@ -23,6 +23,7 @@ from adapters.commands.memory_commands import register_memory_commands
 from adapters.commands.mode_commands import register_mode_commands
 from adapters.commands.persona_commands import register_persona_commands
 from adapters.commands.saves_commands import register_saves_commands
+from adapters.commands.scenario_commands import register_scenario_commands
 from core.agent_core import AgentCore
 from core.autonomy_engine import AutonomyEngine
 from core.config import MyriadConfig
@@ -418,6 +419,7 @@ def create_discord_bot(
     # Persona management commands (swap, personas, whoami)
     register_persona_commands(bot)
     register_mask_commands(bot)
+    register_scenario_commands(bot)
     register_memory_commands(bot)
     register_lives_commands(bot)
     register_saves_commands(bot)

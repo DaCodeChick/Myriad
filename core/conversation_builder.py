@@ -18,6 +18,7 @@ from database.limbic_modifiers import DigitalPharmacy
 from database.metacognition_engine import MetacognitionEngine
 from database.mode_manager import ModeManager
 from database.user_masks import UserMaskManager
+from database.scenario_engine import ScenarioEngine
 from core.tool_registry import ToolRegistry
 
 
@@ -48,6 +49,7 @@ class ConversationContextBuilder:
         tool_registry: Optional[ToolRegistry] = None,
         mode_manager: Optional[ModeManager] = None,
         user_mask_manager: Optional[UserMaskManager] = None,
+        scenario_engine: Optional[ScenarioEngine] = None,
     ):
         """
         Initialize the conversation context builder.
@@ -64,6 +66,7 @@ class ConversationContextBuilder:
             tool_registry: Optional tool registry for function calling
             mode_manager: Optional mode override manager
             user_mask_manager: Optional user mask (persona) system
+            scenario_engine: Optional scenario/world tree system
         """
         self.memory_matrix = memory_matrix
         self.universal_rules = universal_rules
@@ -76,6 +79,7 @@ class ConversationContextBuilder:
         self.tool_registry = tool_registry
         self.mode_manager = mode_manager
         self.user_mask_manager = user_mask_manager
+        self.scenario_engine = scenario_engine
 
     def build(
         self,
@@ -237,6 +241,44 @@ class ConversationContextBuilder:
                     "respecting all established lore and relationship dynamics between your persona and theirs. "
                     "Address them by their character name when appropriate and maintain consistency with their backstory."
                 )
+
+        # Inject Scenario Hierarchy (Environmental Context / World Tree)
+        if self.scenario_engine:
+            active_scenario = self.scenario_engine.get_active_scenario(user_id)
+            if active_scenario:
+                # Get the full hierarchy from macro to micro using recursive CTE
+                scenario_hierarchy = self.scenario_engine.get_scenario_hierarchy(
+                    active_scenario.id
+                )
+
+                if scenario_hierarchy:
+                    content += "\n\n# [ENVIRONMENTAL CONTEXT]\n"
+                    content += (
+                        "You are currently existing within the following nested environment "
+                        "(from macro world state to immediate location):\n\n"
+                    )
+
+                    # Build the hierarchy display from macro (root) to micro (active)
+                    for i, scenario in enumerate(scenario_hierarchy):
+                        indent = "  " * i
+                        if i == 0:
+                            level_label = "World State"
+                        elif i == len(scenario_hierarchy) - 1:
+                            level_label = "Immediate Location"
+                        else:
+                            level_label = "Macro Location" if i == 1 else "Location"
+
+                        content += (
+                            f"{indent}• **{level_label} ({scenario.name})**: "
+                            f"{scenario.description}\n"
+                        )
+
+                    content += (
+                        "\n**DIRECTIVE:** You are currently existing within this nested environment. "
+                        "Obey the physics, rules, and atmosphere of these locations. "
+                        "Your responses must be consistent with the environmental constraints and context. "
+                        "If actions or events contradict the established setting, you should note the inconsistency."
+                    )
 
         # Add persona-specific behavioral rules if they exist
         if persona.rules_of_engagement:

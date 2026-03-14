@@ -33,6 +33,7 @@ from database.save_states_engine import SaveStatesEngine
 from database.user_preferences import UserPreferences
 from database.mode_manager import ModeManager
 from database.user_masks import UserMaskManager
+from database.scenario_engine import ScenarioEngine
 from core.persona_loader import PersonaLoader, PersonaCartridge
 from core.tool_registry import ToolRegistry
 from core.cadence_degrader import CadenceDegrader
@@ -147,6 +148,9 @@ class AgentCore:
         # User Mask System (User-Side Personas for Roleplay)
         self.user_mask_manager = UserMaskManager(db_path=db_path)
 
+        # Scenario Engine (World Tree for hierarchical environmental contexts)
+        self.scenario_engine = ScenarioEngine(db_path=db_path)
+
         # Tool Registry (pass graph_memory, limbic_engine, and digital_pharmacy)
         # NOTE: user_id and persona_id will be passed when creating tool registry per message
         self.base_tool_registry = (
@@ -172,6 +176,7 @@ class AgentCore:
             tool_registry=self.base_tool_registry,
             mode_manager=self.mode_manager,
             user_mask_manager=self.user_mask_manager,
+            scenario_engine=self.scenario_engine,
         )
 
         # Message Processor
