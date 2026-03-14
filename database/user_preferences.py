@@ -8,7 +8,10 @@ Part of Project Myriad's configurable feature system.
 """
 
 import sqlite3
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, Union, Literal
+
+# Type alias for memory visibility modes
+MemoryVisibility = Literal["GLOBAL", "USER_SHARED", "ISOLATED"]
 
 
 class UserPreferences:
@@ -39,7 +42,8 @@ class UserPreferences:
                 show_thoughts_inline INTEGER DEFAULT 0,
                 autonomy_enabled INTEGER DEFAULT 1,
                 autonomy_inactivity_hours REAL DEFAULT 4.0,
-                autonomy_sleep_threshold REAL DEFAULT 0.2
+                autonomy_sleep_threshold REAL DEFAULT 0.2,
+                default_memory_visibility TEXT DEFAULT 'ISOLATED'
             )
         """
         )
@@ -47,7 +51,7 @@ class UserPreferences:
         conn.commit()
         conn.close()
 
-    def get_preferences(self, user_id: str) -> Dict[str, Union[bool, float]]:
+    def get_preferences(self, user_id: str) -> Dict[str, Union[bool, float, str]]:
         """
         Get all preferences for a user.
 
@@ -55,7 +59,7 @@ class UserPreferences:
             user_id: User identifier
 
         Returns:
-            Dictionary of preference flags (booleans and floats)
+            Dictionary of preference flags (booleans, floats, and strings)
         """
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -64,7 +68,7 @@ class UserPreferences:
             """
             SELECT limbic_enabled, cadence_degrader_enabled, metacognition_enabled,
                    show_thoughts_inline, autonomy_enabled, autonomy_inactivity_hours,
-                   autonomy_sleep_threshold
+                   autonomy_sleep_threshold, default_memory_visibility
             FROM user_preferences
             WHERE user_id = ?
         """,
@@ -83,6 +87,7 @@ class UserPreferences:
                 "autonomy_enabled": bool(row[4]),
                 "autonomy_inactivity_hours": float(row[5]),
                 "autonomy_sleep_threshold": float(row[6]),
+                "default_memory_visibility": str(row[7]),
             }
         else:
             # Return defaults if no preferences found
@@ -94,9 +99,12 @@ class UserPreferences:
                 "autonomy_enabled": True,
                 "autonomy_inactivity_hours": 4.0,
                 "autonomy_sleep_threshold": 0.2,
+                "default_memory_visibility": "ISOLATED",
             }
 
-    def get_preference(self, user_id: str, preference_name: str) -> Union[bool, float]:
+    def get_preference(
+        self, user_id: str, preference_name: str
+    ) -> Union[bool, float, str]:
         """
         Get a specific preference for a user.
 
@@ -105,7 +113,7 @@ class UserPreferences:
             preference_name: Name of preference flag
 
         Returns:
-            Boolean or float value of the preference
+            Boolean, float, or string value of the preference
         """
         prefs = self.get_preferences(user_id)
 
@@ -118,12 +126,13 @@ class UserPreferences:
             "autonomy_enabled": True,
             "autonomy_inactivity_hours": 4.0,
             "autonomy_sleep_threshold": 0.2,
+            "default_memory_visibility": "ISOLATED",
         }
 
         return prefs.get(preference_name, defaults.get(preference_name, True))
 
     def set_preference(
-        self, user_id: str, preference_name: str, value: Union[bool, float]
+        self, user_id: str, preference_name: str, value: Union[bool, float, str]
     ):
         """
         Set a specific preference for a user.
@@ -131,7 +140,7 @@ class UserPreferences:
         Args:
             user_id: User identifier
             preference_name: Name of preference flag
-            value: Boolean or float value to set
+            value: Boolean, float, or string value to set
         """
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -145,13 +154,14 @@ class UserPreferences:
             "autonomy_enabled",
             "autonomy_inactivity_hours",
             "autonomy_sleep_threshold",
+            "default_memory_visibility",
         ]
 
         if preference_name not in valid_preferences:
             conn.close()
             raise ValueError(f"Invalid preference name: {preference_name}")
 
-        # Convert boolean to int for storage, keep floats as-is
+        # Convert boolean to int for storage, keep floats and strings as-is
         stored_value = int(value) if isinstance(value, bool) else value
 
         # Insert or update preference

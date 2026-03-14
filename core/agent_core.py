@@ -278,7 +278,7 @@ class AgentCore:
             persona_id: The persona that originated this memory
             role: 'user', 'assistant', or 'system'
             content: Message content
-            visibility: 'GLOBAL' or 'ISOLATED' (default: ISOLATED)
+            visibility: 'GLOBAL', 'USER_SHARED', or 'ISOLATED' (default: ISOLATED)
             life_id: Timeline/session ID (optional)
         """
         self.memory_matrix.add_memory(
@@ -298,7 +298,7 @@ class AgentCore:
         self,
         user_id: str,
         message: str,
-        memory_visibility: str = "ISOLATED",
+        memory_visibility: str = None,
         vision_description: Optional[str] = None,
     ) -> Optional[str]:
         """
@@ -313,7 +313,8 @@ class AgentCore:
             user_id: Unique user identifier
             message: The user's message text
             memory_visibility: Visibility scope for this conversation
-                             ('GLOBAL' for shared memories, 'ISOLATED' for persona-specific)
+                             ('GLOBAL', 'USER_SHARED', or 'ISOLATED')
+                             If None, uses user's default preference
             vision_description: Optional vision model description to inject into context
 
         Returns:
@@ -332,6 +333,15 @@ class AgentCore:
 
         # Update user interaction timestamp
         self.memory_matrix.update_user_interaction(user_id)
+
+        # Get user preferences (including memory visibility preference)
+        user_preferences = self.user_preferences.get_preferences(user_id)
+
+        # Use user's default memory visibility if not specified
+        if memory_visibility is None:
+            memory_visibility = user_preferences.get(
+                "default_memory_visibility", "ISOLATED"
+            )
 
         # Create context-specific tool registry with user_id and persona_id
         tool_registry = None

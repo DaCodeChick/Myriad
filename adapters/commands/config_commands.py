@@ -49,8 +49,11 @@ def register_config_commands(bot: "MyriadDiscordBot") -> None:
             f"  └─ AI can proactively reach out based on your activity patterns\n"
             f"  └─ Inactivity threshold: {prefs['autonomy_inactivity_hours']:.1f} hours\n"
             f"  └─ Sleep protection threshold: {prefs['autonomy_sleep_threshold']:.2f}\n\n"
+            f"📝 **Memory Sharing Mode:** `{prefs.get('default_memory_visibility', 'ISOLATED')}`\n"
+            f"  └─ Controls whether memories are shared across personas\n\n"
             f"Use `/config toggle <feature>` to enable/disable features.\n"
             f"Use `/config autonomy` to customize autonomy parameters.\n"
+            f"Use `/config memory` to change memory sharing mode.\n"
             f"Use `/config reset` to restore defaults."
         )
 
@@ -115,7 +118,8 @@ def register_config_commands(bot: "MyriadDiscordBot") -> None:
                 "❌ Show Thoughts Inline: DISABLED\n"
                 "✅ Spontaneous Autonomy: ENABLED\n"
                 "  └─ Inactivity threshold: 4.0 hours\n"
-                "  └─ Sleep protection: 0.20"
+                "  └─ Sleep protection: 0.20\n"
+                "📝 Memory Sharing: ISOLATED"
             ),
             ephemeral=True,
         )
@@ -188,6 +192,79 @@ def register_config_commands(bot: "MyriadDiscordBot") -> None:
             message += "`/config autonomy inactivity_hours:6.0 sleep_threshold:0.3`"
 
         await interaction.response.send_message(message, ephemeral=True)
+
+    @config_group.command(
+        name="memory", description="Configure cross-persona memory sharing mode"
+    )
+    @app_commands.describe(mode="Memory sharing mode: isolated, user_shared, or global")
+    @app_commands.choices(
+        mode=[
+            app_commands.Choice(
+                name="ISOLATED - Each persona has separate memories (default)",
+                value="ISOLATED",
+            ),
+            app_commands.Choice(
+                name="USER_SHARED - Share memories across all your personas",
+                value="USER_SHARED",
+            ),
+            app_commands.Choice(
+                name="GLOBAL - Share memories across all users and personas",
+                value="GLOBAL",
+            ),
+        ]
+    )
+    async def config_memory(
+        interaction: discord.Interaction, mode: app_commands.Choice[str] = None
+    ):
+        """Configure memory sharing mode."""
+        user_id = str(interaction.user.id)
+
+        if mode is not None:
+            # Set new mode
+            bot.agent_core.user_preferences.set_preference(
+                user_id, "default_memory_visibility", mode.value
+            )
+
+            message = f"✅ **Memory Sharing Mode Updated**\n\n"
+            message += f"New mode: **{mode.value}**\n\n"
+
+            if mode.value == "ISOLATED":
+                message += (
+                    "🔒 Each persona has separate memories. When you switch personas, "
+                    "they won't remember conversations from other personas.\n\n"
+                    "Use case: You want complete separation between different AI characters."
+                )
+            elif mode.value == "USER_SHARED":
+                message += (
+                    "🔗 All your personas share memories. When you switch personas, "
+                    "they can recall conversations from other personas.\n\n"
+                    "Use case: You want personas to be aware of each other's interactions with you."
+                )
+            elif mode.value == "GLOBAL":
+                message += (
+                    "🌍 Memories are shared across all users and personas globally.\n\n"
+                    "Use case: Multi-user scenarios or persistent world-building."
+                )
+
+            await interaction.response.send_message(message, ephemeral=True)
+        else:
+            # Show current mode
+            prefs = bot.agent_core.user_preferences.get_preferences(user_id)
+            current_mode = prefs.get("default_memory_visibility", "ISOLATED")
+
+            message = "**Current Memory Sharing Mode:**\n\n"
+            message += f"Mode: **{current_mode}**\n\n"
+
+            if current_mode == "ISOLATED":
+                message += "🔒 Each persona has separate memories."
+            elif current_mode == "USER_SHARED":
+                message += "🔗 All your personas share memories."
+            elif current_mode == "GLOBAL":
+                message += "🌍 Memories are shared globally."
+
+            message += "\n\n💡 Use `/config memory mode:<option>` to change the mode."
+
+            await interaction.response.send_message(message, ephemeral=True)
 
     # Register the command group
     bot.tree.add_command(config_group)

@@ -84,7 +84,7 @@ class VectorMemory:
             user_id: User identifier
             origin_persona: The persona that recorded this memory
             role: 'user', 'assistant', or 'system'
-            visibility_scope: 'GLOBAL' or 'ISOLATED'
+            visibility_scope: 'GLOBAL', 'USER_SHARED', or 'ISOLATED'
             life_id: Timeline/session ID (optional)
             timestamp: ISO timestamp (defaults to now)
             importance_score: Importance rating 1-10 (default=5)
@@ -136,7 +136,8 @@ class VectorMemory:
         Search for semantically similar memories using weighted priority scoring.
 
         Applies the Automated Discretion Engine filters:
-        - visibility_scope = 'GLOBAL' (shared), OR
+        - visibility_scope = 'GLOBAL' (shared across all users/personas), OR
+        - visibility_scope = 'USER_SHARED' (shared across this user's personas), OR
         - origin_persona = current_persona (isolated to this persona)
         - life_id = current life (if provided)
 
@@ -168,6 +169,7 @@ class VectorMemory:
                 {
                     "$or": [
                         {"visibility_scope": {"$eq": "GLOBAL"}},
+                        {"visibility_scope": {"$eq": "USER_SHARED"}},
                         {"origin_persona": {"$eq": current_persona}},
                     ]
                 },

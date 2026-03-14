@@ -89,7 +89,7 @@ class MemoryRepository:
             origin_persona: Persona that created this memory
             role: Message role (user/assistant/system)
             content: Message content
-            visibility_scope: GLOBAL or ISOLATED
+            visibility_scope: GLOBAL, USER_SHARED, or ISOLATED
             life_id: Timeline identifier
             importance_score: Importance rating 1-10 (default: 5)
 
@@ -151,7 +151,8 @@ class MemoryRepository:
 
         Retrieves memories that are either:
         - Created by the current persona (ISOLATED scope)
-        - Marked as GLOBAL (visible across all personas)
+        - Marked as GLOBAL (visible across all users and personas)
+        - Marked as USER_SHARED (visible across all personas for this user)
 
         Args:
             user_id: User identifier
@@ -171,7 +172,7 @@ class MemoryRepository:
             FROM memories
             WHERE user_id = ?
               AND life_id = ?
-              AND (origin_persona = ? OR visibility_scope = 'GLOBAL')
+              AND (origin_persona = ? OR visibility_scope = 'GLOBAL' OR visibility_scope = 'USER_SHARED')
             ORDER BY id DESC
             LIMIT ?
         """,
