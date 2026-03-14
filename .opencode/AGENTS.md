@@ -3,6 +3,8 @@
 ## Development Environment
 **Package Management:** This project uses `uv` for Python package management. Use `uv pip install <package>` or `uv run <command>` instead of pip directly.
 
+**Environment Configuration:** When adding new configuration variables, ALWAYS update BOTH `.env.example` (for documentation) AND `.env` (for actual use). Never update only one.
+
 ## Directory Structure
 - **`database/`**: Python modules for database logic (code only, no .db files)
 - **`data/`**: Runtime database files (SQLite .db files, ChromaDB vector store) - **NEVER commit to git**
