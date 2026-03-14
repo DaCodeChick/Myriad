@@ -24,6 +24,14 @@ Before implementing any feature or making changes, follow the **RDSSC** principl
   - Don't mix different approaches (e.g., one error handling style in one place, different style elsewhere)
   - If one approach is clearly better, refactor to use it consistently UNLESS there's a specific technical reason not to
 
+### Testing During Refactoring
+
+When performing large refactorings:
+1. Use `start.sh` to test functionality with local models (kobold-cpp) instead of consuming external API budgets
+2. Test between each refactoring phase to ensure nothing breaks
+3. Commit after each successful phase with descriptive messages
+4. If a phase breaks functionality, revert and adjust approach before continuing
+
 ## Architecture Rules
 
 1. **Language & Ecosystem:** All code must be written in Python 3.10+. Use `discord.py` for the bot framework. Do not use heavy ORMs like SQLAlchemy; use native `sqlite3` for absolute speed and control.
