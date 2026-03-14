@@ -1,13 +1,15 @@
 """
 Persona Cartridge System - Hot-swappable personality loader for Project Myriad.
 
-This module handles loading and validating persona.json files from the personas/ directory.
+This module handles loading and validating persona.json files from the personas/
+directory and its subdirectories (supporting categorization).
 """
 
 import json
 import os
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass
@@ -70,8 +72,12 @@ class PersonaLoader:
         """
         Load a persona cartridge from disk.
 
+        Supports both flat and categorized personas:
+        - "coding_mentor" -> personas/coding_mentor.json (legacy)
+        - "professional/coding_mentor" -> personas/professional/coding_mentor.json
+
         Args:
-            persona_id: The ID of the persona to load (filename without .json)
+            persona_id: The ID of the persona to load (can include category path)
 
         Returns:
             PersonaCartridge if found and valid, None otherwise
@@ -80,7 +86,7 @@ class PersonaLoader:
         if persona_id in self._cache:
             return self._cache[persona_id]
 
-        # Load from disk
+        # Build file path (persona_id can include subdirectories)
         file_path = os.path.join(self.personas_dir, f"{persona_id}.json")
 
         if not os.path.exists(file_path):
@@ -96,11 +102,11 @@ class PersonaLoader:
                 if field not in data:
                     raise ValueError(f"Missing required field: {field}")
 
-            # Ensure persona_id in file matches filename
+            # Ensure persona_id in file matches the requested ID
             if data["persona_id"] != persona_id:
                 raise ValueError(
                     f"persona_id '{data['persona_id']}' does not match "
-                    f"filename '{persona_id}.json'"
+                    f"requested ID '{persona_id}'"
                 )
 
             # Create persona cartridge
@@ -129,19 +135,28 @@ class PersonaLoader:
 
     def list_available_personas(self) -> List[str]:
         """
-        List all available persona IDs in the personas directory.
+        List all available persona IDs in the personas directory (recursively).
+
+        Returns categorized personas with their full path:
+        - "professional/coding_mentor"
+        - "nsfw/romantic/alpha_stud"
 
         Returns:
-            List of persona_id strings (filenames without .json extension)
+            List of persona_id strings sorted alphabetically
         """
         if not os.path.exists(self.personas_dir):
             return []
 
         personas = []
-        for filename in os.listdir(self.personas_dir):
-            if filename.endswith(".json"):
-                persona_id = filename[:-5]  # Remove .json extension
-                personas.append(persona_id)
+        personas_path = Path(self.personas_dir)
+
+        # Recursively find all .json files
+        for json_file in personas_path.rglob("*.json"):
+            # Get relative path from personas directory
+            relative_path = json_file.relative_to(personas_path)
+            # Remove .json extension and convert to forward slashes
+            persona_id = str(relative_path.with_suffix("")).replace(os.sep, "/")
+            personas.append(persona_id)
 
         return sorted(personas)
 
