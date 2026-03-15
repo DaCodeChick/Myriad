@@ -86,7 +86,7 @@ class AppearanceGenerator:
 
                 # Generate description for this image
                 description = self.vision_service.generate_appearance_description(
-                    image_bytes, image_format
+                    image_bytes, image_format, persona_name="Character"
                 )
 
                 if description:

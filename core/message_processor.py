@@ -16,6 +16,7 @@ from openai import OpenAI
 
 from core.persona import PersonaCartridge
 from core.tool_registry import ToolRegistry, parse_tool_call, format_tool_response
+from core.logger import get_logger
 from database.limbic_engine import LimbicEngine
 from database.metacognition_engine import MetacognitionEngine
 from database.mode_manager import ModeManager
@@ -179,6 +180,10 @@ class MessageProcessor:
 
         while tool_iterations < self.max_tool_iterations:
             try:
+                # Log request to LLM
+                logger = get_logger()
+                logger.log_brain_request(persona.persona_id, len(messages))
+
                 # Call LLM API
                 response = self.client.chat.completions.create(
                     model=self.model,
@@ -192,6 +197,9 @@ class MessageProcessor:
 
                 if not assistant_message:
                     return None
+
+                # Log response from LLM
+                logger.log_brain_response(persona.persona_id, assistant_message)
 
                 # Check if this is a tool call
                 if tool_registry:
@@ -409,9 +417,10 @@ class MessageProcessor:
                 r"<thought>.*?</thought>\s*", "", response, flags=re.DOTALL
             )
 
-            # Print all thoughts to terminal in yellow
+            # Log all thoughts using the new logger
+            logger = get_logger()
             for thought_content in thoughts:
-                print(f"\033[93m💭 [Hidden Thought]: {thought_content}\033[0m")
+                logger.log_thought(persona_id, thought_content)
 
         # Clean up any orphaned tags (shouldn't happen, but safety check)
         response = response.replace("<thought>", "").replace("</thought>", "")

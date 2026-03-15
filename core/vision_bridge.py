@@ -13,6 +13,7 @@ import base64
 import io
 from typing import Optional
 from openai import OpenAI
+from core.logger import get_logger
 
 
 class VisionBridge:
@@ -49,6 +50,10 @@ class VisionBridge:
             Text description of the image, or None if processing failed
         """
         try:
+            # Log vision request
+            logger = get_logger()
+            logger.log_vision_request("Vision", f"image ({image_format})")
+
             # Convert image to base64
             base64_image = base64.b64encode(image_bytes).decode("utf-8")
 
@@ -79,6 +84,8 @@ class VisionBridge:
             description = response.choices[0].message.content
 
             if description:
+                # Log vision response
+                logger.log_vision_response("Vision", description)
                 return description.strip()
 
             return None

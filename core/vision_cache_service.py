@@ -8,6 +8,7 @@ detailed text descriptions that are cached in the database for instant recall.
 import base64
 from typing import Optional
 from openai import OpenAI
+from core.logger import get_logger
 
 
 class VisionCacheService:
@@ -37,7 +38,10 @@ class VisionCacheService:
         self.vision_model = vision_model
 
     def generate_appearance_description(
-        self, image_bytes: bytes, image_format: str = "png"
+        self,
+        image_bytes: bytes,
+        image_format: str = "png",
+        persona_name: str = "Character",
     ) -> Optional[str]:
         """
         Process a character image and generate a detailed appearance description.
@@ -48,11 +52,18 @@ class VisionCacheService:
         Args:
             image_bytes: Raw image bytes
             image_format: Image format (png, jpg, jpeg, webp, etc.)
+            persona_name: Name of the persona for logging
 
         Returns:
             Detailed appearance description, or None if processing failed
         """
         try:
+            # Log vision request
+            logger = get_logger()
+            logger.log_vision_request(
+                persona_name, f"appearance image ({image_format})"
+            )
+
             # Convert image to base64
             base64_image = base64.b64encode(image_bytes).decode("utf-8")
 
@@ -92,6 +103,8 @@ class VisionCacheService:
             description = response.choices[0].message.content
 
             if description:
+                # Log vision response
+                logger.log_vision(persona_name, description)
                 return description.strip()
 
             return None

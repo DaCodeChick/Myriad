@@ -25,6 +25,7 @@ from core.config import MyriadConfig
 from core.context import ConversationContextBuilder
 from core.message_processor import MessageProcessor
 from core.persona_manager import PersonaManager
+from core.logger import initialize_logger, get_logger
 from database.memory_matrix import MemoryMatrix
 from database.graph_memory import GraphMemory
 from database.limbic_engine import LimbicEngine
@@ -84,6 +85,12 @@ class AgentCore:
         """
         # Store configuration
         self.config = config
+
+        # Initialize global logger
+        initialize_logger(
+            brain_logging_enabled=config.logging.brain_logging_enabled,
+            eyes_logging_enabled=config.logging.eyes_logging_enabled,
+        )
 
         # Universal Rules - use provided rules or fall back to defaults
         self.universal_rules = (
@@ -435,6 +442,10 @@ class AgentCore:
             life_id=life_id,
         )
 
+        # Log user message
+        logger = get_logger()
+        logger.log_user_message(f"User_{user_id}", message)
+
         # Build conversation context with memory injection
         # NOTE: INHALE phase happens inside context builder (limbic state injection)
         messages = self._build_conversation_context(
@@ -476,6 +487,9 @@ class AgentCore:
 
         # Save final assistant response to memory
         save_message("assistant", final_response)
+
+        # Log AI response
+        logger.log_ai_message(persona.persona_id, final_response)
 
         return final_response
 

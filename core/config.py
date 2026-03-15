@@ -169,6 +169,24 @@ class UniversalRulesConfig:
 
 
 @dataclass
+class LoggingConfig:
+    """Console logging configuration."""
+
+    brain_logging_enabled: bool = False
+    eyes_logging_enabled: bool = False
+
+    @classmethod
+    def from_env(cls) -> "LoggingConfig":
+        """Load logging configuration from environment variables."""
+        return cls(
+            brain_logging_enabled=os.getenv("ENABLE_BRAIN_LOGGING", "false").lower()
+            == "true",
+            eyes_logging_enabled=os.getenv("ENABLE_EYES_LOGGING", "false").lower()
+            == "true",
+        )
+
+
+@dataclass
 class MyriadConfig:
     """Complete Project Myriad configuration.
 
@@ -182,6 +200,7 @@ class MyriadConfig:
     tools: ToolsConfig
     database_paths: DatabasePaths
     universal_rules: UniversalRulesConfig
+    logging: LoggingConfig
 
     @property
     def discord_token(self) -> str:
@@ -203,6 +222,7 @@ class MyriadConfig:
             tools=ToolsConfig.from_env(),
             database_paths=DatabasePaths.from_env(),
             universal_rules=UniversalRulesConfig.from_env(),
+            logging=LoggingConfig.from_env(),
         )
 
     def __repr__(self) -> str:
