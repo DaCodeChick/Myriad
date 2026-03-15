@@ -1,12 +1,17 @@
 """
-Persona management commands for Discord.
+Content management commands - background/lore and image handling.
 
-Handles persona switching, listing, and information display.
+Handles persona content like background lore, images, and appearance cache generation.
+
+Part of RDSSC Phase 1 refactoring - split from persona_commands.py.
 """
 
 import discord
 from discord import app_commands
 from typing import TYPE_CHECKING
+from pathlib import Path
+import os
+import sqlite3
 
 from adapters.commands.base import ResponseFormatter
 
@@ -14,304 +19,18 @@ if TYPE_CHECKING:
     from adapters.discord_adapter import MyriadDiscordBot
 
 
-def register_persona_commands(bot: "MyriadDiscordBot") -> None:
+def register_content_commands(
+    persona_group: app_commands.Group, bot: "MyriadDiscordBot"
+) -> None:
     """
-    Register all persona-related slash commands.
+    Register content management commands (background/lore and images).
 
     Args:
+        persona_group: The persona command group to add commands to
         bot: The Discord bot instance
     """
 
-    @bot.tree.command(name="swap", description="Switch to a different persona")
-    @app_commands.describe(persona_id="The ID of the persona to switch to")
-    async def swap_persona(interaction: discord.Interaction, persona_id: str):
-        """Switch the user's active persona."""
-        user_id = str(interaction.user.id)
-
-        # Attempt to switch persona
-        success = bot.agent_core.switch_persona(user_id, persona_id)
-
-        if success:
-            persona = bot.agent_core.get_active_persona(user_id)
-            if persona:  # Type guard to satisfy type checker
-                await interaction.response.send_message(
-                    ResponseFormatter.success(
-                        f"Switched to persona: **{persona.name}** (`{persona_id}`)"
-                    ),
-                    ephemeral=True,
-                )
-        else:
-            available = bot.agent_core.list_personas()
-            await interaction.response.send_message(
-                ResponseFormatter.error(
-                    f"Persona '{persona_id}' not found.\n"
-                    f"Available personas: {', '.join(available)}"
-                ),
-                ephemeral=True,
-            )
-
-    @bot.tree.command(name="personas", description="List all available personas")
-    async def list_personas_cmd(interaction: discord.Interaction):
-        """List all available persona cartridges."""
-        personas = bot.agent_core.list_personas()
-
-        if personas:
-            persona_list = "\n".join([f"• `{p}`" for p in personas])
-            await interaction.response.send_message(
-                f"**Available Personas:**\n{persona_list}\n\n"
-                f"Use `/swap <persona_id>` to switch.",
-                ephemeral=True,
-            )
-        else:
-            await interaction.response.send_message(
-                ResponseFormatter.warning(
-                    "No personas found in the `personas/` directory."
-                ),
-                ephemeral=True,
-            )
-
-    @bot.tree.command(name="whoami", description="Check your current active persona(s)")
-    async def whoami(interaction: discord.Interaction):
-        """Show the user's current active persona(s)."""
-        user_id = str(interaction.user.id)
-
-        # Check for ensemble mode (multiple personas)
-        active_personas = bot.agent_core.get_active_personas(user_id)
-
-        if not active_personas:
-            await interaction.response.send_message(
-                f"You don't have an active persona.\n"
-                f"Use `/swap <persona_id>` to select one, or\n"
-                f"Use `/persona load <persona_id>` to load multiple personas.",
-                ephemeral=True,
-            )
-            return
-
-        # If ensemble mode (multiple personas)
-        if len(active_personas) > 1:
-            response = (
-                f"**🎭 Ensemble Mode Active** ({len(active_personas)} personas)\n\n"
-            )
-
-            for persona in active_personas:
-                # Check if narrator
-                if persona.is_narrator:
-                    response += (
-                        f"**{persona.name}** (`{persona.persona_id}`) 🎲 **[NARRATOR]**\n"
-                        f"• Role: Omniscient environmental narrator\n"
-                        f"• Temp: {persona.temperature} | Tokens: {persona.max_tokens}\n\n"
-                    )
-                else:
-                    traits = (
-                        ", ".join(persona.personality_traits[:3])
-                        if persona.personality_traits
-                        else "None"
-                    )
-                    bg_indicator = " 📖" if persona.background else ""
-                    img_indicator = " 🖼️" if persona.cached_appearance else ""
-
-                    response += (
-                        f"**{persona.name}** (`{persona.persona_id}`){bg_indicator}{img_indicator}\n"
-                        f"• Traits: {traits}\n"
-                        f"• Temp: {persona.temperature} | Tokens: {persona.max_tokens}\n\n"
-                    )
-
-            response += "The AI is controlling multiple characters as Dungeon Master/Narrator.\n"
-            response += "\n📖 = Has background | 🖼️ = Has appearance images | 🎲 = Narrator (no body)"
-
-            await interaction.response.send_message(response, ephemeral=True)
-        else:
-            # Single persona mode
-            persona = active_personas[0]
-            traits = (
-                ", ".join(persona.personality_traits)
-                if persona.personality_traits
-                else "None"
-            )
-
-            # Build response with background info if available
-            response = (
-                f"**Current Persona:**\n"
-                f"• ID: `{persona.persona_id}`\n"
-                f"• Name: **{persona.name}**\n"
-                f"• Traits: {traits}\n"
-                f"• Temperature: {persona.temperature}\n"
-                f"• Max Tokens: {persona.max_tokens}"
-            )
-
-            if persona.background:
-                # Show "Has background" indicator with character count
-                # User can use /persona view_background to see full text
-                response += f"\n• Background: ✓ Defined ({len(persona.background)} chars) - use `/persona view_background {persona.persona_id}` to view"
-
-            await interaction.response.send_message(
-                response,
-                ephemeral=True,
-            )
-
-    # Persona Background Management Commands
-    persona_group = app_commands.Group(
-        name="persona", description="Advanced persona management commands"
-    )
-
-    @persona_group.command(
-        name="load",
-        description="Load a persona into the ensemble (adds to active personas)",
-    )
-    @app_commands.describe(persona_id="The ID of the persona to load")
-    async def load_persona(interaction: discord.Interaction, persona_id: str):
-        """Load a persona into the ensemble."""
-        user_id = str(interaction.user.id)
-
-        # Verify persona exists
-        persona = bot.agent_core.persona_loader.get_persona(persona_id)
-        if not persona:
-            available = bot.agent_core.list_personas()
-            await interaction.response.send_message(
-                ResponseFormatter.error(
-                    f"Persona '{persona_id}' not found.\n"
-                    f"Available personas: {', '.join(available[:10])}"
-                ),
-                ephemeral=True,
-            )
-            return
-
-        # Add to ensemble
-        success = bot.agent_core.add_active_persona(user_id, persona_id)
-
-        if success:
-            # Get all active personas
-            active_personas = bot.agent_core.get_active_personas(user_id)
-            ensemble_status = (
-                f"\n\n**Ensemble Mode Active** ({len(active_personas)} personas loaded)"
-                if len(active_personas) > 1
-                else ""
-            )
-
-            await interaction.response.send_message(
-                ResponseFormatter.success(
-                    f"Loaded persona: **{persona.name}** (`{persona_id}`){ensemble_status}"
-                ),
-                ephemeral=True,
-            )
-        else:
-            await interaction.response.send_message(
-                ResponseFormatter.warning(f"Persona '{persona_id}' is already loaded."),
-                ephemeral=True,
-            )
-
-    @persona_group.command(
-        name="unload",
-        description="Unload a specific persona from the ensemble",
-    )
-    @app_commands.describe(persona_id="The ID of the persona to unload")
-    async def unload_persona(interaction: discord.Interaction, persona_id: str):
-        """Remove a persona from the ensemble."""
-        user_id = str(interaction.user.id)
-
-        success = bot.agent_core.remove_active_persona(user_id, persona_id)
-
-        if success:
-            active_personas = bot.agent_core.get_active_personas(user_id)
-            remaining_status = (
-                f"\n\n**{len(active_personas)} persona(s) remaining**"
-                if active_personas
-                else "\n\n**No personas active**"
-            )
-
-            await interaction.response.send_message(
-                ResponseFormatter.success(
-                    f"Unloaded persona: `{persona_id}`{remaining_status}"
-                ),
-                ephemeral=True,
-            )
-        else:
-            await interaction.response.send_message(
-                ResponseFormatter.warning(f"Persona '{persona_id}' was not loaded."),
-                ephemeral=True,
-            )
-
-    @persona_group.command(
-        name="clear",
-        description="Clear all active personas from the ensemble",
-    )
-    async def clear_personas(interaction: discord.Interaction):
-        """Clear all active personas."""
-        user_id = str(interaction.user.id)
-
-        # Get count before clearing
-        active_personas = bot.agent_core.get_active_personas(user_id)
-        count = len(active_personas)
-
-        bot.agent_core.clear_active_personas(user_id)
-
-        if count > 0:
-            await interaction.response.send_message(
-                ResponseFormatter.success(f"Cleared {count} persona(s) from ensemble."),
-                ephemeral=True,
-            )
-        else:
-            await interaction.response.send_message(
-                ResponseFormatter.warning("No personas were active."),
-                ephemeral=True,
-            )
-
-    @persona_group.command(
-        name="list_active",
-        description="Show all currently loaded personas in the ensemble",
-    )
-    async def list_active_personas(interaction: discord.Interaction):
-        """List all active personas in the ensemble."""
-        user_id = str(interaction.user.id)
-
-        active_personas = bot.agent_core.get_active_personas(user_id)
-
-        if not active_personas:
-            await interaction.response.send_message(
-                ResponseFormatter.warning(
-                    "No personas are currently active.\n\n"
-                    "Use `/persona load <persona_id>` to load one, or\n"
-                    "Use `/swap <persona_id>` to switch to a single persona."
-                ),
-                ephemeral=True,
-            )
-            return
-
-        # Build response
-        response = "**Active Personas:**\n\n"
-
-        for persona in active_personas:
-            # Check if narrator
-            if persona.is_narrator:
-                response += (
-                    f"• **{persona.name}** (`{persona.persona_id}`) 🎲 **[NARRATOR]**\n"
-                    f"  Role: Omniscient environmental narrator (no physical body)\n\n"
-                )
-            else:
-                traits = (
-                    ", ".join(persona.personality_traits[:3])
-                    if persona.personality_traits
-                    else "None"
-                )
-                bg_indicator = " 📖" if persona.background else ""
-                img_indicator = " 🖼️" if persona.cached_appearance else ""
-
-                response += (
-                    f"• **{persona.name}** (`{persona.persona_id}`){bg_indicator}{img_indicator}\n"
-                    f"  Traits: {traits}\n\n"
-                )
-
-        if len(active_personas) > 1:
-            response += (
-                f"**🎭 Ensemble Mode Active** ({len(active_personas)} personas)\n"
-            )
-            response += "The AI is controlling multiple characters as Dungeon Master/Narrator.\n\n"
-
-        response += "📖 = Has background lore\n"
-        response += "🖼️ = Has appearance images\n"
-        response += "🎲 = Narrator (no physical body)"
-
-        await interaction.response.send_message(response, ephemeral=True)
+    # Background/Lore Management Commands
 
     @persona_group.command(
         name="set_background",
@@ -468,6 +187,8 @@ def register_persona_commands(bot: "MyriadDiscordBot") -> None:
                 ephemeral=True,
             )
 
+    # Image Management Commands
+
     @persona_group.command(
         name="add_image",
         description="Add an image to a persona folder (auto-generates appearance cache)",
@@ -484,9 +205,6 @@ def register_persona_commands(bot: "MyriadDiscordBot") -> None:
         filename: str = "",
     ):
         """Add an image to a persona folder and trigger appearance regeneration."""
-        import os
-        from pathlib import Path
-
         # Check if vision cache service is available
         if not hasattr(bot, "vision_cache_service") or bot.vision_cache_service is None:
             await interaction.response.send_message(
@@ -607,8 +325,6 @@ def register_persona_commands(bot: "MyriadDiscordBot") -> None:
         persona_id: str,
     ):
         """List all images in a persona folder."""
-        from pathlib import Path
-
         # Verify persona exists
         persona = bot.agent_core.persona_loader.get_persona(persona_id)
         if not persona:
@@ -680,9 +396,6 @@ def register_persona_commands(bot: "MyriadDiscordBot") -> None:
         filename: str,
     ):
         """Remove an image from a persona folder and regenerate appearance."""
-        from pathlib import Path
-        import os
-
         # Verify persona exists
         persona = bot.agent_core.persona_loader.get_persona(persona_id)
         if not persona:
@@ -736,9 +449,6 @@ def register_persona_commands(bot: "MyriadDiscordBot") -> None:
         persona_id: str,
     ):
         """Force regenerate the appearance cache from images."""
-        from pathlib import Path
-        import sqlite3
-
         # Check if vision cache service is available
         if not hasattr(bot, "vision_cache_service") or bot.vision_cache_service is None:
             await interaction.response.send_message(
@@ -819,73 +529,3 @@ def register_persona_commands(bot: "MyriadDiscordBot") -> None:
                 ResponseFormatter.error(f"Error regenerating appearance: {str(e)}"),
                 ephemeral=True,
             )
-
-    @persona_group.command(
-        name="set_narrator",
-        description="Mark a persona as a Narrator/DM (no physical body, controls environment)",
-    )
-    @app_commands.describe(
-        persona_id="The ID of the persona to mark as narrator",
-        is_narrator="True to enable narrator mode, False to disable",
-    )
-    async def set_narrator(
-        interaction: discord.Interaction, persona_id: str, is_narrator: bool
-    ):
-        """Toggle narrator mode for a persona."""
-        # Verify persona exists
-        persona = bot.agent_core.persona_loader.get_persona(persona_id)
-        if not persona:
-            available = bot.agent_core.list_personas()
-            await interaction.response.send_message(
-                ResponseFormatter.error(
-                    f"Persona '{persona_id}' not found.\n"
-                    f"Available personas: {', '.join(available[:10])}"
-                ),
-                ephemeral=True,
-            )
-            return
-
-        try:
-            # Update the is_narrator flag
-            persona.is_narrator = is_narrator
-
-            # Save back to metadata.json
-            success = bot.agent_core.persona_loader.update_persona(
-                persona_id, persona.to_dict()
-            )
-
-            if success:
-                # Reload the persona to clear cache
-                bot.agent_core.persona_loader.reload_persona(persona_id)
-
-                status = "ENABLED" if is_narrator else "DISABLED"
-                mode_description = (
-                    "This persona will now act as an omniscient environmental narrator with no physical body."
-                    if is_narrator
-                    else "This persona will now act as a standard character with a physical body."
-                )
-
-                await interaction.response.send_message(
-                    ResponseFormatter.success(
-                        f"✅ **Narrator Mode {status}** for **{persona.name}**\n\n"
-                        f"{mode_description}\n\n"
-                        f"Reload this persona for changes to take effect in active sessions."
-                    ),
-                    ephemeral=True,
-                )
-            else:
-                await interaction.response.send_message(
-                    ResponseFormatter.error(
-                        f"Failed to update narrator status for '{persona_id}'. Check logs for details."
-                    ),
-                    ephemeral=True,
-                )
-
-        except Exception as e:
-            await interaction.response.send_message(
-                ResponseFormatter.error(f"Error setting narrator status: {str(e)}"),
-                ephemeral=True,
-            )
-
-    # Register the persona group
-    bot.tree.add_command(persona_group)

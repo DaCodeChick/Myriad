@@ -22,7 +22,7 @@ from adapters.commands.lives_commands import register_lives_commands
 from adapters.commands.mask_commands import register_mask_commands
 from adapters.commands.memory_commands import register_memory_commands
 from adapters.commands.mode_commands import register_mode_commands
-from adapters.commands.persona_commands import register_persona_commands
+from adapters.commands.persona import register_persona_commands
 from adapters.commands.saves_commands import register_saves_commands
 from adapters.commands.scenario_commands import register_scenario_commands
 from adapters.commands.search_cache_commands import (
