@@ -7,10 +7,10 @@ extreme limbic states (panic, arousal, sedation).
 
 import discord
 import json
-import os
+import io
 from typing import Optional
 
-from adapters.commands.response_formatter import ResponseFormatter
+from adapters.commands.base import ResponseFormatter
 
 
 def register_degradation_commands(
@@ -566,7 +566,7 @@ def register_degradation_commands(
 
             # Send as file attachment
             file = discord.File(
-                fp=discord.utils._StringIO(json_str),
+                fp=io.StringIO(json_str),
                 filename=filename,
             )
 
