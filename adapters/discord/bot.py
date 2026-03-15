@@ -16,6 +16,7 @@ from database.activity_tracker import ActivityTracker
 from adapters.discord.event_handlers import EventHandlers
 from adapters.discord.vision_processor import VisionProcessor
 from adapters.commands.config_commands import register_config_commands
+from adapters.commands.degradation_commands import register_degradation_commands
 from adapters.commands.dm_commands import register_dm_commands
 from adapters.commands.lives_commands import register_lives_commands
 from adapters.commands.mask_commands import register_mask_commands
@@ -120,6 +121,7 @@ def create_discord_bot(
     register_mode_commands(bot)
     register_dm_commands(bot)  # Dungeon Master world event injection
     register_narrative_commands(bot)  # Narrative control (narrate, improvise, retcon)
+    register_degradation_commands(bot, bot.tree)  # Text degradation customization
 
     # Search cache management commands
     setup_cache_commands(bot.tree)
