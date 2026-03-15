@@ -2,7 +2,6 @@
 Narrative control commands for Discord.
 
 Provides commands for controlling narrative flow:
-- /narrate: Post as narrator without masking
 - /improvise: Mark next user message as improvised/hallucinated
 - /retcon: Retroactively change something and regenerate AI's last response
 """

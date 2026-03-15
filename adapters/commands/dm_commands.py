@@ -24,71 +24,69 @@ def register_dm_commands(bot: "MyriadDiscordBot") -> None:
 
     @bot.tree.command(
         name="dm",
-        description="Inject a world event or narrative beat (DM mode)",
+        description="Narrate a scene using the hardcoded narrator persona",
     )
     @app_commands.describe(
-        event_description="The world event or environmental change to inject"
+        narration="The narration to deliver (environmental descriptions, events, etc.)"
     )
-    async def dm_inject_event(interaction: discord.Interaction, event_description: str):
+    async def dm_narrate(interaction: discord.Interaction, narration: str):
         """
-        Inject a world event into the narrative.
+        Use the hardcoded narrator persona to deliver narration.
 
-        This is NOT saved as a standard user message, but as a system event
-        that the AI must react to. Perfect for controlling pacing, introducing
-        plot twists, or describing environmental changes.
+        This temporarily switches to the 'narrator' persona to deliver the message,
+        then the response is saved. Subsequent messages will NOT be treated as
+        narration unless another /dm command is used.
         """
         user_id = str(interaction.user.id)
 
-        # Get active persona(s)
-        personas = bot.agent_core.get_active_personas(user_id)
-
-        if not personas:
-            await interaction.response.send_message(
-                ResponseFormatter.error(
-                    "No active persona detected.\n"
-                    "Use `/persona load <persona_id>` or `/swap <persona_id>` first."
-                ),
-                ephemeral=True,
-            )
-            return
+        # Defer response since this will generate AI narration
+        await interaction.response.defer(ephemeral=False)
 
         try:
-            # Format the event as a SYSTEM message with special marker
-            system_event = f"[WORLD EVENT]: {event_description}"
+            # Load the hardcoded narrator persona
+            narrator_persona = bot.agent_core.persona_loader.load_persona("narrator")
 
-            # Save it to memory as a system message (visible to AI but formatted specially)
-            # Using the first persona as the origin for memory storage
-            persona = personas[0]
+            if not narrator_persona:
+                await interaction.followup.send(
+                    ResponseFormatter.error("Failed to load narrator persona."),
+                    ephemeral=True,
+                )
+                return
 
-            # Get or create active life for this user+persona (if lives enabled)
+            # Get user preferences
+            user_preferences = bot.agent_core.user_preferences.get_preferences(user_id)
+
+            # Get or create active life (if user has lives enabled)
             life_id = None
-            if bot.agent_core.lives_engine:
-                life_id = bot.agent_core.lives_engine.get_or_create_active_life(
-                    user_id, persona.persona_id
+            if user_preferences.get("lives_enabled", True):
+                life_id = bot.agent_core.lives_engine.ensure_default_life(
+                    user_id, "narrator"
                 )
 
-            # Save to memory with GLOBAL visibility so all personas can see it
+            # Save the user's narration request as a user message
             bot.agent_core.memory_matrix.add_memory(
                 user_id=user_id,
-                origin_persona=persona.persona_id,
-                role="system",
-                content=system_event,
+                origin_persona="narrator",
+                role="user",
+                content=narration,
                 visibility_scope="GLOBAL",
                 life_id=life_id or "",
-                importance_score=8,  # World events are important
+                importance_score=7,
             )
 
-            await interaction.response.send_message(
-                ResponseFormatter.success(
-                    f"✅ **World Event Injected**\n\n"
-                    f"```\n{event_description}\n```\n\n"
-                    f"The AI will react to this event in the next response."
-                ),
-                ephemeral=True,
+            # Generate narrator response using the narrator persona
+            response = await bot.agent_core.process_message(
+                user_id=user_id,
+                message=narration,
+                persona_id="narrator",
+                ensemble_mode=False,
             )
+
+            # Send the narration to the channel
+            await interaction.followup.send(response)
 
         except Exception as e:
-            await interaction.response.send_message(
-                ResponseFormatter.error(f"Failed to inject event: {str(e)}"),
+            await interaction.followup.send(
+                ResponseFormatter.error(f"Failed to generate narration: {str(e)}"),
                 ephemeral=True,
             )
