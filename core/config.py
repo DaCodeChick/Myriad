@@ -149,23 +149,6 @@ class DatabasePaths:
 
 
 @dataclass
-class FeatureFlags:
-    """System-level feature flags (controls engine loading at bot startup)."""
-
-    graph_memory_enabled: bool = True
-    lives_enabled: bool = True
-
-    @classmethod
-    def from_env(cls) -> "FeatureFlags":
-        """Load feature flags from environment variables."""
-        return cls(
-            graph_memory_enabled=os.getenv("GRAPH_MEMORY_ENABLED", "true").lower()
-            == "true",
-            lives_enabled=os.getenv("LIVES_ENABLED", "true").lower() == "true",
-        )
-
-
-@dataclass
 class UniversalRulesConfig:
     """Universal behavioral rules applied to all personas."""
 
@@ -200,7 +183,6 @@ class MyriadConfig:
     memory: MemoryConfig
     tools: ToolsConfig
     database_paths: DatabasePaths
-    features: FeatureFlags
     universal_rules: UniversalRulesConfig
 
     @property
@@ -222,25 +204,17 @@ class MyriadConfig:
             memory=MemoryConfig.from_env(),
             tools=ToolsConfig.from_env(),
             database_paths=DatabasePaths.from_env(),
-            features=FeatureFlags.from_env(),
             universal_rules=UniversalRulesConfig.from_env(),
         )
 
     def __repr__(self) -> str:
         """Return a safe string representation without sensitive data."""
         whitelist_count = len(self.discord.whitelisted_bot_ids)
-        features_count = sum(
-            [
-                self.features.graph_memory_enabled,
-                self.features.lives_enabled,
-            ]
-        )
         return (
             f"MyriadConfig(\n"
             f"  llm={self.llm.model} @ {self.llm.base_url}\n"
             f"  vision={'enabled' if self.vision.enabled else 'disabled'}\n"
             f"  memory=short_term({self.memory.short_term_limit}), semantic({self.memory.semantic_recall_limit})\n"
-            f"  features={features_count} system flags enabled\n"
             f"  bot_whitelist={whitelist_count} bot(s)\n"
             f")"
         )

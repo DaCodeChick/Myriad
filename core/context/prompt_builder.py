@@ -90,13 +90,18 @@ class PromptBuilder:
             if active_relationship.rules_of_engagement_override:
                 effective_rules = active_relationship.rules_of_engagement_override
 
-        # Start with [CORE SYSTEM DIRECTIVES]
-        content = "# [CORE SYSTEM DIRECTIVES]\n"
-        content += "The following directives apply universally to all interactions:\n\n"
-        content += "\n".join(f"- {rule}" for rule in self.universal_rules)
+        # Start with [CORE SYSTEM DIRECTIVES] (if enabled by user)
+        content = ""
+        if user_preferences.get("universal_rules_enabled", True):
+            content = "# [CORE SYSTEM DIRECTIVES]\n"
+            content += (
+                "The following directives apply universally to all interactions:\n\n"
+            )
+            content += "\n".join(f"- {rule}" for rule in self.universal_rules)
+            content += "\n\n"
 
         # Add persona's core identity and system prompt
-        content += f"\n\n# [CHARACTER IDENTITY]\n{persona.system_prompt}"
+        content += f"# [CHARACTER IDENTITY]\n{persona.system_prompt}"
 
         # Inject relationship context if override is active
         if active_relationship:
@@ -209,13 +214,18 @@ class PromptBuilder:
         - No emotional/limbic system
         - Special focus on world-building, dice mechanics, storytelling
         """
-        # Start with [CORE SYSTEM DIRECTIVES]
-        content = "# [CORE SYSTEM DIRECTIVES]\n"
-        content += "The following directives apply universally to all interactions:\n\n"
-        content += "\n".join(f"- {rule}" for rule in self.universal_rules)
+        # Start with [CORE SYSTEM DIRECTIVES] (if enabled by user)
+        content = ""
+        if user_preferences.get("universal_rules_enabled", True):
+            content = "# [CORE SYSTEM DIRECTIVES]\n"
+            content += (
+                "The following directives apply universally to all interactions:\n\n"
+            )
+            content += "\n".join(f"- {rule}" for rule in self.universal_rules)
+            content += "\n\n"
 
         # Add narrator's core identity
-        content += f"\n\n# [NARRATOR ROLE]\n{persona.system_prompt}"
+        content += f"# [NARRATOR ROLE]\n{persona.system_prompt}"
 
         # Inject background/lore if defined (world-building context)
         if persona.background:
@@ -301,13 +311,18 @@ class PromptBuilder:
         - Each persona has their own voice, but they coordinate
         - Special formatting to distinguish speakers
         """
-        # Start with [CORE SYSTEM DIRECTIVES]
-        content = "# [CORE SYSTEM DIRECTIVES]\n"
-        content += "The following directives apply universally to all interactions:\n\n"
-        content += "\n".join(f"- {rule}" for rule in self.universal_rules)
+        # Start with [CORE SYSTEM DIRECTIVES] (if enabled by user)
+        content = ""
+        if user_preferences.get("universal_rules_enabled", True):
+            content = "# [CORE SYSTEM DIRECTIVES]\n"
+            content += (
+                "The following directives apply universally to all interactions:\n\n"
+            )
+            content += "\n".join(f"- {rule}" for rule in self.universal_rules)
+            content += "\n\n"
 
         # Add Ensemble Mode header
-        content += "\n\n# [ENSEMBLE MODE - ACTIVE PERSONAS]\n"
+        content += "# [ENSEMBLE MODE - ACTIVE PERSONAS]\n"
         content += f"You are operating in **Ensemble Mode** with {len(personas)} active personas. "
         content += "Each persona below has their own distinct identity, personality, and voice:\n\n"
 

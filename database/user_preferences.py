@@ -43,7 +43,9 @@ class UserPreferences:
                 autonomy_enabled INTEGER DEFAULT 1,
                 autonomy_inactivity_hours REAL DEFAULT 4.0,
                 autonomy_sleep_threshold REAL DEFAULT 0.2,
-                default_memory_visibility TEXT DEFAULT 'ISOLATED'
+                default_memory_visibility TEXT DEFAULT 'ISOLATED',
+                lives_enabled INTEGER DEFAULT 1,
+                universal_rules_enabled INTEGER DEFAULT 1
             )
         """
         )
@@ -68,7 +70,8 @@ class UserPreferences:
             """
             SELECT limbic_enabled, cadence_degrader_enabled, metacognition_enabled,
                    show_thoughts_inline, autonomy_enabled, autonomy_inactivity_hours,
-                   autonomy_sleep_threshold, default_memory_visibility
+                   autonomy_sleep_threshold, default_memory_visibility, lives_enabled,
+                   universal_rules_enabled
             FROM user_preferences
             WHERE user_id = ?
         """,
@@ -88,6 +91,8 @@ class UserPreferences:
                 "autonomy_inactivity_hours": float(row[5]),
                 "autonomy_sleep_threshold": float(row[6]),
                 "default_memory_visibility": str(row[7]),
+                "lives_enabled": bool(row[8]),
+                "universal_rules_enabled": bool(row[9]),
             }
         else:
             # Return defaults if no preferences found
@@ -100,6 +105,8 @@ class UserPreferences:
                 "autonomy_inactivity_hours": 4.0,
                 "autonomy_sleep_threshold": 0.2,
                 "default_memory_visibility": "ISOLATED",
+                "lives_enabled": True,
+                "universal_rules_enabled": True,
             }
 
     def get_preference(
@@ -127,6 +134,8 @@ class UserPreferences:
             "autonomy_inactivity_hours": 4.0,
             "autonomy_sleep_threshold": 0.2,
             "default_memory_visibility": "ISOLATED",
+            "lives_enabled": True,
+            "universal_rules_enabled": True,
         }
 
         return prefs.get(preference_name, defaults.get(preference_name, True))
@@ -155,6 +164,8 @@ class UserPreferences:
             "autonomy_inactivity_hours",
             "autonomy_sleep_threshold",
             "default_memory_visibility",
+            "lives_enabled",
+            "universal_rules_enabled",
         ]
 
         if preference_name not in valid_preferences:

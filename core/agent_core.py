@@ -118,12 +118,8 @@ class AgentCore:
         # Mode Manager (Dynamic Behavioral Overrides)
         self.mode_manager = ModeManager(db_path=db_path)
 
-        # Knowledge Graph Memory
-        self.graph_memory = (
-            GraphMemory(db_path=config.database_paths.graph_db_path)
-            if config.features.graph_memory_enabled
-            else None
-        )
+        # Knowledge Graph Memory (Always loaded)
+        self.graph_memory = GraphMemory(db_path=config.database_paths.graph_db_path)
 
         # Limbic System (Emotional Neurochemistry)
         # Always loaded - controlled by per-user preferences
@@ -143,13 +139,9 @@ class AgentCore:
             db_path=config.database_paths.metacognition_db_path
         )
 
-        # Lives & Memories System (Timeline Management and Save States)
-        self.lives_engine = (
-            LivesEngine(db_path=db_path) if config.features.lives_enabled else None
-        )
-        self.save_states_engine = (
-            SaveStatesEngine(db_path=db_path) if config.features.lives_enabled else None
-        )
+        # Lives & Memories System (Always loaded - controlled by per-user preferences)
+        self.lives_engine = LivesEngine(db_path=db_path)
+        self.save_states_engine = SaveStatesEngine(db_path=db_path)
 
         # User Mask System (User-Side Personas for Roleplay)
         self.user_mask_manager = UserMaskManager(
@@ -398,16 +390,16 @@ class AgentCore:
         # Check if we're in Ensemble Mode
         is_ensemble = len(personas) > 1
 
-        # Get or create active life for this user+persona (if lives enabled)
-        life_id = None
-        if self.lives_engine:
-            life_id = self.lives_engine.ensure_default_life(user_id, persona.persona_id)
-
         # Update user interaction timestamp
         self.memory_matrix.update_user_interaction(user_id)
 
-        # Get user preferences (including memory visibility preference)
+        # Get user preferences (including memory visibility and lives preferences)
         user_preferences = self.user_preferences.get_preferences(user_id)
+
+        # Get or create active life for this user+persona (if user has lives enabled)
+        life_id = None
+        if user_preferences.get("lives_enabled", True):
+            life_id = self.lives_engine.ensure_default_life(user_id, persona.persona_id)
 
         # Use user's default memory visibility if not specified
         if memory_visibility is None:
