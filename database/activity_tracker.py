@@ -16,7 +16,7 @@ from typing import Dict, List, Optional
 class ActivityTracker:
     """Tracks user activity patterns and calculates circadian rhythm probabilities."""
 
-    def __init__(self, db_path: str = "data/activity_logs.db"):
+    def __init__(self, db_path: str = "data/myriad.db"):
         """
         Initialize the activity tracker.
 

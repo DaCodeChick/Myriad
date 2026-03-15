@@ -123,7 +123,7 @@ class AgentCore:
 
         # Limbic System (Emotional Neurochemistry)
         # Always loaded - controlled by per-user preferences
-        self.limbic_engine = LimbicEngine(db_path=config.database_paths.limbic_db_path)
+        self.limbic_engine = LimbicEngine(db_path=config.database_paths.main_db_path)
 
         # Digital Pharmacy (Substance-Based Limbic Overrides)
         # Always loaded - controlled by per-user preferences
@@ -136,7 +136,7 @@ class AgentCore:
         # Metacognition Engine (Hidden Monologue / Internal Thought Tracking)
         # Always loaded - controlled by per-user preferences
         self.metacognition_engine = MetacognitionEngine(
-            db_path=config.database_paths.metacognition_db_path
+            db_path=config.database_paths.main_db_path
         )
 
         # Lives & Memories System (Always loaded - controlled by per-user preferences)
@@ -192,6 +192,7 @@ class AgentCore:
             cadence_degrader=self.cadence_degrader,
             mode_manager=self.mode_manager,
             user_mask_manager=self.user_mask_manager,
+            user_preferences_manager=self.user_preferences,
         )
 
     # ========================

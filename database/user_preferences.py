@@ -17,7 +17,7 @@ MemoryVisibility = Literal["GLOBAL", "USER_SHARED", "ISOLATED"]
 class UserPreferences:
     """Manages per-user configuration for experimental features."""
 
-    def __init__(self, db_path: str = "data/myriad_state.db"):
+    def __init__(self, db_path: str = "data/myriad.db"):
         """
         Initialize the user preferences manager.
 
@@ -63,6 +63,134 @@ class UserPreferences:
             cursor.execute(
                 "ALTER TABLE user_preferences ADD COLUMN universal_rules_enabled INTEGER DEFAULT 1"
             )
+
+        # Degradation Profiles Table
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS degradation_profiles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                persona_id TEXT,
+                profile_name TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                
+                vowel_stretch_enabled INTEGER DEFAULT 1,
+                panic_effects_enabled INTEGER DEFAULT 1,
+                sedation_effects_enabled INTEGER DEFAULT 1,
+                
+                vowel_stretch_base_chance REAL DEFAULT 0.01,
+                vowel_stretch_scale_factor REAL DEFAULT 0.057,
+                vowel_stretch_min_word_length INTEGER DEFAULT 4,
+                vowel_stretch_max_repeats INTEGER DEFAULT 2,
+                
+                panic_stutter_base_chance REAL DEFAULT 0.05,
+                panic_stutter_scale_factor REAL DEFAULT 0.10,
+                panic_caps_base_chance REAL DEFAULT 0.03,
+                panic_caps_scale_factor REAL DEFAULT 0.07,
+                panic_min_word_length INTEGER DEFAULT 3,
+                
+                sedation_ellipsis_chance REAL DEFAULT 0.3,
+                
+                UNIQUE(user_id, persona_id, profile_name)
+            )
+        """
+        )
+
+        # Insert default system presets if they don't exist
+        from datetime import datetime
+
+        now = datetime.utcnow().isoformat()
+
+        # Subtle preset (default)
+        cursor.execute(
+            """
+            INSERT OR IGNORE INTO degradation_profiles (
+                user_id, persona_id, profile_name, created_at, updated_at,
+                vowel_stretch_base_chance, vowel_stretch_scale_factor,
+                vowel_stretch_min_word_length, vowel_stretch_max_repeats,
+                panic_stutter_base_chance, panic_stutter_scale_factor,
+                panic_caps_base_chance, panic_caps_scale_factor,
+                panic_min_word_length, sedation_ellipsis_chance
+            ) VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+            (
+                "__system__",
+                "subtle",
+                now,
+                now,
+                0.01,
+                0.057,
+                4,
+                2,
+                0.05,
+                0.10,
+                0.03,
+                0.07,
+                3,
+                0.3,
+            ),
+        )
+
+        # Moderate preset
+        cursor.execute(
+            """
+            INSERT OR IGNORE INTO degradation_profiles (
+                user_id, persona_id, profile_name, created_at, updated_at,
+                vowel_stretch_base_chance, vowel_stretch_scale_factor,
+                vowel_stretch_min_word_length, vowel_stretch_max_repeats,
+                panic_stutter_base_chance, panic_stutter_scale_factor,
+                panic_caps_base_chance, panic_caps_scale_factor,
+                panic_min_word_length, sedation_ellipsis_chance
+            ) VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+            (
+                "__system__",
+                "moderate",
+                now,
+                now,
+                0.03,
+                0.12,
+                4,
+                3,
+                0.08,
+                0.12,
+                0.05,
+                0.10,
+                3,
+                0.3,
+            ),
+        )
+
+        # Intense preset
+        cursor.execute(
+            """
+            INSERT OR IGNORE INTO degradation_profiles (
+                user_id, persona_id, profile_name, created_at, updated_at,
+                vowel_stretch_base_chance, vowel_stretch_scale_factor,
+                vowel_stretch_min_word_length, vowel_stretch_max_repeats,
+                panic_stutter_base_chance, panic_stutter_scale_factor,
+                panic_caps_base_chance, panic_caps_scale_factor,
+                panic_min_word_length, sedation_ellipsis_chance
+            ) VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+            (
+                "__system__",
+                "intense",
+                now,
+                now,
+                0.05,
+                0.20,
+                4,
+                4,
+                0.12,
+                0.18,
+                0.08,
+                0.12,
+                3,
+                0.3,
+            ),
+        )
 
         conn.commit()
         conn.close()
@@ -268,3 +396,356 @@ class UserPreferences:
         conn.close()
 
         return users
+
+    # ========== Degradation Profile Management ==========
+
+    def get_degradation_profile(
+        self,
+        user_id: str,
+        persona_id: Optional[str] = None,
+        profile_name: str = "subtle",
+    ) -> Dict[str, Union[bool, int, float]]:
+        """
+        Get degradation profile settings for a user/persona combination.
+
+        Args:
+            user_id: User identifier
+            persona_id: Persona identifier (None for global profile)
+            profile_name: Name of profile to load (default: 'subtle')
+
+        Returns:
+            Dictionary of degradation settings
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        # Try user+persona-specific profile first
+        if persona_id:
+            cursor.execute(
+                """
+                SELECT 
+                    vowel_stretch_enabled, panic_effects_enabled, sedation_effects_enabled,
+                    vowel_stretch_base_chance, vowel_stretch_scale_factor,
+                    vowel_stretch_min_word_length, vowel_stretch_max_repeats,
+                    panic_stutter_base_chance, panic_stutter_scale_factor,
+                    panic_caps_base_chance, panic_caps_scale_factor,
+                    panic_min_word_length, sedation_ellipsis_chance
+                FROM degradation_profiles
+                WHERE user_id = ? AND persona_id = ? AND profile_name = ?
+            """,
+                (user_id, persona_id, profile_name),
+            )
+            row = cursor.fetchone()
+            if row:
+                conn.close()
+                return self._row_to_profile_dict(row)
+
+        # Fall back to user-global profile
+        cursor.execute(
+            """
+            SELECT 
+                vowel_stretch_enabled, panic_effects_enabled, sedation_effects_enabled,
+                vowel_stretch_base_chance, vowel_stretch_scale_factor,
+                vowel_stretch_min_word_length, vowel_stretch_max_repeats,
+                panic_stutter_base_chance, panic_stutter_scale_factor,
+                panic_caps_base_chance, panic_caps_scale_factor,
+                panic_min_word_length, sedation_ellipsis_chance
+            FROM degradation_profiles
+            WHERE user_id = ? AND persona_id IS NULL AND profile_name = ?
+        """,
+            (user_id, profile_name),
+        )
+        row = cursor.fetchone()
+        if row:
+            conn.close()
+            return self._row_to_profile_dict(row)
+
+        # Fall back to system preset
+        cursor.execute(
+            """
+            SELECT 
+                vowel_stretch_enabled, panic_effects_enabled, sedation_effects_enabled,
+                vowel_stretch_base_chance, vowel_stretch_scale_factor,
+                vowel_stretch_min_word_length, vowel_stretch_max_repeats,
+                panic_stutter_base_chance, panic_stutter_scale_factor,
+                panic_caps_base_chance, panic_caps_scale_factor,
+                panic_min_word_length, sedation_ellipsis_chance
+            FROM degradation_profiles
+            WHERE user_id = '__system__' AND persona_id IS NULL AND profile_name = ?
+        """,
+            (profile_name,),
+        )
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            return self._row_to_profile_dict(row)
+
+        # Ultimate fallback: return subtle defaults
+        return {
+            "vowel_stretch_enabled": True,
+            "panic_effects_enabled": True,
+            "sedation_effects_enabled": True,
+            "vowel_stretch_base_chance": 0.01,
+            "vowel_stretch_scale_factor": 0.057,
+            "vowel_stretch_min_word_length": 4,
+            "vowel_stretch_max_repeats": 2,
+            "panic_stutter_base_chance": 0.05,
+            "panic_stutter_scale_factor": 0.10,
+            "panic_caps_base_chance": 0.03,
+            "panic_caps_scale_factor": 0.07,
+            "panic_min_word_length": 3,
+            "sedation_ellipsis_chance": 0.3,
+        }
+
+    def _row_to_profile_dict(self, row) -> Dict[str, Union[bool, int, float]]:
+        """Convert database row to profile dictionary."""
+        return {
+            "vowel_stretch_enabled": bool(row[0]),
+            "panic_effects_enabled": bool(row[1]),
+            "sedation_effects_enabled": bool(row[2]),
+            "vowel_stretch_base_chance": float(row[3]),
+            "vowel_stretch_scale_factor": float(row[4]),
+            "vowel_stretch_min_word_length": int(row[5]),
+            "vowel_stretch_max_repeats": int(row[6]),
+            "panic_stutter_base_chance": float(row[7]),
+            "panic_stutter_scale_factor": float(row[8]),
+            "panic_caps_base_chance": float(row[9]),
+            "panic_caps_scale_factor": float(row[10]),
+            "panic_min_word_length": int(row[11]),
+            "sedation_ellipsis_chance": float(row[12]),
+        }
+
+    def save_degradation_profile(
+        self,
+        user_id: str,
+        profile_name: str,
+        params: Dict[str, Union[bool, int, float]],
+        persona_id: Optional[str] = None,
+    ) -> None:
+        """
+        Save a degradation profile for a user.
+
+        Args:
+            user_id: User identifier
+            profile_name: Name for the profile
+            params: Dictionary of degradation parameters
+            persona_id: Optional persona identifier for persona-specific profile
+        """
+        from datetime import datetime
+
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        now = datetime.utcnow().isoformat()
+
+        cursor.execute(
+            """
+            INSERT INTO degradation_profiles (
+                user_id, persona_id, profile_name, created_at, updated_at,
+                vowel_stretch_enabled, panic_effects_enabled, sedation_effects_enabled,
+                vowel_stretch_base_chance, vowel_stretch_scale_factor,
+                vowel_stretch_min_word_length, vowel_stretch_max_repeats,
+                panic_stutter_base_chance, panic_stutter_scale_factor,
+                panic_caps_base_chance, panic_caps_scale_factor,
+                panic_min_word_length, sedation_ellipsis_chance
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id, persona_id, profile_name) DO UPDATE SET
+                updated_at = ?,
+                vowel_stretch_enabled = ?,
+                panic_effects_enabled = ?,
+                sedation_effects_enabled = ?,
+                vowel_stretch_base_chance = ?,
+                vowel_stretch_scale_factor = ?,
+                vowel_stretch_min_word_length = ?,
+                vowel_stretch_max_repeats = ?,
+                panic_stutter_base_chance = ?,
+                panic_stutter_scale_factor = ?,
+                panic_caps_base_chance = ?,
+                panic_caps_scale_factor = ?,
+                panic_min_word_length = ?,
+                sedation_ellipsis_chance = ?
+        """,
+            (
+                user_id,
+                persona_id,
+                profile_name,
+                now,
+                now,
+                int(params.get("vowel_stretch_enabled", True)),
+                int(params.get("panic_effects_enabled", True)),
+                int(params.get("sedation_effects_enabled", True)),
+                params.get("vowel_stretch_base_chance", 0.01),
+                params.get("vowel_stretch_scale_factor", 0.057),
+                params.get("vowel_stretch_min_word_length", 4),
+                params.get("vowel_stretch_max_repeats", 2),
+                params.get("panic_stutter_base_chance", 0.05),
+                params.get("panic_stutter_scale_factor", 0.10),
+                params.get("panic_caps_base_chance", 0.03),
+                params.get("panic_caps_scale_factor", 0.07),
+                params.get("panic_min_word_length", 3),
+                params.get("sedation_ellipsis_chance", 0.3),
+                # UPDATE clause values
+                now,
+                int(params.get("vowel_stretch_enabled", True)),
+                int(params.get("panic_effects_enabled", True)),
+                int(params.get("sedation_effects_enabled", True)),
+                params.get("vowel_stretch_base_chance", 0.01),
+                params.get("vowel_stretch_scale_factor", 0.057),
+                params.get("vowel_stretch_min_word_length", 4),
+                params.get("vowel_stretch_max_repeats", 2),
+                params.get("panic_stutter_base_chance", 0.05),
+                params.get("panic_stutter_scale_factor", 0.10),
+                params.get("panic_caps_base_chance", 0.03),
+                params.get("panic_caps_scale_factor", 0.07),
+                params.get("panic_min_word_length", 3),
+                params.get("sedation_ellipsis_chance", 0.3),
+            ),
+        )
+
+        conn.commit()
+        conn.close()
+
+    def list_degradation_profiles(
+        self, user_id: str, persona_id: Optional[str] = None
+    ) -> list:
+        """
+        List all degradation profiles for a user.
+
+        Args:
+            user_id: User identifier
+            persona_id: Optional persona identifier to filter by
+
+        Returns:
+            List of profile names
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        if persona_id:
+            cursor.execute(
+                """
+                SELECT profile_name FROM degradation_profiles
+                WHERE user_id = ? AND persona_id = ?
+                ORDER BY profile_name
+            """,
+                (user_id, persona_id),
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT profile_name FROM degradation_profiles
+                WHERE user_id = ? AND persona_id IS NULL
+                ORDER BY profile_name
+            """,
+                (user_id,),
+            )
+
+        profiles = [row[0] for row in cursor.fetchall()]
+        conn.close()
+
+        return profiles
+
+    def delete_degradation_profile(
+        self, user_id: str, profile_name: str, persona_id: Optional[str] = None
+    ) -> bool:
+        """
+        Delete a degradation profile.
+
+        Args:
+            user_id: User identifier
+            profile_name: Name of profile to delete
+            persona_id: Optional persona identifier
+
+        Returns:
+            True if profile was deleted, False if not found
+        """
+        # Prevent deleting system presets
+        if user_id == "__system__":
+            return False
+
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        if persona_id:
+            cursor.execute(
+                """
+                DELETE FROM degradation_profiles
+                WHERE user_id = ? AND persona_id = ? AND profile_name = ?
+            """,
+                (user_id, persona_id, profile_name),
+            )
+        else:
+            cursor.execute(
+                """
+                DELETE FROM degradation_profiles
+                WHERE user_id = ? AND persona_id IS NULL AND profile_name = ?
+            """,
+                (user_id, profile_name),
+            )
+
+        deleted = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+
+        return deleted
+
+    def export_degradation_profile(
+        self, user_id: str, profile_name: str, persona_id: Optional[str] = None
+    ) -> Dict:
+        """
+        Export degradation profile as JSON-compatible dict.
+
+        Args:
+            user_id: User identifier
+            profile_name: Name of profile to export
+            persona_id: Optional persona identifier
+
+        Returns:
+            Dictionary suitable for JSON serialization
+        """
+        from datetime import datetime
+
+        profile = self.get_degradation_profile(user_id, persona_id, profile_name)
+
+        return {
+            "profile_name": profile_name,
+            "persona_id": persona_id,
+            "exported_at": datetime.utcnow().isoformat(),
+            **profile,
+        }
+
+    def import_degradation_profile(
+        self, user_id: str, profile_data: Dict, overwrite_name: Optional[str] = None
+    ) -> str:
+        """
+        Import degradation profile from JSON-compatible dict.
+
+        Args:
+            user_id: User identifier
+            profile_data: Dictionary with profile parameters
+            overwrite_name: Optional new name for the profile
+
+        Returns:
+            Name of imported profile
+        """
+        profile_name = overwrite_name or profile_data.get("profile_name", "imported")
+        persona_id = profile_data.get("persona_id")
+
+        # Extract only the degradation parameters (not metadata)
+        params = {
+            k: v
+            for k, v in profile_data.items()
+            if k
+            not in [
+                "profile_name",
+                "persona_id",
+                "exported_at",
+                "created_at",
+                "updated_at",
+            ]
+        }
+
+        self.save_degradation_profile(user_id, profile_name, params, persona_id)
+
+        return profile_name

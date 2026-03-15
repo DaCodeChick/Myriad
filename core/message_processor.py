@@ -19,6 +19,7 @@ from core.tool_registry import ToolRegistry, parse_tool_call, format_tool_respon
 from database.limbic_engine import LimbicEngine
 from database.metacognition_engine import MetacognitionEngine
 from database.mode_manager import ModeManager
+from database.user_preferences import UserPreferences
 from core.cadence_degrader import CadenceDegrader
 
 
@@ -44,6 +45,7 @@ class MessageProcessor:
         cadence_degrader: Optional[CadenceDegrader] = None,
         mode_manager: Optional[ModeManager] = None,
         user_mask_manager: Optional["UserMaskManager"] = None,
+        user_preferences_manager: Optional[UserPreferences] = None,
     ):
         """
         Initialize the message processor.
@@ -57,6 +59,7 @@ class MessageProcessor:
             cadence_degrader: Optional cadence degrader for text post-processing
             mode_manager: Optional mode override manager
             user_mask_manager: Optional user mask manager for relationship overrides
+            user_preferences_manager: Optional user preferences manager for degradation profiles
         """
         self.client = client
         self.model = model
@@ -66,6 +69,7 @@ class MessageProcessor:
         self.cadence_degrader = cadence_degrader
         self.mode_manager = mode_manager
         self.user_mask_manager = user_mask_manager
+        self.user_preferences_manager = user_preferences_manager
 
     def process(
         self,
@@ -134,9 +138,13 @@ class MessageProcessor:
 
         # Apply cadence degradation AFTER tag stripping
         # This ensures degradation only affects the spoken text, not system tags
-        if user_preferences.get("cadence_degrader_enabled", True):
+        # Skip degradation for narrator personas (they should speak clearly)
+        if (
+            user_preferences.get("cadence_degrader_enabled", True)
+            and not persona.is_narrator
+        ):
             final_response = self._apply_cadence_degradation(
-                final_response, user_id, persona.persona_id
+                final_response, user_id, persona.persona_id, user_preferences
             )
 
         return final_response
@@ -265,7 +273,11 @@ class MessageProcessor:
             )
 
     def _apply_cadence_degradation(
-        self, response: str, user_id: str, persona_id: str
+        self,
+        response: str,
+        user_id: str,
+        persona_id: str,
+        user_preferences: Dict,
     ) -> str:
         """
         Apply cadence degradation based on extreme limbic states.
@@ -274,6 +286,7 @@ class MessageProcessor:
             response: Original response text
             user_id: User identifier
             persona_id: Persona identifier
+            user_preferences: User preferences dict
 
         Returns:
             Degraded response text (or original if no degradation needed)
@@ -286,7 +299,34 @@ class MessageProcessor:
         )
 
         if limbic_state and self.cadence_degrader.should_degrade(limbic_state):
-            return self.cadence_degrader.degrade(response, limbic_state)
+            # Load degradation profile
+            if self.user_preferences_manager:
+                degradation_profile = (
+                    self.user_preferences_manager.get_degradation_profile(
+                        user_id, persona_id, profile_name="subtle"
+                    )
+                )
+            else:
+                # Fallback to default profile
+                degradation_profile = {
+                    "vowel_stretch_enabled": True,
+                    "panic_effects_enabled": True,
+                    "sedation_effects_enabled": True,
+                    "vowel_stretch_base_chance": 0.01,
+                    "vowel_stretch_scale_factor": 0.057,
+                    "vowel_stretch_min_word_length": 4,
+                    "vowel_stretch_max_repeats": 2,
+                    "panic_stutter_base_chance": 0.05,
+                    "panic_stutter_scale_factor": 0.10,
+                    "panic_caps_base_chance": 0.03,
+                    "panic_caps_scale_factor": 0.07,
+                    "panic_min_word_length": 3,
+                    "sedation_ellipsis_chance": 0.3,
+                }
+
+            return self.cadence_degrader.degrade(
+                response, limbic_state, degradation_profile
+            )
 
         return response
 

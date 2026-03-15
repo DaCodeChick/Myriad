@@ -132,19 +132,17 @@ class ToolsConfig:
 class DatabasePaths:
     """Database file paths configuration."""
 
+    main_db_path: str = "data/myriad.db"
     graph_db_path: str = "data/knowledge_graph.db"
-    limbic_db_path: str = "data/limbic_state.db"
-    metacognition_db_path: str = "data/metacognition.db"
+    chroma_db_path: str = "data/chroma_db"
 
     @classmethod
     def from_env(cls) -> "DatabasePaths":
         """Load database paths from environment variables."""
         return cls(
+            main_db_path=os.getenv("MAIN_DB_PATH", "data/myriad.db"),
             graph_db_path=os.getenv("GRAPH_DB_PATH", "data/knowledge_graph.db"),
-            limbic_db_path=os.getenv("LIMBIC_DB_PATH", "data/limbic_state.db"),
-            metacognition_db_path=os.getenv(
-                "METACOGNITION_DB_PATH", "data/metacognition.db"
-            ),
+            chroma_db_path=os.getenv("CHROMA_DB_PATH", "data/chroma_db"),
         )
 
 

@@ -6,7 +6,7 @@ before each response. Thoughts are extracted from <thought>...</thought> tags
 and stored per user+persona pair for continuity across turns.
 
 ARCHITECTURE:
-- Thoughts stored in SQLite database (data/metacognition.db)
+- Thoughts stored in SQLite database (data/myriad.db)
 - One thought per turn, keyed by user_id + persona_id
 - Previous thought injected into next turn's context for planning continuity
 """
@@ -24,7 +24,7 @@ class MetacognitionEngine:
     These thoughts are private planning/evaluation that can optionally be shown to the user.
     """
 
-    def __init__(self, db_path: str = "data/metacognition.db"):
+    def __init__(self, db_path: str = "data/myriad.db"):
         """
         Initialize the Metacognition Engine.
 

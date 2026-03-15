@@ -66,7 +66,7 @@ class LimbicEngine:
     MAX_DELTA = 0.3  # Maximum change per injection
     DECAY_RATE = 0.1  # 10% decay toward baseline per turn
 
-    def __init__(self, db_path: str = "data/limbic_state.db"):
+    def __init__(self, db_path: str = "data/myriad.db"):
         """
         Initialize the Limbic Engine.
 
