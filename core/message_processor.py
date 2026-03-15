@@ -30,8 +30,8 @@ class MessageProcessor:
     1. Preprocess message (vision injection, etc.)
     2. Tool execution loop (up to max_tool_iterations)
     3. Limbic respiration EXHALE phase (metabolic decay)
-    4. Cadence degradation (text post-processing)
-    5. Metacognition extraction (internal thought processing)
+    4. Metacognition extraction (strip <thought> tags FIRST)
+    5. Cadence degradation (mutate spoken text only, after tags removed)
     """
 
     def __init__(
@@ -128,16 +128,18 @@ class MessageProcessor:
         if user_preferences.get("limbic_enabled", True):
             self._apply_limbic_exhale(user_id, persona)
 
-        # Apply cadence degradation - check user preference
-        if user_preferences.get("cadence_degrader_enabled", True):
-            final_response = self._apply_cadence_degradation(
-                final_response, user_id, persona.persona_id
-            )
-
-        # Extract and process metacognition - check user preference
+        # CRITICAL: Extract metacognition FIRST (before degradation)
+        # This prevents cadence degrader from mutating XML tags like <thought>
         if user_preferences.get("metacognition_enabled", True):
             final_response = self._extract_metacognition(
                 final_response, user_id, persona.persona_id, user_preferences
+            )
+
+        # Apply cadence degradation AFTER tag stripping
+        # This ensures degradation only affects the spoken text, not system tags
+        if user_preferences.get("cadence_degrader_enabled", True):
+            final_response = self._apply_cadence_degradation(
+                final_response, user_id, persona.persona_id
             )
 
         return final_response
@@ -308,6 +310,9 @@ class MessageProcessor:
         - Formats inline with emoji (if show_thoughts_inline=True in user_preferences)
         - Strips from response and prints to terminal (if show_thoughts_inline=False)
 
+        Uses non-greedy regex matching with DOTALL to handle multi-line thought blocks.
+        Processes ALL thought blocks in the response, not just the first one.
+
         Args:
             response: Response text potentially containing thought tags
             user_id: User identifier
@@ -320,36 +325,58 @@ class MessageProcessor:
         if not self.metacognition_engine:
             return response
 
-        # Extract thought using regex (non-greedy match with DOTALL for multiline)
-        thought_match = re.search(r"<thought>(.*?)</thought>", response, re.DOTALL)
+        # Extract ALL thought blocks using non-greedy regex (handles multi-line)
+        thought_matches = re.finditer(r"<thought>(.*?)</thought>", response, re.DOTALL)
 
-        if thought_match:
-            thought_content = thought_match.group(1).strip()
+        # Collect all thoughts for saving
+        thoughts = []
+        for match in thought_matches:
+            thought_content = match.group(1).strip()
+            if thought_content:  # Skip empty thoughts
+                thoughts.append(thought_content)
 
-            # Save thought to database
+        # Save all thoughts to database
+        for thought_content in thoughts:
             self.metacognition_engine.save_thought(
                 user_id=user_id,
                 persona_id=persona_id,
                 thought=thought_content,
             )
 
-            # Format or strip thought based on user preference
-            show_inline = user_preferences.get("show_thoughts_inline", False)
-            if show_inline:
-                # Display thought inline in italics with emoji
-                formatted_thought = f"*💭 [Thought: {thought_content}]*\n\n"
-                response = re.sub(
-                    r"<thought>.*?</thought>\s*",
-                    formatted_thought,
-                    response,
-                    flags=re.DOTALL,
-                )
-            else:
-                # Strip thought from response (terminal-only mode)
-                response = re.sub(
-                    r"<thought>.*?</thought>\s*", "", response, flags=re.DOTALL
-                )
-                # Print thought to terminal in yellow
+        # Format or strip thoughts based on user preference
+        show_inline = user_preferences.get("show_thoughts_inline", False)
+        if show_inline and thoughts:
+            # Display thoughts inline in italics with emoji
+            # Combine multiple thoughts into one formatted block
+            combined_thoughts = "\n".join(thoughts)
+            formatted_thought = f"*💭 [Thought: {combined_thoughts}]*\n\n"
+
+            # Replace ALL thought tags with the formatted version
+            # Use a lambda to replace only the first occurrence with formatted text,
+            # and remove subsequent ones to avoid duplication
+            first_replacement = True
+
+            def replace_func(match):
+                nonlocal first_replacement
+                if first_replacement:
+                    first_replacement = False
+                    return formatted_thought
+                return ""
+
+            response = re.sub(
+                r"<thought>.*?</thought>\s*",
+                replace_func,
+                response,
+                flags=re.DOTALL,
+            )
+        else:
+            # Strip ALL thought tags from response (terminal-only mode)
+            response = re.sub(
+                r"<thought>.*?</thought>\s*", "", response, flags=re.DOTALL
+            )
+
+            # Print all thoughts to terminal in yellow
+            for thought_content in thoughts:
                 print(f"\033[93m💭 [Hidden Thought]: {thought_content}\033[0m")
 
         # Clean up any orphaned tags (shouldn't happen, but safety check)
