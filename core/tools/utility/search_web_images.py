@@ -2,11 +2,12 @@
 Web Image Search tool - Search for images on the internet.
 
 Provides AI agents with image search capabilities via DuckDuckGo.
-Returns top 5 image results with URLs and descriptions.
+Returns top 5 image results with URLs and descriptions. Includes rate limiting.
 """
 
 from typing import Dict, Any
 from core.tools.base import Tool
+from core.tools.utility.search_cache import get_rate_limiter
 
 
 class SearchWebImagesTool(Tool):
@@ -37,9 +38,9 @@ class SearchWebImagesTool(Tool):
             "required": ["query"],
         }
 
-    def execute(self, query: str) -> str:
+    def execute(self, **kwargs) -> str:
         """
-        Execute an image search and return the top 5 results.
+        Execute an image search and return the top 5 results (with rate limiting).
 
         Args:
             query: Image search query string
@@ -47,6 +48,20 @@ class SearchWebImagesTool(Tool):
         Returns:
             Formatted string with image URLs and descriptions
         """
+        query = kwargs.get("query", "")
+
+        if not query:
+            return "Error: No search query provided"
+
+        # Check rate limit
+        rate_limiter = get_rate_limiter()
+        if not rate_limiter.allow_request():
+            wait_time = rate_limiter.get_wait_time()
+            return (
+                f"Rate limit exceeded. Please wait {wait_time:.1f} seconds before "
+                f"making another search request. (Limit: 30 requests per minute)"
+            )
+
         try:
             # Try to import duckduckgo_search
             from duckduckgo_search import DDGS

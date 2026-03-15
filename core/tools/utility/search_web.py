@@ -2,12 +2,14 @@
 Web Search tool - Search the internet for real-time information.
 
 Provides AI agents with real-time internet access via DuckDuckGo search.
-Returns top 3 search results with snippets. Supports caching and source filtering.
+Returns top 3 search results with snippets. Supports caching, source filtering,
+and rate limiting.
 """
 
+import time
 from typing import Dict, Any, Optional
 from core.tools.base import Tool
-from core.tools.utility.search_cache import get_search_cache
+from core.tools.utility.search_cache import get_search_cache, get_rate_limiter
 
 
 class SearchWebTool(Tool):
@@ -50,21 +52,26 @@ class SearchWebTool(Tool):
             "required": ["query"],
         }
 
-    def execute(
-        self, query: str, region: str = "wt-wt", max_results: int = 3, **kwargs
-    ) -> str:
+    def execute(self, **kwargs) -> str:
         """
-        Execute a web search and return the top results (with caching).
+        Execute a web search and return the top results (with caching and rate limiting).
 
         Args:
             query: Search query string
             region: Region code for localized results (default: 'wt-wt')
             max_results: Number of results to return (default: 3)
-            **kwargs: Additional arguments (ignored)
 
         Returns:
             Formatted string with search results and snippets
         """
+        # Extract parameters
+        query = kwargs.get("query", "")
+        region = kwargs.get("region", "wt-wt")
+        max_results = kwargs.get("max_results", 3)
+
+        if not query:
+            return "Error: No search query provided"
+
         # Validate max_results
         max_results = max(1, min(10, max_results))
 
@@ -77,6 +84,15 @@ class SearchWebTool(Tool):
         if cached_result:
             return f"[Cached] {cached_result}"
 
+        # Check rate limit
+        rate_limiter = get_rate_limiter()
+        if not rate_limiter.allow_request():
+            wait_time = rate_limiter.get_wait_time()
+            return (
+                f"Rate limit exceeded. Please wait {wait_time:.1f} seconds before "
+                f"making another search request. (Limit: 30 requests per minute)"
+            )
+
         try:
             # Try to import duckduckgo_search
             from duckduckgo_search import DDGS
@@ -86,7 +102,17 @@ class SearchWebTool(Tool):
                 results = list(ddgs.text(query, region=region, max_results=max_results))
 
             if not results:
-                return f"No results found for query: {query}"
+                result_msg = f"No results found for query: {query}"
+                # Cache negative results too (shorter TTL)
+                cache.set(
+                    self.name,
+                    result_msg,
+                    ttl=300,  # 5 minutes
+                    query=query,
+                    region=region,
+                    max_results=max_results,
+                )
+                return result_msg
 
             # Format results
             formatted_results = f"Search results for '{query}'"

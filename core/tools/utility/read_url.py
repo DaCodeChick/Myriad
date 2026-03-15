@@ -2,11 +2,12 @@
 Read URL tool - Fetch and extract clean text from a webpage.
 
 Provides AI agents with the ability to read the actual content of webpages.
-Returns clean, readable text with HTML/CSS/JavaScript stripped.
+Returns clean, readable text with HTML/CSS/JavaScript stripped. Includes rate limiting.
 """
 
 from typing import Dict, Any
 from core.tools.base import Tool
+from core.tools.utility.search_cache import get_rate_limiter
 
 
 class ReadUrlTool(Tool):
@@ -44,18 +45,32 @@ class ReadUrlTool(Tool):
             "required": ["url"],
         }
 
-    def execute(self, url: str, max_chars: int = 10000, **kwargs) -> str:
+    def execute(self, **kwargs) -> str:
         """
-        Fetch and extract clean text from a webpage.
+        Fetch and extract clean text from a webpage (with rate limiting).
 
         Args:
             url: The URL to fetch
             max_chars: Maximum characters to return (default: 10000)
-            **kwargs: Additional arguments (ignored)
 
         Returns:
             Clean text content of the webpage
         """
+        url = kwargs.get("url", "")
+        max_chars = kwargs.get("max_chars", 10000)
+
+        if not url:
+            return "Error: No URL provided"
+
+        # Check rate limit
+        rate_limiter = get_rate_limiter()
+        if not rate_limiter.allow_request():
+            wait_time = rate_limiter.get_wait_time()
+            return (
+                f"Rate limit exceeded. Please wait {wait_time:.1f} seconds before "
+                f"making another request. (Limit: 30 requests per minute)"
+            )
+
         try:
             # Validate URL
             if not url.startswith(("http://", "https://")):
@@ -136,25 +151,25 @@ class ReadUrlTool(Tool):
 
             return result
 
-        except requests.exceptions.Timeout:
-            return f"Error: Request timed out while fetching {url}\nThe server took too long to respond (>10 seconds)."
-
-        except requests.exceptions.ConnectionError:
-            return f"Error: Connection failed for {url}\nCould not connect to the server. Check if the URL is correct."
-
-        except requests.exceptions.HTTPError as e:
-            status_code = e.response.status_code
-            if status_code == 404:
-                return f"Error: Page not found (404)\nURL: {url}\nThe requested page does not exist."
-            elif status_code == 403:
-                return f"Error: Access forbidden (403)\nURL: {url}\nThe server is blocking automated access to this page."
-            elif status_code == 500:
-                return f"Error: Server error (500)\nURL: {url}\nThe website is experiencing technical difficulties."
-            else:
-                return f"Error: HTTP {status_code}\nURL: {url}\n{str(e)}"
-
         except Exception as e:
-            return f"Error reading URL: {str(e)}\nURL: {url}"
+            # Handle all requests exceptions
+            error_type = type(e).__name__
+            if "Timeout" in error_type:
+                return f"Error: Request timed out while fetching {url}\nThe server took too long to respond (>10 seconds)."
+            elif "ConnectionError" in error_type:
+                return f"Error: Connection failed for {url}\nCould not connect to the server. Check if the URL is correct."
+            elif "HTTPError" in error_type:
+                status_code = getattr(e.response, "status_code", "unknown")
+                if status_code == 404:
+                    return f"Error: Page not found (404)\nURL: {url}\nThe requested page does not exist."
+                elif status_code == 403:
+                    return f"Error: Access forbidden (403)\nURL: {url}\nThe server is blocking automated access to this page."
+                elif status_code == 500:
+                    return f"Error: Server error (500)\nURL: {url}\nThe website is experiencing technical difficulties."
+                else:
+                    return f"Error: HTTP {status_code}\nURL: {url}\n{str(e)}"
+            else:
+                return f"Error reading URL: {str(e)}\nURL: {url}"
 
     def can_execute(self) -> bool:
         """

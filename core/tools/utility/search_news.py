@@ -2,12 +2,13 @@
 News Search tool - Search for recent news articles.
 
 Provides AI agents with news-specific search via DuckDuckGo.
-Returns top 5 recent news articles with dates and sources.
+Returns top 5 recent news articles with dates and sources. Includes rate limiting.
 """
 
 from typing import Dict, Any
 from datetime import datetime, timedelta
 from core.tools.base import Tool
+from core.tools.utility.search_cache import get_rate_limiter
 
 
 class SearchNewsTool(Tool):
@@ -44,9 +45,9 @@ class SearchNewsTool(Tool):
             "required": ["query"],
         }
 
-    def execute(self, query: str, days: int = 7) -> str:
+    def execute(self, **kwargs) -> str:
         """
-        Execute a news search and return recent articles.
+        Execute a news search and return recent articles (with rate limiting).
 
         Args:
             query: News search query string
@@ -55,6 +56,24 @@ class SearchNewsTool(Tool):
         Returns:
             Formatted string with news articles, dates, and sources
         """
+        query = kwargs.get("query", "")
+        days = kwargs.get("days", 7)
+
+        if not query:
+            return "Error: No search query provided"
+
+        # Validate days parameter
+        days = max(1, min(30, days))
+
+        # Check rate limit
+        rate_limiter = get_rate_limiter()
+        if not rate_limiter.allow_request():
+            wait_time = rate_limiter.get_wait_time()
+            return (
+                f"Rate limit exceeded. Please wait {wait_time:.1f} seconds before "
+                f"making another search request. (Limit: 30 requests per minute)"
+            )
+
         try:
             # Try to import duckduckgo_search
             from duckduckgo_search import DDGS

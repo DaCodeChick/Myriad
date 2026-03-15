@@ -1,7 +1,7 @@
 """
 Search Cache Management Commands for Discord.
 
-Provides commands to view and manage the web search cache.
+Provides commands to view and manage the web search cache and rate limiter.
 """
 
 import discord
@@ -12,6 +12,8 @@ from core.tools.utility.search_cache import (
     get_search_cache,
     clear_search_cache,
     get_cache_stats,
+    force_save_cache,
+    get_rate_limiter,
 )
 
 
@@ -44,6 +46,26 @@ class SearchCacheCommands(app_commands.Group):
             name="Default TTL",
             value=f"{stats['default_ttl']}s ({stats['default_ttl'] // 60} min)",
             inline=True,
+        )
+
+        # Add persistence stats
+        embed.add_field(
+            name="Disk Saves",
+            value=f"{stats.get('saves', 0)}",
+            inline=True,
+        )
+        embed.add_field(
+            name="Disk Loads",
+            value=f"{stats.get('loads', 0)}",
+            inline=True,
+        )
+
+        # Add cache file location
+        cache_file = stats.get("cache_file", "Unknown")
+        embed.add_field(
+            name="Storage",
+            value=f"Auto-save: {stats.get('auto_save', False)}\n{cache_file}",
+            inline=False,
         )
 
         await interaction.response.send_message(embed=embed)
@@ -112,6 +134,69 @@ class SearchCacheCommands(app_commands.Group):
             f"✅ Cache cleanup complete! Removed {removed} expired entries.",
             ephemeral=True,
         )
+
+    @app_commands.command(
+        name="save", description="Force save cache to disk immediately"
+    )
+    async def cache_save(self, interaction: discord.Interaction):
+        """Force save cache to disk."""
+        force_save_cache()
+        stats = get_cache_stats()
+
+        await interaction.response.send_message(
+            f"✅ Cache saved to disk! ({stats['size']} entries)\nLocation: {stats.get('cache_file', 'Unknown')}",
+            ephemeral=True,
+        )
+
+    @app_commands.command(name="ratelimit", description="View rate limiter status")
+    async def cache_ratelimit(self, interaction: discord.Interaction):
+        """View rate limiter status."""
+        rate_limiter = get_rate_limiter()
+        wait_time = rate_limiter.get_wait_time()
+
+        embed = discord.Embed(
+            title="⏱️ Rate Limiter Status",
+            color=discord.Color.green() if wait_time == 0 else discord.Color.orange(),
+        )
+
+        embed.add_field(
+            name="Limit",
+            value=f"{rate_limiter.max_requests} requests / {rate_limiter.time_window}s",
+            inline=True,
+        )
+
+        # Count recent requests
+        import time
+
+        current_time = time.time()
+        cutoff = current_time - rate_limiter.time_window
+        recent_requests = len([t for t in rate_limiter._requests if t > cutoff])
+
+        embed.add_field(
+            name="Recent Requests",
+            value=f"{recent_requests} / {rate_limiter.max_requests}",
+            inline=True,
+        )
+
+        if wait_time > 0:
+            embed.add_field(
+                name="Wait Time",
+                value=f"{wait_time:.1f}s until next request",
+                inline=True,
+            )
+            embed.add_field(
+                name="Status",
+                value="⚠️ Rate limit active",
+                inline=False,
+            )
+        else:
+            embed.add_field(
+                name="Status",
+                value="✅ Ready for requests",
+                inline=False,
+            )
+
+        await interaction.response.send_message(embed=embed)
 
 
 def setup_commands(tree: app_commands.CommandTree) -> SearchCacheCommands:
