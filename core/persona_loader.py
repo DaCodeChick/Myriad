@@ -147,6 +147,38 @@ class PersonaLoader:
     # Supported image formats for appearance generation
     IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"}
 
+    # Hardcoded system personas (always available, no file required)
+    SYSTEM_PERSONAS = {
+        "narrator": PersonaCartridge(
+            persona_id="narrator",
+            name="The Narrator",
+            system_prompt=(
+                "You are an atmospheric, immersive narrator. Your style is cinematic and evocative, "
+                "painting vivid scenes with rich sensory details. You describe environments, weather, "
+                "lighting, sounds, and ambient details that bring the world to life. When describing NPC "
+                "reactions, you focus on body language, facial expressions, and environmental responses "
+                "rather than dialogue. You control pacing by expanding dramatic moments and compressing "
+                "mundane transitions. You are impartial and reactive to the players' choices, never forcing "
+                "outcomes but describing consequences vividly."
+            ),
+            personality_traits=[
+                "Atmospheric",
+                "Evocative",
+                "Cinematic",
+                "Impartial",
+                "Detail-oriented",
+            ],
+            temperature=0.8,
+            max_tokens=1500,
+            background=(
+                "This is an omniscient environmental narrator with no physical form. It exists to describe "
+                "the world, control pacing, and puppeteer minor background NPCs. It does not have emotions, "
+                "desires, or a physical body."
+            ),
+            is_narrator=True,
+        )
+    }
+
     def __init__(
         self,
         personas_dir: str = "personas",
@@ -197,7 +229,9 @@ class PersonaLoader:
 
     def load_persona(self, persona_id: str) -> Optional[PersonaCartridge]:
         """
-        Load a persona cartridge from disk.
+        Load a persona cartridge from disk or return hardcoded system persona.
+
+        System personas (e.g., "narrator") are always available without files.
 
         New folder-based structure:
         - "chrono/schala" -> personas/chrono/schala/metadata.json
@@ -213,6 +247,12 @@ class PersonaLoader:
         # Check cache first
         if persona_id in self._cache:
             return self._cache[persona_id]
+
+        # Check for hardcoded system personas
+        if persona_id in self.SYSTEM_PERSONAS:
+            persona = self.SYSTEM_PERSONAS[persona_id]
+            self._cache[persona_id] = persona
+            return persona
 
         # Build folder path (persona_id can include subdirectories)
         persona_folder = Path(self.personas_dir) / persona_id
@@ -415,21 +455,24 @@ class PersonaLoader:
 
     def list_available_personas(self) -> List[str]:
         """
-        List all available persona IDs in the personas directory (recursively).
+        List all available persona IDs including hardcoded system personas.
 
         Looks for folders containing metadata.json files.
 
         Returns categorized personas with their full path:
+        - "narrator" (hardcoded system persona)
         - "chrono/schala"
         - "generic/nsfw/alpha_stud"
 
         Returns:
             List of persona_id strings sorted alphabetically
         """
-        if not os.path.exists(self.personas_dir):
-            return []
+        # Start with hardcoded system personas
+        personas = list(self.SYSTEM_PERSONAS.keys())
 
-        personas = []
+        if not os.path.exists(self.personas_dir):
+            return sorted(personas)
+
         personas_path = Path(self.personas_dir)
 
         # Recursively find all metadata.json files
