@@ -62,6 +62,7 @@ class PromptBuilder:
             return self.build_narrator_system_prompt(persona, user_preferences, user_id)
 
         # Check for relationship overrides based on active user mask
+        # Special handling: If no mask is active, check for "@user" relationship
         active_relationship = None
         active_mask_name = None
         if self.user_mask_manager:
@@ -72,6 +73,10 @@ class PromptBuilder:
                 active_relationship = persona.get_relationship_override(
                     user_mask.persona_id
                 )
+            else:
+                # No mask active - check for special "@user" relationship
+                # This allows personas to define a default relationship with unmasked users
+                active_relationship = persona.get_relationship_override("@user")
 
         # Apply relationship overrides to create a modified persona view
         effective_personality_traits = persona.personality_traits

@@ -11,7 +11,17 @@ from typing import Dict, Any, List, Optional
 
 @dataclass
 class PersonaRelationship:
-    """Represents a relationship override for a specific target."""
+    """
+    Represents a relationship override for a specific target.
+
+    Special target_id values:
+    - "@user": Applies when the user is NOT wearing a mask (unmasked/anonymous users)
+    - Any other string: Matches against the persona_id of the user's active mask
+
+    This allows personas to define different behaviors for:
+    1. Unmasked users (target_id: "@user")
+    2. Specific persona masks (target_id: "user_masks/schala", etc.)
+    """
 
     target_id: str
     description: str

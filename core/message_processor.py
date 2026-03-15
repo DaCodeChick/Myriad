@@ -243,26 +243,23 @@ class MessageProcessor:
         """
         if self.limbic_engine:
             # Check for relationship limbic baseline override
+            # Special handling: If no mask is active, check for "@user" relationship
             effective_baseline = persona.limbic_baseline
             if self.user_mask_manager:
                 user_mask = self.user_mask_manager.get_active_mask(user_id)
-                if user_mask:
-                    active_relationship = persona.get_relationship_override(
-                        user_mask.persona_id
+                target_id = user_mask.persona_id if user_mask else "@user"
+
+                active_relationship = persona.get_relationship_override(target_id)
+                if active_relationship and active_relationship.limbic_baseline_override:
+                    # Merge relationship override with base baseline
+                    effective_baseline = (
+                        persona.limbic_baseline.copy()
+                        if persona.limbic_baseline
+                        else {}
                     )
-                    if (
-                        active_relationship
-                        and active_relationship.limbic_baseline_override
-                    ):
-                        # Merge relationship override with base baseline
-                        effective_baseline = (
-                            persona.limbic_baseline.copy()
-                            if persona.limbic_baseline
-                            else {}
-                        )
-                        effective_baseline.update(
-                            active_relationship.limbic_baseline_override
-                        )
+                    effective_baseline.update(
+                        active_relationship.limbic_baseline_override
+                    )
 
             self.limbic_engine.apply_metabolic_decay(
                 user_id=user_id,
