@@ -22,6 +22,7 @@ from core.tools.utility import (
     SearchWebTool,
     SearchWebImagesTool,
     SearchNewsTool,
+    ReadUrlTool,
 )
 from core.tools.memory import AddKnowledgeTool
 from core.tools.limbic import InjectEmotionTool, ConsumeSubstanceTool
@@ -35,6 +36,7 @@ __all__ = [
     "SearchWebTool",
     "SearchWebImagesTool",
     "SearchNewsTool",
+    "ReadUrlTool",
     # Memory tools
     "AddKnowledgeTool",
     # Limbic tools
@@ -52,6 +54,7 @@ BUILTIN_TOOLS = [
     SearchWebTool,
     SearchWebImagesTool,
     SearchNewsTool,
+    ReadUrlTool,
     # Memory tools
     AddKnowledgeTool,
     # Limbic tools
