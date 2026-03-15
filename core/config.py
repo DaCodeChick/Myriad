@@ -7,7 +7,7 @@ Provides type-safe configuration objects with validation and defaults.
 
 import os
 from dataclasses import dataclass, field
-from typing import Optional, Set
+from typing import Optional, Set, List
 
 
 @dataclass
@@ -150,21 +150,7 @@ class DatabasePaths:
 
 @dataclass
 class FeatureFlags:
-    """
-    System-level feature flags (NOT per-user preferences).
-
-    These control whether engines are loaded at bot startup.
-    Per-user preferences are managed in database/user_preferences.py.
-
-    IMPORTANT: The following are per-user preferences (NOT system flags):
-    - limbic_enabled, cadence_degrader_enabled, metacognition_enabled
-    - show_thoughts_inline, autonomy_enabled
-    - These are controlled via /config commands and stored in user_preferences table
-
-    System flags control infrastructure:
-    - graph_memory_enabled: Load knowledge graph engine?
-    - lives_enabled: Load lives & save states engines?
-    """
+    """System-level feature flags (controls engine loading at bot startup)."""
 
     graph_memory_enabled: bool = True
     lives_enabled: bool = True
@@ -181,21 +167,24 @@ class FeatureFlags:
 
 @dataclass
 class UniversalRulesConfig:
-    """Universal rules configuration."""
+    """Universal behavioral rules applied to all personas."""
 
-    rules: Optional[list[str]] = None
+    rules: Optional[List[str]] = None
 
     @classmethod
     def from_env(cls) -> "UniversalRulesConfig":
-        """Load universal rules from environment variables."""
-        universal_rules_env = os.getenv("UNIVERSAL_RULES")
-        rules = None
-        if universal_rules_env:
-            # Split by pipe and strip whitespace
-            rules = [
-                rule.strip() for rule in universal_rules_env.split("|") if rule.strip()
-            ]
-        return cls(rules=rules)
+        """Load universal rules from environment variables.
+
+        Rules are pipe-separated in the UNIVERSAL_RULES env var.
+        Returns None if not set (allows AgentCore to use defaults).
+        """
+        rules_str = os.getenv("UNIVERSAL_RULES", "").strip()
+        if not rules_str:
+            return cls(rules=None)
+
+        # Split by pipe and strip whitespace from each rule
+        rules = [rule.strip() for rule in rules_str.split("|") if rule.strip()]
+        return cls(rules=rules if rules else None)
 
 
 @dataclass
