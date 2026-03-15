@@ -7,11 +7,14 @@ This module provides a unified interface to:
 3. Lives memory operations (timeline branching and management)
 4. Semantic vector memory integration via ChromaDB
 
+ENSEMBLE MODE: Supports multiple active personas simultaneously.
+
 Part of RDSSC Phase 5: Refactored to delegate to focused modules.
 """
 
 import os
 import sqlite3
+import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -131,12 +134,153 @@ class MemoryMatrix:
 
     # ========================
     # USER STATE MANAGEMENT
-    # (Delegated to UserStateManager)
+    # (Delegated to UserStateManager - Extended for Ensemble Mode)
     # ========================
+
+    def get_active_personas(self, user_id: str) -> List[str]:
+        """
+        Get all currently active personas for a user (Ensemble Mode).
+
+        Args:
+            user_id: Discord user ID (as string)
+
+        Returns:
+            List of persona_ids (empty list if none active)
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute(
+            "SELECT active_persona_ids FROM user_state WHERE user_id = ?", (user_id,)
+        )
+        row = cursor.fetchone()
+        conn.close()
+
+        if not row or not row[0]:
+            return []
+
+        try:
+            return json.loads(row[0])
+        except (json.JSONDecodeError, TypeError):
+            return []
+
+    def add_active_persona(self, user_id: str, persona_id: str) -> None:
+        """
+        Add a persona to the active ensemble (appends to list).
+
+        Args:
+            user_id: Discord user ID (as string)
+            persona_id: The persona to add
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        # Get current personas
+        cursor.execute(
+            "SELECT active_persona_ids FROM user_state WHERE user_id = ?", (user_id,)
+        )
+        row = cursor.fetchone()
+
+        current_personas = []
+        if row and row[0]:
+            try:
+                current_personas = json.loads(row[0])
+            except (json.JSONDecodeError, TypeError):
+                current_personas = []
+
+        # Add new persona if not already in list
+        if persona_id not in current_personas:
+            current_personas.append(persona_id)
+
+        # Update database
+        cursor.execute(
+            """
+            INSERT INTO user_state (user_id, active_persona_ids)
+            VALUES (?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET active_persona_ids = excluded.active_persona_ids
+        """,
+            (user_id, json.dumps(current_personas)),
+        )
+
+        conn.commit()
+        conn.close()
+
+    def remove_active_persona(self, user_id: str, persona_id: str) -> bool:
+        """
+        Remove a specific persona from the active ensemble.
+
+        Args:
+            user_id: Discord user ID (as string)
+            persona_id: The persona to remove
+
+        Returns:
+            True if persona was removed, False if it wasn't in the list
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        # Get current personas
+        cursor.execute(
+            "SELECT active_persona_ids FROM user_state WHERE user_id = ?", (user_id,)
+        )
+        row = cursor.fetchone()
+
+        if not row or not row[0]:
+            conn.close()
+            return False
+
+        try:
+            current_personas = json.loads(row[0])
+        except (json.JSONDecodeError, TypeError):
+            conn.close()
+            return False
+
+        # Remove persona if present
+        if persona_id in current_personas:
+            current_personas.remove(persona_id)
+
+            # Update database
+            cursor.execute(
+                """
+                UPDATE user_state 
+                SET active_persona_ids = ? 
+                WHERE user_id = ?
+            """,
+                (json.dumps(current_personas), user_id),
+            )
+
+            conn.commit()
+            conn.close()
+            return True
+
+        conn.close()
+        return False
+
+    def clear_active_personas(self, user_id: str) -> None:
+        """
+        Clear all active personas for a user.
+
+        Args:
+            user_id: Discord user ID (as string)
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            UPDATE user_state 
+            SET active_persona_ids = NULL 
+            WHERE user_id = ?
+        """,
+            (user_id,),
+        )
+
+        conn.commit()
+        conn.close()
 
     def get_active_persona(self, user_id: str) -> Optional[str]:
         """
-        Get the currently active persona for a user.
+        Get the first active persona for a user (legacy method for backwards compatibility).
 
         Args:
             user_id: Discord user ID (as string)
@@ -144,17 +288,31 @@ class MemoryMatrix:
         Returns:
             persona_id if user exists, None otherwise
         """
-        return self.user_state.get_active_persona(user_id)
+        personas = self.get_active_personas(user_id)
+        return personas[0] if personas else None
 
     def set_active_persona(self, user_id: str, persona_id: str) -> None:
         """
-        Set or update the active persona for a user.
+        Set a single active persona (legacy method - clears other personas).
 
         Args:
             user_id: Discord user ID (as string)
             persona_id: The persona to activate
         """
-        self.user_state.set_active_persona(user_id, persona_id)
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            INSERT INTO user_state (user_id, active_persona_ids)
+            VALUES (?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET active_persona_ids = excluded.active_persona_ids
+        """,
+            (user_id, json.dumps([persona_id])),
+        )
+
+        conn.commit()
+        conn.close()
 
     def update_user_interaction(self, user_id: str) -> None:
         """Update the last interaction timestamp for a user."""

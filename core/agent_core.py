@@ -204,12 +204,74 @@ class AgentCore:
         )
 
     # ========================
-    # PERSONA MANAGEMENT
+    # PERSONA MANAGEMENT (ENSEMBLE MODE)
     # ========================
+
+    def get_active_personas(self, user_id: str) -> List[PersonaCartridge]:
+        """
+        Get all currently active personas for a user (Ensemble Mode).
+
+        Args:
+            user_id: Unique user identifier (platform-agnostic)
+
+        Returns:
+            List of PersonaCartridge objects (empty if none active)
+        """
+        persona_ids = self.memory_matrix.get_active_personas(user_id)
+
+        personas = []
+        for persona_id in persona_ids:
+            persona = self.persona_loader.get_persona(persona_id)
+            if persona:
+                personas.append(persona)
+
+        return personas
+
+    def add_active_persona(self, user_id: str, persona_id: str) -> bool:
+        """
+        Add a persona to the active ensemble (appends, does not replace).
+
+        Args:
+            user_id: Unique user identifier
+            persona_id: The persona to add
+
+        Returns:
+            True if successful, False if persona doesn't exist
+        """
+        # Verify persona exists
+        persona = self.persona_loader.get_persona(persona_id)
+        if not persona:
+            return False
+
+        # Add to active ensemble
+        self.memory_matrix.add_active_persona(user_id, persona_id)
+        return True
+
+    def remove_active_persona(self, user_id: str, persona_id: str) -> bool:
+        """
+        Remove a specific persona from the active ensemble.
+
+        Args:
+            user_id: Unique user identifier
+            persona_id: The persona to remove
+
+        Returns:
+            True if persona was removed, False if it wasn't active
+        """
+        return self.memory_matrix.remove_active_persona(user_id, persona_id)
+
+    def clear_active_personas(self, user_id: str) -> None:
+        """
+        Clear all active personas for a user.
+
+        Args:
+            user_id: Unique user identifier
+        """
+        self.memory_matrix.clear_active_personas(user_id)
 
     def get_active_persona(self, user_id: str) -> Optional[PersonaCartridge]:
         """
-        Get the currently active persona for a user.
+        Get the first active persona for a user (legacy method for backwards compatibility).
 
         Args:
             user_id: Unique user identifier (platform-agnostic)
@@ -217,16 +279,12 @@ class AgentCore:
         Returns:
             PersonaCartridge if user has an active persona, None otherwise
         """
-        persona_id = self.memory_matrix.get_active_persona(user_id)
-
-        if not persona_id:
-            return None
-
-        return self.persona_loader.get_persona(persona_id)
+        personas = self.get_active_personas(user_id)
+        return personas[0] if personas else None
 
     def switch_persona(self, user_id: str, persona_id: str) -> bool:
         """
-        Switch a user's active persona.
+        Switch a user's active persona (legacy method - clears other personas).
 
         Args:
             user_id: Unique user identifier
@@ -240,7 +298,7 @@ class AgentCore:
         if not persona:
             return False
 
-        # Update user state
+        # Update user state (sets single persona, clearing others)
         self.memory_matrix.set_active_persona(user_id, persona_id)
         return True
 
@@ -263,6 +321,7 @@ class AgentCore:
         persona: PersonaCartridge,
         current_message: Optional[str] = None,
         life_id: Optional[str] = None,
+        ensemble_personas: Optional[List[PersonaCartridge]] = None,
     ) -> List[Dict[str, str]]:
         """
         Build the conversation context for LLM injection using Hybrid Memory Architecture.
@@ -271,9 +330,10 @@ class AgentCore:
 
         Args:
             user_id: User identifier
-            persona: Current active persona
+            persona: Primary active persona (for backwards compatibility)
             current_message: Optional current user message for semantic search
             life_id: Optional timeline/session ID for memory scoping
+            ensemble_personas: Optional list of ALL active personas (Ensemble Mode)
 
         Returns:
             List of messages in OpenAI chat format
@@ -287,6 +347,7 @@ class AgentCore:
             current_message=current_message,
             life_id=life_id,
             user_preferences=user_preferences,
+            ensemble_personas=ensemble_personas,
         )
 
     def _save_message_to_memory(
@@ -348,11 +409,17 @@ class AgentCore:
         Returns:
             AI response string, or None if no active persona
         """
-        # Get active persona
-        persona = self.get_active_persona(user_id)
+        # Get active personas (Ensemble Mode support)
+        personas = self.get_active_personas(user_id)
 
-        if not persona:
+        if not personas:
             return None
+
+        # Primary persona (first in list) for backwards compatibility
+        persona = personas[0]
+
+        # Check if we're in Ensemble Mode
+        is_ensemble = len(personas) > 1
 
         # Get or create active life for this user+persona (if lives enabled)
         life_id = None
@@ -401,7 +468,11 @@ class AgentCore:
         # Build conversation context with memory injection
         # NOTE: INHALE phase happens inside context builder (limbic state injection)
         messages = self._build_conversation_context(
-            user_id, persona, current_message=message, life_id=life_id
+            user_id=user_id,
+            persona=persona,
+            current_message=message,
+            life_id=life_id,
+            ensemble_personas=personas if is_ensemble else None,
         )
 
         # Add current message

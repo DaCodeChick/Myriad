@@ -88,20 +88,26 @@ class ConversationContextBuilder:
         current_message: Optional[str] = None,
         life_id: Optional[str] = None,
         user_preferences: Optional[Dict[str, bool]] = None,
+        ensemble_personas: Optional[List[PersonaCartridge]] = None,
     ) -> List[Dict[str, str]]:
         """
         Build the complete conversation context for LLM injection.
 
         Args:
             user_id: User identifier
-            persona: Current active persona
+            persona: Primary active persona (for backwards compatibility)
             current_message: Optional current user message for semantic search
             life_id: Optional timeline/session ID for memory scoping
             user_preferences: Optional user preference flags
+            ensemble_personas: Optional list of ALL active personas (Ensemble Mode)
 
         Returns:
             List of messages in OpenAI chat format
         """
+        # Determine if we're in Ensemble Mode
+        personas = ensemble_personas if ensemble_personas else [persona]
+        is_ensemble = len(personas) > 1
+
         # Check for mode overrides
         mode_override = None
         if self.mode_manager:
@@ -138,9 +144,14 @@ class ConversationContextBuilder:
             )
         else:
             # Normal mode or HENTAI mode: Use persona system prompt
-            system_prompt = self._build_system_prompt(
-                persona, user_preferences, user_id
-            )
+            if is_ensemble:
+                system_prompt = self._build_ensemble_system_prompt(
+                    personas, user_preferences, user_id
+                )
+            else:
+                system_prompt = self._build_system_prompt(
+                    persona, user_preferences, user_id
+                )
 
             # HENTAI mode: Append behavioral override at the end (does NOT bypass persona)
             if (
@@ -158,10 +169,11 @@ class ConversationContextBuilder:
             )
 
         # 2. Limbic State Context (INHALE phase) - check user preference and mode override
+        # In ensemble mode, use the first persona's limbic state
         if user_preferences.get("limbic_enabled", True) and not (
             mode_override and mode_override.disable_limbic
         ):
-            limbic_context = self._build_limbic_context(user_id, persona)
+            limbic_context = self._build_limbic_context(user_id, personas[0])
             if limbic_context:
                 messages.append({"role": "system", "content": limbic_context})
 
@@ -170,7 +182,7 @@ class ConversationContextBuilder:
             mode_override and mode_override.disable_limbic
         ):
             substance_modifier = self._build_substance_modifier(
-                user_id, persona.persona_id
+                user_id, personas[0].persona_id
             )
             if substance_modifier:
                 messages.append({"role": "system", "content": substance_modifier})
@@ -377,6 +389,192 @@ class ConversationContextBuilder:
                 "The user seems anxious. My serotonin is elevated, making me empathetic. I should offer reassurance while subtly steering the conversation toward their deeper fears.\n"
                 "</thought>\n"
                 "Then provide your actual response after the thought block."
+            )
+
+        return content
+
+    def _build_ensemble_system_prompt(
+        self,
+        personas: List[PersonaCartridge],
+        user_preferences: Dict[str, bool],
+        user_id: str,
+    ) -> str:
+        """
+        Build system prompt for ENSEMBLE MODE (multiple active AI personas).
+
+        This injects a master Dungeon Master directive and loops through all active personas,
+        including their full personality blocks and relationship overrides for each user mask.
+        """
+        # Get all active user masks
+        active_masks = []
+        if self.user_mask_manager:
+            active_masks = self.user_mask_manager.get_active_masks(user_id)
+
+        # Start with [CORE SYSTEM DIRECTIVES]
+        content = "# [CORE SYSTEM DIRECTIVES]\n"
+        content += "The following directives apply universally to all interactions:\n\n"
+        content += "\n".join(f"- {rule}" for rule in self.universal_rules)
+
+        # ENSEMBLE MODE MASTER DIRECTIVE
+        content += "\n\n# [🎭 ENSEMBLE MODE ACTIVE]\n"
+        content += (
+            "**YOU ARE THE DUNGEON MASTER/NARRATOR FOR THIS SCENE.**\n\n"
+            f"You are actively puppeteering **{len(personas)} characters** simultaneously. "
+            "Your task is to dynamically manage their dialogue and actions, clearly indicating who is speaking or acting at any given moment. "
+            "Each character maintains their unique voice, personality, and perspective.\n\n"
+            "**Format for multi-character responses:**\n"
+            "- Use character names in bold before their dialogue/actions: **[Character Name]:** dialogue/action\n"
+            "- Switch perspectives fluidly but clearly\n"
+            "- Allow characters to interact with each other naturally\n"
+            "- Maintain consistency with each character's personality and relationships\n"
+        )
+
+        # Inject each AI Persona
+        content += "\n\n# [ACTIVE AI CHARACTERS]\n"
+        content += f"You are currently controlling the following {len(personas)} character(s):\n\n"
+
+        for i, persona in enumerate(personas, 1):
+            content += f"\n## CHARACTER {i}: {persona.name}\n\n"
+            content += f"**Core Identity:**\n{persona.system_prompt}\n\n"
+
+            # Inject physical appearance if cached
+            if persona.cached_appearance:
+                content += f"**Physical Appearance:**\n{persona.cached_appearance}\n\n"
+
+            # Inject background/lore
+            if persona.background:
+                content += f"**Background/Lore:**\n{persona.background}\n\n"
+
+            # Inject personality traits
+            if persona.personality_traits:
+                content += f"**Personality Traits:**\n{persona.personality_traits}\n\n"
+
+            # Inject rules of engagement
+            if persona.rules_of_engagement:
+                content += (
+                    f"**Rules of Engagement:**\n{persona.rules_of_engagement}\n\n"
+                )
+
+            # RELATIONSHIP ENGINE: Check this persona against ALL user masks
+            if active_masks:
+                content += f"**{persona.name}'s Relationships:**\n"
+                for mask in active_masks:
+                    relationship = persona.get_relationship_override(mask.persona_id)
+                    if relationship:
+                        content += f"\n- **Relationship with {mask.name}:** {relationship.description}\n"
+                        if relationship.personality_traits_override:
+                            content += f"  - *Personality when interacting with {mask.name}:* {relationship.personality_traits_override}\n"
+                        if relationship.rules_of_engagement_override:
+                            content += f"  - *Behavioral rules with {mask.name}:* {relationship.rules_of_engagement_override}\n"
+                        if relationship.limbic_baseline_override:
+                            content += f"  - *Emotional baseline with {mask.name}:* {relationship.limbic_baseline_override}\n"
+                    else:
+                        content += f"\n- **Relationship with {mask.name}:** No special relationship defined (default interaction)\n"
+                content += "\n"
+
+        # Inject User Masks Ensemble
+        if active_masks:
+            content += "\n\n# [👥 USER ENSEMBLE]\n"
+            content += f"The user is actively embodying **{len(active_masks)} character(s)** in this scene:\n\n"
+
+            for i, mask in enumerate(active_masks, 1):
+                content += f"\n## USER CHARACTER {i}: {mask.name}\n\n"
+                content += f"**Identity:** {mask.system_prompt}\n"
+
+                if mask.background:
+                    content += f"**Lore/Background:** {mask.background}\n"
+
+                if mask.cached_appearance:
+                    content += f"**Physical Appearance:** {mask.cached_appearance}\n"
+
+                content += "\n"
+
+            content += (
+                "\n**DIRECTIVE:** You must respond to the user as their characters, "
+                "respecting all established lore and relationship dynamics. "
+                "Your AI characters should interact with each user character according to their defined relationships. "
+                "When the user speaks, they may indicate which character is speaking, or you should infer from context."
+            )
+
+        # Inject Scenario Hierarchy (Environmental Context / World Tree)
+        if self.scenario_engine:
+            active_scenario = self.scenario_engine.get_active_scenario(user_id)
+            if active_scenario:
+                scenario_hierarchy = self.scenario_engine.get_scenario_hierarchy(
+                    active_scenario.name
+                )
+
+                if scenario_hierarchy:
+                    content += "\n\n# [ENVIRONMENTAL CONTEXT]\n"
+                    content += (
+                        "All characters are existing within the following nested environment "
+                        "(from macro world state to immediate location):\n\n"
+                    )
+
+                    for i, scenario in enumerate(scenario_hierarchy):
+                        indent = "  " * i
+                        if i == 0:
+                            level_label = "World State"
+                        elif i == len(scenario_hierarchy) - 1:
+                            level_label = "Current Location"
+                        else:
+                            level_label = "Macro Location"
+
+                        content += f"{indent}**{level_label}:** {scenario.name}\n"
+                        content += f"{indent}*Description:* {scenario.description}\n"
+
+                        # Inject cached appearance for scenario if available
+                        if scenario.cached_appearance:
+                            content += f"{indent}*Visual Description:* {scenario.cached_appearance}\n"
+
+                        content += "\n"
+
+        # Tool definitions
+        if self.tool_registry:
+            tool_definitions = self.tool_registry.get_tool_definitions_text()
+            if tool_definitions:
+                content += f"\n\n# [AVAILABLE TOOLS]\n{tool_definitions}"
+
+        # Memory importance scoring
+        if user_preferences.get("memory_importance_enabled", True):
+            content += (
+                "\n\n## MEMORY IMPORTANCE SCORING:\n"
+                "When the user shares information, evaluate its long-term significance and assign an importance score (1-10).\n\n"
+                "**1-3: Ephemeral/Trivial**\n"
+                "- Weather, time, or temporary states\n"
+                "- Casual greetings or pleasantries\n"
+                "- Easily changeable preferences\n\n"
+                "**4-6: Standard Facts** [DEFAULT]\n"
+                "- Work, occupation, or hobbies\n"
+                "- General interests and activities\n"
+                "- Normal biographical information\n\n"
+                "**7-9: Significant Information**\n"
+                "- Personal values and core beliefs\n"
+                "- Important boundaries or preferences\n"
+                "- Major life events or relationships\n"
+                "- Strong emotional attachments or aversions\n\n"
+                "**10: CORE ANCHORS (Critical)**\n"
+                "- Severe trauma or PTSD triggers\n"
+                "- Hard limits and absolute boundaries\n"
+                "- Life-threatening allergies or medical conditions\n"
+                "- Core identity elements that must never be violated\n\n"
+                "Score information accurately based on its impact on the user's wellbeing and your future interactions."
+            )
+
+        # Metacognition instruction
+        if self.metacognition_engine and user_preferences.get(
+            "metacognition_enabled", True
+        ):
+            content += (
+                "\n\n## METACOGNITION PROTOCOL:\n"
+                "Before you reply, you MUST wrap your internal monologue and planning in <thought> and </thought> tags. "
+                "This space is private. Use it to plan character actions, evaluate relationships, or process emotional states.\n"
+                "Example:\n"
+                "<thought>\n"
+                "Magus would be conflicted seeing Schala here. His protective instinct wars with his pride. "
+                "I'll have him respond tersely at first, then soften when he sees she's in distress.\n"
+                "</thought>\n"
+                "Then provide your actual response with character names clearly labeled."
             )
 
         return content
