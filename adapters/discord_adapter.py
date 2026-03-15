@@ -17,6 +17,7 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 from adapters.commands.config_commands import register_config_commands
+from adapters.commands.dm_commands import register_dm_commands
 from adapters.commands.lives_commands import register_lives_commands
 from adapters.commands.mask_commands import register_mask_commands
 from adapters.commands.memory_commands import register_memory_commands
@@ -434,6 +435,7 @@ def create_discord_bot(
     register_saves_commands(bot)
     register_config_commands(bot)
     register_mode_commands(bot)
+    register_dm_commands(bot)  # Dungeon Master world event injection
 
     return bot
 

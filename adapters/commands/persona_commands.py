@@ -94,22 +94,30 @@ def register_persona_commands(bot: "MyriadDiscordBot") -> None:
             )
 
             for persona in active_personas:
-                traits = (
-                    ", ".join(persona.personality_traits[:3])
-                    if persona.personality_traits
-                    else "None"
-                )
-                bg_indicator = " 📖" if persona.background else ""
-                img_indicator = " 🖼️" if persona.cached_appearance else ""
+                # Check if narrator
+                if persona.is_narrator:
+                    response += (
+                        f"**{persona.name}** (`{persona.persona_id}`) 🎲 **[NARRATOR]**\n"
+                        f"• Role: Omniscient environmental narrator\n"
+                        f"• Temp: {persona.temperature} | Tokens: {persona.max_tokens}\n\n"
+                    )
+                else:
+                    traits = (
+                        ", ".join(persona.personality_traits[:3])
+                        if persona.personality_traits
+                        else "None"
+                    )
+                    bg_indicator = " 📖" if persona.background else ""
+                    img_indicator = " 🖼️" if persona.cached_appearance else ""
 
-                response += (
-                    f"**{persona.name}** (`{persona.persona_id}`){bg_indicator}{img_indicator}\n"
-                    f"• Traits: {traits}\n"
-                    f"• Temp: {persona.temperature} | Tokens: {persona.max_tokens}\n\n"
-                )
+                    response += (
+                        f"**{persona.name}** (`{persona.persona_id}`){bg_indicator}{img_indicator}\n"
+                        f"• Traits: {traits}\n"
+                        f"• Temp: {persona.temperature} | Tokens: {persona.max_tokens}\n\n"
+                    )
 
             response += "The AI is controlling multiple characters as Dungeon Master/Narrator.\n"
-            response += "\n📖 = Has background | 🖼️ = Has appearance images"
+            response += "\n📖 = Has background | 🖼️ = Has appearance images | 🎲 = Narrator (no body)"
 
             await interaction.response.send_message(response, ephemeral=True)
         else:
@@ -273,18 +281,25 @@ def register_persona_commands(bot: "MyriadDiscordBot") -> None:
         response = "**Active Personas:**\n\n"
 
         for persona in active_personas:
-            traits = (
-                ", ".join(persona.personality_traits[:3])
-                if persona.personality_traits
-                else "None"
-            )
-            bg_indicator = " 📖" if persona.background else ""
-            img_indicator = " 🖼️" if persona.cached_appearance else ""
+            # Check if narrator
+            if persona.is_narrator:
+                response += (
+                    f"• **{persona.name}** (`{persona.persona_id}`) 🎲 **[NARRATOR]**\n"
+                    f"  Role: Omniscient environmental narrator (no physical body)\n\n"
+                )
+            else:
+                traits = (
+                    ", ".join(persona.personality_traits[:3])
+                    if persona.personality_traits
+                    else "None"
+                )
+                bg_indicator = " 📖" if persona.background else ""
+                img_indicator = " 🖼️" if persona.cached_appearance else ""
 
-            response += (
-                f"• **{persona.name}** (`{persona.persona_id}`){bg_indicator}{img_indicator}\n"
-                f"  Traits: {traits}\n\n"
-            )
+                response += (
+                    f"• **{persona.name}** (`{persona.persona_id}`){bg_indicator}{img_indicator}\n"
+                    f"  Traits: {traits}\n\n"
+                )
 
         if len(active_personas) > 1:
             response += (
@@ -293,7 +308,8 @@ def register_persona_commands(bot: "MyriadDiscordBot") -> None:
             response += "The AI is controlling multiple characters as Dungeon Master/Narrator.\n\n"
 
         response += "📖 = Has background lore\n"
-        response += "🖼️ = Has appearance images"
+        response += "🖼️ = Has appearance images\n"
+        response += "🎲 = Narrator (no physical body)"
 
         await interaction.response.send_message(response, ephemeral=True)
 
@@ -801,6 +817,73 @@ def register_persona_commands(bot: "MyriadDiscordBot") -> None:
         except Exception as e:
             await interaction.followup.send(
                 ResponseFormatter.error(f"Error regenerating appearance: {str(e)}"),
+                ephemeral=True,
+            )
+
+    @persona_group.command(
+        name="set_narrator",
+        description="Mark a persona as a Narrator/DM (no physical body, controls environment)",
+    )
+    @app_commands.describe(
+        persona_id="The ID of the persona to mark as narrator",
+        is_narrator="True to enable narrator mode, False to disable",
+    )
+    async def set_narrator(
+        interaction: discord.Interaction, persona_id: str, is_narrator: bool
+    ):
+        """Toggle narrator mode for a persona."""
+        # Verify persona exists
+        persona = bot.agent_core.persona_loader.get_persona(persona_id)
+        if not persona:
+            available = bot.agent_core.list_personas()
+            await interaction.response.send_message(
+                ResponseFormatter.error(
+                    f"Persona '{persona_id}' not found.\n"
+                    f"Available personas: {', '.join(available[:10])}"
+                ),
+                ephemeral=True,
+            )
+            return
+
+        try:
+            # Update the is_narrator flag
+            persona.is_narrator = is_narrator
+
+            # Save back to metadata.json
+            success = bot.agent_core.persona_loader.update_persona(
+                persona_id, persona.to_dict()
+            )
+
+            if success:
+                # Reload the persona to clear cache
+                bot.agent_core.persona_loader.reload_persona(persona_id)
+
+                status = "ENABLED" if is_narrator else "DISABLED"
+                mode_description = (
+                    "This persona will now act as an omniscient environmental narrator with no physical body."
+                    if is_narrator
+                    else "This persona will now act as a standard character with a physical body."
+                )
+
+                await interaction.response.send_message(
+                    ResponseFormatter.success(
+                        f"✅ **Narrator Mode {status}** for **{persona.name}**\n\n"
+                        f"{mode_description}\n\n"
+                        f"Reload this persona for changes to take effect in active sessions."
+                    ),
+                    ephemeral=True,
+                )
+            else:
+                await interaction.response.send_message(
+                    ResponseFormatter.error(
+                        f"Failed to update narrator status for '{persona_id}'. Check logs for details."
+                    ),
+                    ephemeral=True,
+                )
+
+        except Exception as e:
+            await interaction.response.send_message(
+                ResponseFormatter.error(f"Error setting narrator status: {str(e)}"),
                 ephemeral=True,
             )
 

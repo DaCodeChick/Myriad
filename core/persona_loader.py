@@ -69,6 +69,7 @@ class PersonaCartridge:
     limbic_baseline: Optional[Dict[str, float]] = None
     relationships: Optional[List[PersonaRelationship]] = None
     cached_appearance: Optional[str] = None  # Loaded from database, not metadata.json
+    is_narrator: bool = False  # Dungeon Master/Narrator personas (no physical body)
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "PersonaCartridge":
@@ -92,6 +93,7 @@ class PersonaCartridge:
             cached_appearance=data.get("cached_appearance"),
             limbic_baseline=data.get("limbic_baseline"),
             relationships=relationships,
+            is_narrator=data.get("is_narrator", False),
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -113,6 +115,8 @@ class PersonaCartridge:
             result["limbic_baseline"] = self.limbic_baseline
         if self.relationships:
             result["relationships"] = [rel.to_dict() for rel in self.relationships]
+        if self.is_narrator:
+            result["is_narrator"] = self.is_narrator
         return result
 
     def get_relationship_override(
@@ -491,6 +495,38 @@ class PersonaLoader:
 
             # Update cache
             self._cache[persona_id] = persona
+
+            return True
+
+        except (OSError, ValueError) as e:
+            print(f"Error updating persona '{persona_id}': {e}")
+            return False
+
+    def update_persona(self, persona_id: str, persona_data: Dict[str, Any]) -> bool:
+        """
+        Update an existing persona with new data and save to disk.
+
+        Args:
+            persona_id: The ID of the persona to update
+            persona_data: Dictionary containing persona fields to update
+
+        Returns:
+            True if successful, False if persona doesn't exist or update failed
+        """
+        # Build metadata.json path
+        metadata_path = Path(self.personas_dir) / persona_id / "metadata.json"
+
+        if not metadata_path.exists():
+            return False
+
+        try:
+            # Write updated data to file with pretty formatting
+            with open(metadata_path, "w", encoding="utf-8") as f:
+                json.dump(persona_data, f, indent=2, ensure_ascii=False)
+
+            # Clear cache to force reload on next access
+            if persona_id in self._cache:
+                del self._cache[persona_id]
 
             return True
 

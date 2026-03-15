@@ -170,16 +170,22 @@ class ConversationContextBuilder:
 
         # 2. Limbic State Context (INHALE phase) - check user preference and mode override
         # In ensemble mode, use the first persona's limbic state
-        if user_preferences.get("limbic_enabled", True) and not (
-            mode_override and mode_override.disable_limbic
+        # Skip for narrator personas (they don't have emotions)
+        if (
+            user_preferences.get("limbic_enabled", True)
+            and not (mode_override and mode_override.disable_limbic)
+            and not personas[0].is_narrator
         ):
             limbic_context = self._build_limbic_context(user_id, personas[0])
             if limbic_context:
                 messages.append({"role": "system", "content": limbic_context})
 
         # 3. Substance Modifier (Digital Pharmacy) - requires limbic, disabled in OOC
-        if user_preferences.get("limbic_enabled", True) and not (
-            mode_override and mode_override.disable_limbic
+        # Skip for narrator personas
+        if (
+            user_preferences.get("limbic_enabled", True)
+            and not (mode_override and mode_override.disable_limbic)
+            and not personas[0].is_narrator
         ):
             substance_modifier = self._build_substance_modifier(
                 user_id, personas[0].persona_id
@@ -228,7 +234,15 @@ class ConversationContextBuilder:
 
         Applies relationship overrides if the user has an active mask that matches
         a relationship in the persona's relationships array.
+
+        Special handling for narrator personas (is_narrator=True).
         """
+        # Check if this is a Narrator/DM persona
+        if persona.is_narrator:
+            return self._build_narrator_system_prompt(
+                persona, user_preferences, user_id
+            )
+
         # Check for relationship overrides based on active user mask
         active_relationship = None
         active_mask_name = None
@@ -393,6 +407,124 @@ class ConversationContextBuilder:
 
         return content
 
+    def _build_narrator_system_prompt(
+        self, persona: PersonaCartridge, user_preferences: Dict[str, bool], user_id: str
+    ) -> str:
+        """
+        Build system prompt for NARRATOR/DM personas (is_narrator=True).
+
+        Narrator personas do NOT have physical bodies or limbic baselines.
+        They are omniscient environmental controllers and narrative directors.
+        """
+        # Start with [CORE SYSTEM DIRECTIVES]
+        content = "# [CORE SYSTEM DIRECTIVES]\n"
+        content += "The following directives apply universally to all interactions:\n\n"
+        content += "\n".join(f"- {rule}" for rule in self.universal_rules)
+
+        # NARRATOR/DM DIRECTIVE
+        content += "\n\n# [🎲 SYSTEM NARRATOR ACTIVE]\n"
+        content += (
+            "**You are the omniscient Dungeon Master.** You do not exist as a physical entity in the world. "
+            "Your job is to describe the environment, control the pacing of the scene, puppeteer minor background NPCs, "
+            "and vividly describe the consequences of the User's actions. You must be impartial, atmospheric, and reactive to the active Scenario.\n\n"
+        )
+
+        # Inject narrator's custom system prompt (narrative style, tone, etc.)
+        if persona.system_prompt:
+            content += f"**Narrative Style:**\n{persona.system_prompt}\n\n"
+
+        # Inject background/lore if defined (world knowledge)
+        if persona.background:
+            content += f"# [WORLD KNOWLEDGE]\n{persona.background}\n\n"
+
+        # Inject User Masks (if user is embodying characters)
+        if self.user_mask_manager:
+            active_masks = self.user_mask_manager.get_active_masks(user_id)
+            if active_masks:
+                content += "# [PLAYER CHARACTERS]\n"
+                content += "The user is controlling the following character(s):\n\n"
+
+                for mask in active_masks:
+                    content += f"**{mask.name}:**\n"
+                    content += f"- Identity: {mask.system_prompt}\n"
+                    if mask.background:
+                        content += f"- Background: {mask.background}\n"
+                    if mask.cached_appearance:
+                        content += f"- Appearance: {mask.cached_appearance}\n"
+                    content += "\n"
+
+                content += (
+                    "**DIRECTIVE:** When the user speaks/acts, interpret their actions through these characters. "
+                    "Describe how the world reacts to them based on their established identities.\n\n"
+                )
+
+        # Inject Scenario Hierarchy (Environmental Context / World Tree)
+        if self.scenario_engine:
+            active_scenario = self.scenario_engine.get_active_scenario(user_id)
+            if active_scenario:
+                scenario_hierarchy = self.scenario_engine.get_scenario_hierarchy(
+                    active_scenario.name
+                )
+
+                if scenario_hierarchy:
+                    content += "# [ENVIRONMENTAL CONTEXT]\n"
+                    content += (
+                        "Describe the scene within this nested environment "
+                        "(from macro world state to immediate location):\n\n"
+                    )
+
+                    for i, scenario in enumerate(scenario_hierarchy):
+                        indent = "  " * i
+                        if i == 0:
+                            level_label = "World State"
+                        elif i == len(scenario_hierarchy) - 1:
+                            level_label = "Current Location"
+                        else:
+                            level_label = "Macro Location"
+
+                        content += f"{indent}**{level_label}:** {scenario.name}\n"
+                        content += f"{indent}*Description:* {scenario.description}\n"
+
+                        if scenario.cached_appearance:
+                            content += f"{indent}*Visual Description:* {scenario.cached_appearance}\n"
+
+                        content += "\n"
+
+        # Tool definitions (narrators can still use tools for world manipulation)
+        if self.tool_registry:
+            tool_definitions = self.tool_registry.get_tool_definitions_text()
+            if tool_definitions:
+                content += f"# [AVAILABLE TOOLS]\n{tool_definitions}\n\n"
+
+        # Memory importance scoring
+        if user_preferences.get("memory_importance_enabled", True):
+            content += (
+                "## MEMORY IMPORTANCE SCORING:\n"
+                "When recording events, evaluate their narrative significance and assign an importance score (1-10).\n\n"
+                "**1-3: Ephemeral** - Weather, time, minor flavor details\n"
+                "**4-6: Standard Events** [DEFAULT] - Normal actions and interactions\n"
+                "**7-9: Significant Plot Points** - Major developments, character revelations\n"
+                "**10: CRITICAL ANCHORS** - World-changing events, character deaths, major plot twists\n\n"
+            )
+
+        # Metacognition instruction (for planning narrative beats)
+        if self.metacognition_engine and user_preferences.get(
+            "metacognition_enabled", True
+        ):
+            content += (
+                "## METACOGNITION PROTOCOL:\n"
+                "Before you reply, wrap your narrative planning in <thought> tags. "
+                "Use this space to plan pacing, foreshadowing, or dramatic tension.\n"
+                "Example:\n"
+                "<thought>\n"
+                "The user's character just entered the abandoned temple. I should build suspense by describing "
+                "unsettling details before revealing the guardian. Let the tension simmer.\n"
+                "</thought>\n"
+                "Then provide your atmospheric narration."
+            )
+
+        return content
+
     def _build_ensemble_system_prompt(
         self,
         personas: List[PersonaCartridge],
@@ -434,6 +566,21 @@ class ConversationContextBuilder:
         content += f"You are currently controlling the following {len(personas)} character(s):\n\n"
 
         for i, persona in enumerate(personas, 1):
+            # Skip physical appearance for narrator personas
+            if persona.is_narrator:
+                content += f"\n## NARRATOR {i}: {persona.name}\n\n"
+                content += (
+                    f"**Role:** Omniscient environmental narrator (no physical form)\n"
+                )
+                content += f"**Narrative Style:**\n{persona.system_prompt}\n\n"
+
+                if persona.background:
+                    content += f"**World Knowledge:**\n{persona.background}\n\n"
+
+                content += "This persona describes the world and controls minor NPCs, but does not have a physical body in the scene.\n\n"
+                continue
+
+            # Regular character persona
             content += f"\n## CHARACTER {i}: {persona.name}\n\n"
             content += f"**Core Identity:**\n{persona.system_prompt}\n\n"
 
