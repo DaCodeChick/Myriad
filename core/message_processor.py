@@ -43,6 +43,7 @@ class MessageProcessor:
         metacognition_engine: Optional[MetacognitionEngine] = None,
         cadence_degrader: Optional[CadenceDegrader] = None,
         mode_manager: Optional[ModeManager] = None,
+        user_mask_manager: Optional["UserMaskManager"] = None,
         show_thoughts_inline: bool = True,
     ):
         """
@@ -56,6 +57,7 @@ class MessageProcessor:
             metacognition_engine: Optional metacognition system for thought tracking
             cadence_degrader: Optional cadence degrader for text post-processing
             mode_manager: Optional mode override manager
+            user_mask_manager: Optional user mask manager for relationship overrides
             show_thoughts_inline: Display thoughts inline vs terminal-only
         """
         self.client = client
@@ -65,6 +67,7 @@ class MessageProcessor:
         self.metacognition_engine = metacognition_engine
         self.cadence_degrader = cadence_degrader
         self.mode_manager = mode_manager
+        self.user_mask_manager = user_mask_manager
         self.show_thoughts_inline = show_thoughts_inline
 
     def process(
@@ -230,17 +233,39 @@ class MessageProcessor:
         Apply EXHALE phase - metabolic decay.
 
         Apply 10% decay toward baseline to prevent indefinite emotional extremes.
-        Uses persona-specific baseline if defined.
+        Uses persona-specific baseline if defined, with relationship overrides applied.
 
         Args:
             user_id: User identifier
-            persona: Current persona (for accessing limbic baseline)
+            persona: Current persona (for accessing limbic baseline and relationships)
         """
         if self.limbic_engine:
+            # Check for relationship limbic baseline override
+            effective_baseline = persona.limbic_baseline
+            if self.user_mask_manager:
+                user_mask = self.user_mask_manager.get_active_mask(user_id)
+                if user_mask:
+                    active_relationship = persona.get_relationship_override(
+                        user_mask.persona_id
+                    )
+                    if (
+                        active_relationship
+                        and active_relationship.limbic_baseline_override
+                    ):
+                        # Merge relationship override with base baseline
+                        effective_baseline = (
+                            persona.limbic_baseline.copy()
+                            if persona.limbic_baseline
+                            else {}
+                        )
+                        effective_baseline.update(
+                            active_relationship.limbic_baseline_override
+                        )
+
             self.limbic_engine.apply_metabolic_decay(
                 user_id=user_id,
                 persona_id=persona.persona_id,
-                persona_baseline=persona.limbic_baseline,
+                persona_baseline=effective_baseline,
             )
 
     def _apply_cadence_degradation(

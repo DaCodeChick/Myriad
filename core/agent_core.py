@@ -146,7 +146,9 @@ class AgentCore:
         )
 
         # User Mask System (User-Side Personas for Roleplay)
-        self.user_mask_manager = UserMaskManager(db_path=db_path)
+        self.user_mask_manager = UserMaskManager(
+            db_path=db_path, persona_loader=self.persona_loader
+        )
 
         # Scenario Engine (World Tree for hierarchical environmental contexts)
         self.scenario_engine = ScenarioEngine(db_path=db_path)
@@ -188,6 +190,7 @@ class AgentCore:
             metacognition_engine=self.metacognition_engine,
             cadence_degrader=self.cadence_degrader,
             mode_manager=self.mode_manager,
+            user_mask_manager=self.user_mask_manager,
             show_thoughts_inline=config.features.show_thoughts_inline,
         )
 

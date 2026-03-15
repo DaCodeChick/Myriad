@@ -48,8 +48,7 @@ def register_scenario_commands(bot: "MyriadDiscordBot") -> None:
             await interaction.response.send_message(
                 ResponseFormatter.success(
                     f"Created scenario: **{scenario.name}**\n"
-                    f"• Description: {description}\n"
-                    f"• ID: {scenario.id}\n\n"
+                    f"• Description: {description}\n\n"
                     f"Use `/scenario set_parent` to nest this inside another scenario."
                 ),
                 ephemeral=True,
@@ -127,11 +126,11 @@ def register_scenario_commands(bot: "MyriadDiscordBot") -> None:
                 return
 
             # Set as active scenario
-            bot.agent_core.scenario_engine.set_active_scenario(user_id, scenario.id)
+            bot.agent_core.scenario_engine.set_active_scenario(user_id, scenario.name)
 
             # Get the full hierarchy to show the user
             hierarchy = bot.agent_core.scenario_engine.get_scenario_hierarchy(
-                scenario.id
+                scenario.name
             )
 
             # Build a visual representation of where they are
@@ -211,7 +210,7 @@ def register_scenario_commands(bot: "MyriadDiscordBot") -> None:
 
             # Get the full hierarchy
             hierarchy = bot.agent_core.scenario_engine.get_scenario_hierarchy(
-                active_scenario.id
+                active_scenario.name
             )
 
             # Build a rich display

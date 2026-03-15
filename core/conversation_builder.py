@@ -213,7 +213,34 @@ class ConversationContextBuilder:
         """
         Build the complete system prompt including universal rules, persona identity,
         background/lore, user mask, tool definitions, and metacognition instructions.
+
+        Applies relationship overrides if the user has an active mask that matches
+        a relationship in the persona's relationships array.
         """
+        # Check for relationship overrides based on active user mask
+        active_relationship = None
+        active_mask_name = None
+        if self.user_mask_manager:
+            user_mask = self.user_mask_manager.get_active_mask(user_id)
+            if user_mask:
+                active_mask_name = user_mask.name
+                # Check if persona has a relationship override for this mask's persona_id
+                active_relationship = persona.get_relationship_override(
+                    user_mask.persona_id
+                )
+
+        # Apply relationship overrides to create a modified persona view
+        effective_personality_traits = persona.personality_traits
+        effective_rules = persona.rules_of_engagement
+
+        if active_relationship:
+            if active_relationship.personality_traits_override:
+                effective_personality_traits = (
+                    active_relationship.personality_traits_override
+                )
+            if active_relationship.rules_of_engagement_override:
+                effective_rules = active_relationship.rules_of_engagement_override
+
         # Start with [CORE SYSTEM DIRECTIVES]
         content = "# [CORE SYSTEM DIRECTIVES]\n"
         content += "The following directives apply universally to all interactions:\n\n"
@@ -221,6 +248,12 @@ class ConversationContextBuilder:
 
         # Add persona's core identity and system prompt
         content += f"\n\n# [CHARACTER IDENTITY]\n{persona.system_prompt}"
+
+        # Inject relationship context if override is active
+        if active_relationship:
+            content += (
+                f"\n\n# [RELATIONSHIP CONTEXT]\n{active_relationship.description}"
+            )
 
         # Inject AI physical appearance if defined (cached from vision model)
         if persona.cached_appearance:
@@ -259,7 +292,7 @@ class ConversationContextBuilder:
             if active_scenario:
                 # Get the full hierarchy from macro to micro using recursive CTE
                 scenario_hierarchy = self.scenario_engine.get_scenario_hierarchy(
-                    active_scenario.id
+                    active_scenario.name
                 )
 
                 if scenario_hierarchy:
@@ -291,13 +324,13 @@ class ConversationContextBuilder:
                         "If actions or events contradict the established setting, you should note the inconsistency."
                     )
 
-        # Add persona-specific behavioral rules if they exist
-        if persona.rules_of_engagement:
+        # Add persona-specific behavioral rules if they exist (with relationship overrides applied)
+        if effective_rules:
             content += "\n\n# [PERSONA-SPECIFIC BEHAVIOR]\n"
             content += (
                 "Additional behavioral guidelines specific to this character:\n\n"
             )
-            content += "\n".join(f"- {rule}" for rule in persona.rules_of_engagement)
+            content += "\n".join(f"- {rule}" for rule in effective_rules)
 
         # Inject tool definitions if available
         if self.tool_registry:
@@ -351,14 +384,38 @@ class ConversationContextBuilder:
     def _build_limbic_context(
         self, user_id: str, persona: "PersonaCartridge"
     ) -> Optional[str]:
-        """Build limbic state context (emotional state as first-person somatic context)."""
+        """
+        Build limbic state context (emotional state as first-person somatic context).
+
+        Applies relationship limbic baseline overrides if the user has an active mask
+        that matches a relationship in the persona's relationships array.
+        """
         if not self.limbic_engine:
             return None
+
+        # Check for relationship limbic baseline override
+        effective_baseline = persona.limbic_baseline
+        if self.user_mask_manager:
+            user_mask = self.user_mask_manager.get_active_mask(user_id)
+            if user_mask:
+                active_relationship = persona.get_relationship_override(
+                    user_mask.persona_id
+                )
+                if active_relationship and active_relationship.limbic_baseline_override:
+                    # Merge relationship override with base baseline
+                    effective_baseline = (
+                        persona.limbic_baseline.copy()
+                        if persona.limbic_baseline
+                        else {}
+                    )
+                    effective_baseline.update(
+                        active_relationship.limbic_baseline_override
+                    )
 
         return self.limbic_engine.get_limbic_context(
             user_id=user_id,
             persona_id=persona.persona_id,
-            persona_baseline=persona.limbic_baseline,
+            persona_baseline=effective_baseline,
         )
 
     def _build_substance_modifier(self, user_id: str, persona_id: str) -> Optional[str]:

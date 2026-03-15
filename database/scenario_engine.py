@@ -1,14 +1,19 @@
 """
 Scenario Engine (World Tree) for Project Myriad.
 
-This module manages hierarchical environmental contexts that allow the AI to understand
-nested locations and world states (e.g., a room within a building within a city within an era).
+This module manages hierarchical environmental contexts stored as JSON files,
+allowing the AI to understand nested locations and world states
+(e.g., a room within a building within a city within an era).
 
-The system uses a self-referencing tree structure where scenarios can be nested infinitely.
+The system uses a parent-child relationship structure where scenarios can be nested infinitely.
+Cached appearances are stored in SQLite for AI-generated visual descriptions.
 """
 
 import sqlite3
-from typing import Optional, List
+import json
+import os
+from pathlib import Path
+from typing import Optional, List, Dict, Any
 from dataclasses import dataclass
 
 
@@ -16,23 +21,44 @@ from dataclasses import dataclass
 class Scenario:
     """Represents a scenario/location in the world tree."""
 
-    id: int
     name: str
     description: str
-    parent_id: Optional[int] = None
+    parent_name: Optional[str] = None
+    cached_appearance: Optional[str] = None  # Loaded from DB, not JSON
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert scenario to dictionary format (for JSON serialization, excludes cached_appearance)."""
+        return {
+            "name": self.name,
+            "description": self.description,
+            "parent_name": self.parent_name,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "Scenario":
+        """Create Scenario from dictionary (from JSON file)."""
+        return cls(
+            name=data["name"],
+            description=data["description"],
+            parent_name=data.get("parent_name"),
+            cached_appearance=None,  # Will be loaded from DB
+        )
 
 
 class ScenarioEngine:
     """Manages hierarchical scenario contexts (World Tree)."""
 
-    def __init__(self, db_path: str):
+    def __init__(self, db_path: str, scenarios_directory: str = "scenarios"):
         """
         Initialize scenario engine.
 
         Args:
-            db_path: Path to SQLite database file
+            db_path: Path to SQLite database file (for cached appearances and active scenario tracking)
+            scenarios_directory: Directory where scenario JSON files are stored
         """
         self.db_path = db_path
+        self.scenarios_directory = Path(scenarios_directory)
+        self.scenarios_directory.mkdir(parents=True, exist_ok=True)
         self._ensure_schema()
 
     def _get_connection(self) -> sqlite3.Connection:
@@ -42,49 +68,67 @@ class ScenarioEngine:
         return conn
 
     def _ensure_schema(self) -> None:
-        """Ensure scenarios table and active_scenario_id column exist."""
+        """Ensure cached appearance and active scenario tables exist."""
         conn = self._get_connection()
         cursor = conn.cursor()
 
-        # Create scenarios table with self-referencing foreign key
+        # Create table for storing cached appearances (AI-generated visual descriptions)
         cursor.execute(
             """
-            CREATE TABLE IF NOT EXISTS scenarios (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL UNIQUE,
-                description TEXT NOT NULL,
-                parent_id INTEGER,
-                FOREIGN KEY (parent_id) REFERENCES scenarios(id) ON DELETE SET NULL
+            CREATE TABLE IF NOT EXISTS scenario_appearances (
+                scenario_name TEXT PRIMARY KEY,
+                cached_appearance TEXT,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
         """
         )
 
-        # Create index on parent_id for faster tree traversal
-        cursor.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_scenarios_parent_id 
-            ON scenarios(parent_id)
-        """
-        )
-
-        # Add active_scenario_id to user_state table if it doesn't exist
-        # First check if the column exists
+        # Add active_scenario_name column to user_state if it doesn't exist
         cursor.execute("PRAGMA table_info(user_state)")
         columns = [row[1] for row in cursor.fetchall()]
 
-        if "active_scenario_id" not in columns:
+        if "active_scenario_name" not in columns:
             cursor.execute(
                 """
                 ALTER TABLE user_state 
-                ADD COLUMN active_scenario_id INTEGER
+                ADD COLUMN active_scenario_name TEXT
             """
             )
 
         conn.commit()
         conn.close()
 
+    def _get_scenario_file_path(self, name: str) -> Path:
+        """Get the file path for a scenario JSON file."""
+        # Sanitize name to be filesystem-safe
+        safe_name = "".join(
+            c for c in name if c.isalnum() or c in (" ", "_", "-")
+        ).strip()
+        safe_name = safe_name.replace(" ", "_").lower()
+
+        return self.scenarios_directory / f"{safe_name}.json"
+
+    def _load_cached_appearance(self, name: str) -> Optional[str]:
+        """Load cached appearance from database."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            SELECT cached_appearance 
+            FROM scenario_appearances 
+            WHERE scenario_name = ?
+        """,
+            (name,),
+        )
+
+        row = cursor.fetchone()
+        conn.close()
+
+        return row["cached_appearance"] if row else None
+
     def create_scenario(
-        self, name: str, description: str, parent_id: Optional[int] = None
+        self, name: str, description: str, parent_name: Optional[str] = None
     ) -> Scenario:
         """
         Create a new scenario.
@@ -92,44 +136,37 @@ class ScenarioEngine:
         Args:
             name: Unique name for the scenario
             description: Detailed description of this scenario/location
-            parent_id: Optional ID of parent scenario to nest this within
+            parent_name: Optional name of parent scenario to nest this within
 
         Returns:
             The created Scenario object
 
         Raises:
-            sqlite3.IntegrityError: If scenario name already exists
-            ValueError: If parent_id doesn't exist
+            FileExistsError: If a scenario with this name already exists
+            ValueError: If parent_name doesn't exist
         """
-        conn = self._get_connection()
-        cursor = conn.cursor()
+        scenario_path = self._get_scenario_file_path(name)
 
-        # Verify parent exists if parent_id is provided
-        if parent_id is not None:
-            cursor.execute("SELECT id FROM scenarios WHERE id = ?", (parent_id,))
-            if cursor.fetchone() is None:
-                conn.close()
-                raise ValueError(f"Parent scenario with ID {parent_id} does not exist")
+        if scenario_path.exists():
+            raise FileExistsError(f"Scenario '{name}' already exists")
 
-        try:
-            cursor.execute(
-                """
-                INSERT INTO scenarios (name, description, parent_id)
-                VALUES (?, ?, ?)
-            """,
-                (name, description, parent_id),
-            )
-            scenario_id = cursor.lastrowid
-            conn.commit()
-        except sqlite3.IntegrityError as e:
-            conn.close()
-            raise sqlite3.IntegrityError(f"Scenario '{name}' already exists") from e
+        # Verify parent exists if specified
+        if parent_name:
+            parent = self.get_scenario(parent_name)
+            if not parent:
+                raise ValueError(f"Parent scenario '{parent_name}' does not exist")
 
-        conn.close()
-
-        return Scenario(
-            id=scenario_id, name=name, description=description, parent_id=parent_id
+        scenario = Scenario(
+            name=name,
+            description=description,
+            parent_name=parent_name,
         )
+
+        # Write to JSON file
+        with open(scenario_path, "w", encoding="utf-8") as f:
+            json.dump(scenario.to_dict(), f, indent=2, ensure_ascii=False)
+
+        return scenario
 
     def get_scenario(self, name: str) -> Optional[Scenario]:
         """
@@ -139,195 +176,109 @@ class ScenarioEngine:
             name: Name of the scenario
 
         Returns:
-            Scenario object or None if not found
+            Scenario if found, None otherwise
         """
-        conn = self._get_connection()
-        cursor = conn.cursor()
+        scenario_path = self._get_scenario_file_path(name)
 
-        cursor.execute(
-            "SELECT id, name, description, parent_id FROM scenarios WHERE name = ?",
-            (name,),
-        )
+        if not scenario_path.exists():
+            return None
 
-        row = cursor.fetchone()
-        conn.close()
+        try:
+            with open(scenario_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
 
-        if row:
-            return Scenario(
-                id=row["id"],
-                name=row["name"],
-                description=row["description"],
-                parent_id=row["parent_id"],
-            )
-        return None
+            scenario = Scenario.from_dict(data)
+            # Load cached appearance from database
+            scenario.cached_appearance = self._load_cached_appearance(name)
+            return scenario
 
-    def get_scenario_by_id(self, scenario_id: int) -> Optional[Scenario]:
+        except (json.JSONDecodeError, KeyError) as e:
+            print(f"Error loading scenario {name}: {e}")
+            return None
+
+    def get_scenario_hierarchy(self, name: str) -> List[Scenario]:
         """
-        Get a scenario by ID.
+        Get the full hierarchy from root to the specified scenario.
 
         Args:
-            scenario_id: ID of the scenario
+            name: Name of the scenario to get hierarchy for
 
         Returns:
-            Scenario object or None if not found
+            List of Scenario objects from root (index 0) to target scenario (last index)
         """
-        conn = self._get_connection()
-        cursor = conn.cursor()
+        scenario = self.get_scenario(name)
+        if not scenario:
+            return []
 
-        cursor.execute(
-            "SELECT id, name, description, parent_id FROM scenarios WHERE id = ?",
-            (scenario_id,),
-        )
+        hierarchy = [scenario]
 
-        row = cursor.fetchone()
-        conn.close()
+        # Walk up the tree
+        current = scenario
+        while current.parent_name:
+            parent = self.get_scenario(current.parent_name)
+            if not parent:
+                break  # Broken link in hierarchy
+            hierarchy.insert(0, parent)
+            current = parent
 
-        if row:
-            return Scenario(
-                id=row["id"],
-                name=row["name"],
-                description=row["description"],
-                parent_id=row["parent_id"],
-            )
-        return None
-
-    def get_scenario_hierarchy(self, scenario_id: int) -> List[Scenario]:
-        """
-        Get the full hierarchy from root to the specified scenario using recursive CTE.
-
-        This returns scenarios from MACRO (highest parent) to MICRO (the active scenario).
-
-        Args:
-            scenario_id: ID of the scenario to get hierarchy for
-
-        Returns:
-            List of Scenario objects from root to current, ordered macro->micro
-        """
-        conn = self._get_connection()
-        cursor = conn.cursor()
-
-        # Recursive CTE to traverse from child up to root, then reverse the order
-        cursor.execute(
-            """
-            WITH RECURSIVE scenario_path AS (
-                -- Base case: start with the active scenario
-                SELECT id, name, description, parent_id, 0 as depth
-                FROM scenarios
-                WHERE id = ?
-                
-                UNION ALL
-                
-                -- Recursive case: get parent scenarios
-                SELECT s.id, s.name, s.description, s.parent_id, sp.depth + 1
-                FROM scenarios s
-                INNER JOIN scenario_path sp ON s.id = sp.parent_id
-            )
-            SELECT id, name, description, parent_id, depth
-            FROM scenario_path
-            ORDER BY depth DESC  -- Root first (highest depth), active last (depth 0)
-        """,
-            (scenario_id,),
-        )
-
-        rows = cursor.fetchall()
-        conn.close()
-
-        scenarios = []
-        for row in rows:
-            scenarios.append(
-                Scenario(
-                    id=row["id"],
-                    name=row["name"],
-                    description=row["description"],
-                    parent_id=row["parent_id"],
-                )
-            )
-
-        return scenarios
+        return hierarchy
 
     def set_parent(self, child_name: str, parent_name: str) -> None:
         """
-        Set the parent of a scenario, creating a hierarchical relationship.
+        Set or update the parent of a scenario.
 
         Args:
-            child_name: Name of the child scenario
-            parent_name: Name of the parent scenario
+            child_name: Name of the scenario to modify
+            parent_name: Name of the new parent scenario
 
         Raises:
-            ValueError: If either scenario doesn't exist or if this creates a cycle
+            ValueError: If child or parent doesn't exist, or if it would create a cycle
         """
-        conn = self._get_connection()
-        cursor = conn.cursor()
-
-        # Get child scenario
-        cursor.execute("SELECT id FROM scenarios WHERE name = ?", (child_name,))
-        child_row = cursor.fetchone()
-        if not child_row:
-            conn.close()
+        child = self.get_scenario(child_name)
+        if not child:
             raise ValueError(f"Child scenario '{child_name}' does not exist")
-        child_id = child_row["id"]
 
-        # Get parent scenario
-        cursor.execute("SELECT id FROM scenarios WHERE name = ?", (parent_name,))
-        parent_row = cursor.fetchone()
-        if not parent_row:
-            conn.close()
+        parent = self.get_scenario(parent_name)
+        if not parent:
             raise ValueError(f"Parent scenario '{parent_name}' does not exist")
-        parent_id = parent_row["id"]
 
-        # Check for cycles (prevent setting a scenario's ancestor as its child)
-        # Get all ancestors of the child
-        cursor.execute(
-            """
-            WITH RECURSIVE ancestors AS (
-                SELECT id, parent_id
-                FROM scenarios
-                WHERE id = ?
-                
-                UNION ALL
-                
-                SELECT s.id, s.parent_id
-                FROM scenarios s
-                INNER JOIN ancestors a ON s.id = a.parent_id
-            )
-            SELECT id FROM ancestors WHERE id = ?
-        """,
-            (child_id, parent_id),
-        )
-
-        if cursor.fetchone():
-            conn.close()
+        # Check for cycles: the parent's hierarchy shouldn't contain the child
+        parent_hierarchy = self.get_scenario_hierarchy(parent_name)
+        if any(s.name == child_name for s in parent_hierarchy):
             raise ValueError(
-                f"Cannot set '{parent_name}' as parent of '{child_name}': "
-                f"this would create a circular reference"
+                f"Cannot set '{parent_name}' as parent of '{child_name}': would create a cycle"
             )
 
-        # Update the parent relationship
-        cursor.execute(
-            "UPDATE scenarios SET parent_id = ? WHERE id = ?", (parent_id, child_id)
-        )
+        # Update child scenario
+        child.parent_name = parent_name
+        scenario_path = self._get_scenario_file_path(child_name)
+        with open(scenario_path, "w", encoding="utf-8") as f:
+            json.dump(child.to_dict(), f, indent=2, ensure_ascii=False)
 
-        conn.commit()
-        conn.close()
-
-    def set_active_scenario(self, user_id: str, scenario_id: Optional[int]) -> None:
+    def set_active_scenario(self, user_id: str, scenario_name: Optional[str]) -> None:
         """
         Set the active scenario for a user.
 
         Args:
             user_id: User identifier
-            scenario_id: Scenario ID to activate, or None to clear
+            scenario_name: Name of the scenario to activate, or None to clear
+
+        Raises:
+            ValueError: If scenario_name doesn't exist
         """
+        if scenario_name and not self.get_scenario(scenario_name):
+            raise ValueError(f"Scenario '{scenario_name}' does not exist")
+
         conn = self._get_connection()
         cursor = conn.cursor()
 
         cursor.execute(
             """
-            INSERT INTO user_state (user_id, active_scenario_id, last_interaction_time)
-            VALUES (?, ?, datetime('now'))
-            ON CONFLICT(user_id) DO UPDATE SET active_scenario_id = excluded.active_scenario_id
+            INSERT INTO user_state (user_id, active_scenario_name)
+            VALUES (?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET active_scenario_name = excluded.active_scenario_name
         """,
-            (user_id, scenario_id),
+            (user_id, scenario_name),
         )
 
         conn.commit()
@@ -335,23 +286,20 @@ class ScenarioEngine:
 
     def get_active_scenario(self, user_id: str) -> Optional[Scenario]:
         """
-        Get the active scenario for a user.
+        Get the currently active scenario for a user.
 
         Args:
             user_id: User identifier
 
         Returns:
-            Active Scenario object or None if not set
+            Scenario if user has an active scenario, None otherwise
         """
         conn = self._get_connection()
         cursor = conn.cursor()
 
         cursor.execute(
             """
-            SELECT s.id, s.name, s.description, s.parent_id
-            FROM user_state us
-            INNER JOIN scenarios s ON us.active_scenario_id = s.id
-            WHERE us.user_id = ?
+            SELECT active_scenario_name FROM user_state WHERE user_id = ?
         """,
             (user_id,),
         )
@@ -359,60 +307,106 @@ class ScenarioEngine:
         row = cursor.fetchone()
         conn.close()
 
-        if row:
-            return Scenario(
-                id=row["id"],
-                name=row["name"],
-                description=row["description"],
-                parent_id=row["parent_id"],
-            )
+        if row and row["active_scenario_name"]:
+            return self.get_scenario(row["active_scenario_name"])
+
         return None
 
     def list_all_scenarios(self) -> List[Scenario]:
         """
-        List all scenarios in the system.
+        List all scenarios.
 
         Returns:
             List of all Scenario objects
         """
-        conn = self._get_connection()
-        cursor = conn.cursor()
-
-        cursor.execute(
-            """
-            SELECT id, name, description, parent_id 
-            FROM scenarios 
-            ORDER BY name
-        """
-        )
-
-        rows = cursor.fetchall()
-        conn.close()
-
         scenarios = []
-        for row in rows:
-            scenarios.append(
-                Scenario(
-                    id=row["id"],
-                    name=row["name"],
-                    description=row["description"],
-                    parent_id=row["parent_id"],
-                )
-            )
+
+        for scenario_file in sorted(self.scenarios_directory.glob("*.json")):
+            try:
+                with open(scenario_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+
+                scenario = Scenario.from_dict(data)
+                # Load cached appearance from database
+                scenario.cached_appearance = self._load_cached_appearance(scenario.name)
+                scenarios.append(scenario)
+
+            except (json.JSONDecodeError, KeyError) as e:
+                print(f"Error loading scenario from {scenario_file}: {e}")
+                continue
 
         return scenarios
 
     def delete_scenario(self, name: str) -> None:
         """
-        Delete a scenario. Children will have their parent_id set to NULL.
+        Delete a scenario.
 
         Args:
             name: Name of the scenario to delete
+
+        Raises:
+            ValueError: If scenario doesn't exist or has children
         """
+        scenario = self.get_scenario(name)
+        if not scenario:
+            raise ValueError(f"Scenario '{name}' does not exist")
+
+        # Check if any scenarios have this as a parent
+        all_scenarios = self.list_all_scenarios()
+        children = [s for s in all_scenarios if s.parent_name == name]
+
+        if children:
+            child_names = ", ".join(s.name for s in children)
+            raise ValueError(
+                f"Cannot delete '{name}': it has child scenarios ({child_names}). "
+                f"Delete or reparent them first."
+            )
+
+        # Delete JSON file
+        scenario_path = self._get_scenario_file_path(name)
+        scenario_path.unlink()
+
+        # Delete cached appearance from database
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM scenario_appearances WHERE scenario_name = ?", (name,)
+        )
+        conn.commit()
+        conn.close()
+
+    def update_scenario_appearance(
+        self, name: str, cached_appearance: Optional[str]
+    ) -> bool:
+        """
+        Update the cached_appearance field of an existing scenario.
+
+        Args:
+            name: Name of the scenario to update
+            cached_appearance: New appearance description, or None to clear
+
+        Returns:
+            True if updated, False if scenario not found
+        """
+        scenario = self.get_scenario(name)
+        if not scenario:
+            return False
+
         conn = self._get_connection()
         cursor = conn.cursor()
 
-        cursor.execute("DELETE FROM scenarios WHERE name = ?", (name,))
+        cursor.execute(
+            """
+            INSERT INTO scenario_appearances (scenario_name, cached_appearance)
+            VALUES (?, ?)
+            ON CONFLICT(scenario_name) DO UPDATE SET 
+                cached_appearance = excluded.cached_appearance,
+                updated_at = CURRENT_TIMESTAMP
+        """,
+            (name, cached_appearance),
+        )
 
         conn.commit()
         conn.close()
+
+        return True

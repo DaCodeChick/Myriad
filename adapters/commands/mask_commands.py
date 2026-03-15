@@ -1,12 +1,13 @@
 """
 User Mask management commands for Discord.
 
-Handles creating, wearing, and managing user personas (masks) that the AI will recognize.
+User masks are simply personas from the personas/user_masks/ directory.
+Users can wear them as their character identity in conversations.
 """
 
 import discord
 from discord import app_commands
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from adapters.commands.base import ResponseFormatter
 
@@ -28,91 +29,55 @@ def register_mask_commands(bot: "MyriadDiscordBot") -> None:
     )
 
     @mask_group.command(
-        name="create",
-        description="Create a new user persona (mask)",
+        name="wear",
+        description="Wear a persona as your character (e.g., 'user_masks/schala')",
     )
     @app_commands.describe(
-        name="The name of your persona/character",
-        description="A brief description of this character",
-        background="Optional: Detailed lore/background for this character",
+        persona_id="The persona ID to wear (e.g., 'user_masks/schala')"
     )
-    async def create_mask(
-        interaction: discord.Interaction,
-        name: str,
-        description: str,
-        background: str = None,
-    ):
-        """Create a new user persona."""
-        user_id = str(interaction.user.id)
-
-        try:
-            mask = bot.agent_core.user_mask_manager.create_mask(
-                user_id=user_id,
-                name=name,
-                description=description,
-                background=background,
-            )
-
-            bg_info = ""
-            if background:
-                bg_info = f"\n• Background: {len(background)} characters"
-
-            await interaction.response.send_message(
-                ResponseFormatter.success(
-                    f"Created new mask: **{mask.name}**\n"
-                    f"• Description: {description}"
-                    f"{bg_info}\n\n"
-                    f"Use `/mask wear {name}` to activate this persona."
-                ),
-                ephemeral=True,
-            )
-        except Exception as e:
-            await interaction.response.send_message(
-                ResponseFormatter.error(f"Failed to create mask: {str(e)}"),
-                ephemeral=True,
-            )
-
-    @mask_group.command(
-        name="wear",
-        description="Activate a user persona (the AI will recognize you as this character)",
-    )
-    @app_commands.describe(name="The name of the mask to wear")
-    async def wear_mask(interaction: discord.Interaction, name: str):
+    async def wear_mask(interaction: discord.Interaction, persona_id: str):
         """Activate a user persona."""
         user_id = str(interaction.user.id)
 
         try:
-            # Get the mask by name
-            mask = bot.agent_core.user_mask_manager.get_mask(user_id, name)
+            # Try to load the persona
+            persona = bot.agent_core.persona_loader.load_persona(persona_id)
 
-            if not mask:
-                # List available masks for the user
-                masks = bot.agent_core.user_mask_manager.list_user_masks(user_id)
-                if masks:
-                    mask_list = ", ".join([f"'{m.name}'" for m in masks])
+            if not persona:
+                # List available user masks
+                all_personas = bot.agent_core.persona_loader.list_available_personas()
+                user_masks = [p for p in all_personas if p.startswith("user_masks/")]
+
+                if user_masks:
+                    mask_list = ", ".join([f"'{m}'" for m in user_masks[:5]])
+                    more = (
+                        f" and {len(user_masks) - 5} more"
+                        if len(user_masks) > 5
+                        else ""
+                    )
                     await interaction.response.send_message(
                         ResponseFormatter.error(
-                            f"Mask '{name}' not found.\n"
-                            f"Your available masks: {mask_list}"
+                            f"Persona '{persona_id}' not found.\n"
+                            f"Available user masks: {mask_list}{more}"
                         ),
                         ephemeral=True,
                     )
                 else:
                     await interaction.response.send_message(
                         ResponseFormatter.error(
-                            f"Mask '{name}' not found. You haven't created any masks yet.\n"
-                            f"Use `/mask create` to create one."
+                            f"Persona '{persona_id}' not found.\n"
+                            f"No user masks exist yet in personas/user_masks/"
                         ),
                         ephemeral=True,
                     )
                 return
 
             # Set the mask as active
-            bot.agent_core.user_mask_manager.set_active_mask(user_id, mask.id)
+            bot.agent_core.user_mask_manager.set_active_mask(user_id, persona_id)
 
             await interaction.response.send_message(
                 ResponseFormatter.success(
-                    f"Now wearing mask: **{mask.name}**\n"
+                    f"Now wearing: **{persona.name}**\n"
                     f"The AI will now recognize you as this character.\n\n"
                     f"Use `/mask remove` to return to your normal identity."
                 ),
@@ -133,7 +98,7 @@ def register_mask_commands(bot: "MyriadDiscordBot") -> None:
         user_id = str(interaction.user.id)
 
         try:
-            # Get current mask name before removing
+            # Get current mask before removing
             active_mask = bot.agent_core.user_mask_manager.get_active_mask(user_id)
 
             # Clear the active mask
@@ -160,188 +125,52 @@ def register_mask_commands(bot: "MyriadDiscordBot") -> None:
 
     @mask_group.command(
         name="list",
-        description="Show all your saved user personas",
+        description="List all available user masks (personas in user_masks/)",
     )
     async def list_masks(interaction: discord.Interaction):
-        """List all user personas."""
-        user_id = str(interaction.user.id)
-
+        """List all available user masks."""
         try:
-            masks = bot.agent_core.user_mask_manager.list_user_masks(user_id)
+            user_id = str(interaction.user.id)
             active_mask = bot.agent_core.user_mask_manager.get_active_mask(user_id)
 
-            if not masks:
+            # Get all personas and filter for user_masks
+            all_personas = bot.agent_core.persona_loader.list_available_personas()
+            user_masks = [p for p in all_personas if p.startswith("user_masks/")]
+
+            if not user_masks:
                 await interaction.response.send_message(
                     ResponseFormatter.warning(
-                        "You haven't created any masks yet.\n"
-                        "Use `/mask create` to create your first persona."
+                        "No user masks found.\n"
+                        "Create personas in `personas/user_masks/` directory."
                     ),
                     ephemeral=True,
                 )
                 return
 
-            # Build the list
+            # Load and display each mask
             mask_list = []
-            for mask in masks:
-                active_indicator = (
-                    " 🎭 **(ACTIVE)**"
-                    if active_mask and mask.id == active_mask.id
-                    else ""
-                )
-                bg_indicator = " 📖" if mask.background else ""
-                mask_list.append(
-                    f"• **{mask.name}**{active_indicator}{bg_indicator}\n  _{mask.description}_"
-                )
+            for persona_id in sorted(user_masks):
+                persona = bot.agent_core.persona_loader.load_persona(persona_id)
+                if persona:
+                    active_indicator = (
+                        " 🎭 **(ACTIVE)**"
+                        if active_mask and persona.persona_id == active_mask.persona_id
+                        else ""
+                    )
+                    bg_indicator = " 📖" if persona.background else ""
+                    mask_list.append(
+                        f"• **{persona.name}** (`{persona_id}`){active_indicator}{bg_indicator}\n"
+                        f"  _{persona.system_prompt[:100]}..._"
+                    )
 
-            response = "**Your Masks:**\n\n" + "\n\n".join(mask_list)
+            response = "**Available User Masks:**\n\n" + "\n\n".join(mask_list)
             response += "\n\n📖 = Has background lore"
-            response += "\n\nUse `/mask wear <name>` to activate a mask."
+            response += "\n\nUse `/mask wear <persona_id>` to wear a mask."
 
             await interaction.response.send_message(response, ephemeral=True)
         except Exception as e:
             await interaction.response.send_message(
                 ResponseFormatter.error(f"Failed to list masks: {str(e)}"),
-                ephemeral=True,
-            )
-
-    @mask_group.command(
-        name="view",
-        description="View details of a specific mask",
-    )
-    @app_commands.describe(name="The name of the mask to view")
-    async def view_mask(interaction: discord.Interaction, name: str):
-        """View details of a specific mask."""
-        user_id = str(interaction.user.id)
-
-        try:
-            mask = bot.agent_core.user_mask_manager.get_mask(user_id, name)
-
-            if not mask:
-                await interaction.response.send_message(
-                    ResponseFormatter.error(f"Mask '{name}' not found."),
-                    ephemeral=True,
-                )
-                return
-
-            response = (
-                f"**Mask: {mask.name}**\n\n**Description:**\n{mask.description}\n"
-            )
-
-            if mask.background:
-                # If background is too long, truncate and offer to view separately
-                if len(mask.background) <= 800:
-                    response += f"\n**Background:**\n{mask.background}"
-                else:
-                    preview = mask.background[:800] + "..."
-                    response += f"\n**Background (preview):**\n{preview}\n\n"
-                    response += f"_Full background: {len(mask.background)} characters_"
-            else:
-                response += "\n**Background:** _None set_"
-
-            await interaction.response.send_message(response, ephemeral=True)
-        except Exception as e:
-            await interaction.response.send_message(
-                ResponseFormatter.error(f"Failed to view mask: {str(e)}"),
-                ephemeral=True,
-            )
-
-    @mask_group.command(
-        name="edit",
-        description="Update the description or background of a mask",
-    )
-    @app_commands.describe(
-        name="The name of the mask to edit",
-        description="New description (leave empty to keep current)",
-        background="New background (leave empty to keep current)",
-    )
-    async def edit_mask(
-        interaction: discord.Interaction,
-        name: str,
-        description: str = None,
-        background: str = None,
-    ):
-        """Edit an existing mask."""
-        user_id = str(interaction.user.id)
-
-        try:
-            mask = bot.agent_core.user_mask_manager.get_mask(user_id, name)
-
-            if not mask:
-                await interaction.response.send_message(
-                    ResponseFormatter.error(f"Mask '{name}' not found."),
-                    ephemeral=True,
-                )
-                return
-
-            if not description and not background:
-                await interaction.response.send_message(
-                    ResponseFormatter.warning(
-                        "No changes provided. Specify at least description or background."
-                    ),
-                    ephemeral=True,
-                )
-                return
-
-            # Update the mask
-            bot.agent_core.user_mask_manager.update_mask(
-                mask_id=mask.id,
-                description=description,
-                background=background,
-            )
-
-            changes = []
-            if description:
-                changes.append(f"description updated")
-            if background:
-                changes.append(f"background updated ({len(background)} chars)")
-
-            await interaction.response.send_message(
-                ResponseFormatter.success(
-                    f"Updated mask **{mask.name}**:\n• " + "\n• ".join(changes)
-                ),
-                ephemeral=True,
-            )
-        except Exception as e:
-            await interaction.response.send_message(
-                ResponseFormatter.error(f"Failed to edit mask: {str(e)}"),
-                ephemeral=True,
-            )
-
-    @mask_group.command(
-        name="delete",
-        description="Permanently delete a mask",
-    )
-    @app_commands.describe(name="The name of the mask to delete")
-    async def delete_mask(interaction: discord.Interaction, name: str):
-        """Delete a mask permanently."""
-        user_id = str(interaction.user.id)
-
-        try:
-            mask = bot.agent_core.user_mask_manager.get_mask(user_id, name)
-
-            if not mask:
-                await interaction.response.send_message(
-                    ResponseFormatter.error(f"Mask '{name}' not found."),
-                    ephemeral=True,
-                )
-                return
-
-            # Check if it's the active mask
-            active_mask = bot.agent_core.user_mask_manager.get_active_mask(user_id)
-            if active_mask and active_mask.id == mask.id:
-                # Remove it first
-                bot.agent_core.user_mask_manager.set_active_mask(user_id, None)
-
-            # Delete the mask
-            bot.agent_core.user_mask_manager.delete_mask(mask.id)
-
-            await interaction.response.send_message(
-                ResponseFormatter.success(f"Deleted mask: **{mask.name}**"),
-                ephemeral=True,
-            )
-        except Exception as e:
-            await interaction.response.send_message(
-                ResponseFormatter.error(f"Failed to delete mask: {str(e)}"),
                 ephemeral=True,
             )
 
@@ -357,132 +186,33 @@ def register_mask_commands(bot: "MyriadDiscordBot") -> None:
             active_mask = bot.agent_core.user_mask_manager.get_active_mask(user_id)
 
             if active_mask:
-                response = (
-                    f"**Currently wearing:**\n"
-                    f"• Name: **{active_mask.name}**\n"
-                    f"• Description: {active_mask.description}\n"
-                )
+                response = f"**Currently wearing: {active_mask.name}**\n\n"
+                response += f"**Persona ID:** `{active_mask.persona_id}`\n\n"
+                response += f"**Character:**\n{active_mask.system_prompt}\n"
+
                 if active_mask.background:
-                    response += (
-                        f"• Background: ✓ Defined ({len(active_mask.background)} chars)"
+                    preview = (
+                        active_mask.background[:200] + "..."
+                        if len(active_mask.background) > 200
+                        else active_mask.background
                     )
-                else:
-                    response += "• Background: _None_"
+                    response += f"\n**Background:**\n{preview}"
 
-                response += (
-                    f"\n\nUse `/mask view {active_mask.name}` to see full details."
-                )
+                await interaction.response.send_message(response, ephemeral=True)
             else:
-                response = ResponseFormatter.warning(
-                    "You're not wearing any mask.\n"
-                    "Use `/mask list` to see your masks, or `/mask create` to make one."
+                await interaction.response.send_message(
+                    ResponseFormatter.warning(
+                        "You are not wearing any mask.\n"
+                        "Use `/mask wear <persona_id>` to put one on, or\n"
+                        "Use `/mask list` to see available masks."
+                    ),
+                    ephemeral=True,
                 )
-
-            await interaction.response.send_message(response, ephemeral=True)
         except Exception as e:
             await interaction.response.send_message(
-                ResponseFormatter.error(f"Failed to check active mask: {str(e)}"),
+                ResponseFormatter.error(f"Failed to check mask status: {str(e)}"),
                 ephemeral=True,
             )
 
-    @mask_group.command(
-        name="set_image",
-        description="Process character image and cache physical appearance for your mask",
-    )
-    @app_commands.describe(
-        name="The name of the mask to update", image="Character image attachment"
-    )
-    async def set_mask_image(
-        interaction: discord.Interaction, name: str, image: discord.Attachment
-    ):
-        """Process a character image and cache the appearance description."""
-        user_id = str(interaction.user.id)
-
-        # Check if vision cache service is available
-        if not hasattr(bot, "vision_cache_service") or bot.vision_cache_service is None:
-            await interaction.response.send_message(
-                ResponseFormatter.error(
-                    "Vision cache service is not configured. "
-                    "Please set VISION_BASE_URL and VISION_MODEL in your environment."
-                ),
-                ephemeral=True,
-            )
-            return
-
-        # Verify mask exists
-        mask = bot.agent_core.user_mask_manager.get_mask(user_id, name)
-        if not mask:
-            await interaction.response.send_message(
-                ResponseFormatter.error(f"Mask '{name}' not found."), ephemeral=True
-            )
-            return
-
-        # Check if attachment is an image
-        if not image.content_type or not image.content_type.startswith("image/"):
-            await interaction.response.send_message(
-                ResponseFormatter.error(
-                    "Attachment must be an image file (PNG, JPG, WEBP, etc.)"
-                ),
-                ephemeral=True,
-            )
-            return
-
-        # Defer response since vision processing may take time
-        await interaction.response.defer(ephemeral=True)
-
-        try:
-            # Download image bytes
-            image_bytes = await image.read()
-
-            # Determine image format
-            image_format = (
-                image.content_type.split("/")[1] if "/" in image.content_type else "png"
-            )
-
-            # Process image through vision model
-            appearance_description = (
-                bot.vision_cache_service.generate_appearance_description(
-                    image_bytes, image_format
-                )
-            )
-
-            if not appearance_description:
-                await interaction.followup.send(
-                    ResponseFormatter.error(
-                        "Failed to process image. The vision model may be unavailable or returned an empty description."
-                    ),
-                    ephemeral=True,
-                )
-                return
-
-            # Save to mask
-            success = bot.agent_core.user_mask_manager.update_mask_appearance(
-                user_id, name, appearance_description
-            )
-
-            if success:
-                await interaction.followup.send(
-                    ResponseFormatter.success(
-                        f"✅ Image processed and cached for mask **{name}**!\n\n"
-                        f"**Here is how the AI will see this character:**\n"
-                        f"{appearance_description}\n\n"
-                        f"This description will be injected into the system prompt whenever you wear this mask."
-                    ),
-                    ephemeral=True,
-                )
-            else:
-                await interaction.followup.send(
-                    ResponseFormatter.error(
-                        f"Failed to save appearance cache for mask '{name}'. Check logs for details."
-                    ),
-                    ephemeral=True,
-                )
-
-        except Exception as e:
-            await interaction.followup.send(
-                ResponseFormatter.error(f"Error processing image: {str(e)}"),
-                ephemeral=True,
-            )
-
-    # Register the mask group
+    # Register the group
     bot.tree.add_command(mask_group)
