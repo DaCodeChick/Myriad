@@ -21,7 +21,7 @@ from typing import List, Dict, Any, Optional
 from openai import OpenAI
 
 from core.config import MyriadConfig
-from core.conversation_builder import ConversationContextBuilder
+from core.context import ConversationContextBuilder
 from core.message_processor import MessageProcessor
 from database.memory_matrix import MemoryMatrix
 from database.graph_memory import GraphMemory
