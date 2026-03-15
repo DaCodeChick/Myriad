@@ -28,7 +28,7 @@ class UserPreferences:
         self._init_database()
 
     def _init_database(self) -> None:
-        """Create the user_preferences table if it doesn't exist."""
+        """Create the user_preferences table if it doesn't exist, and migrate schema if needed."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
@@ -49,6 +49,20 @@ class UserPreferences:
             )
         """
         )
+
+        # Migration: Add new columns if they don't exist (for existing databases)
+        cursor.execute("PRAGMA table_info(user_preferences)")
+        existing_columns = {row[1] for row in cursor.fetchall()}
+
+        if "lives_enabled" not in existing_columns:
+            cursor.execute(
+                "ALTER TABLE user_preferences ADD COLUMN lives_enabled INTEGER DEFAULT 1"
+            )
+
+        if "universal_rules_enabled" not in existing_columns:
+            cursor.execute(
+                "ALTER TABLE user_preferences ADD COLUMN universal_rules_enabled INTEGER DEFAULT 1"
+            )
 
         conn.commit()
         conn.close()
