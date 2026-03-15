@@ -14,6 +14,7 @@ from typing import List, Dict, Optional
 from core.persona_loader import PersonaCartridge
 from database.user_masks import UserMaskManager
 from database.scenario_engine import ScenarioEngine
+from database.metacognition_engine import MetacognitionEngine
 from core.tool_registry import ToolRegistry
 
 
@@ -26,6 +27,7 @@ class PromptBuilder:
         tool_registry: Optional[ToolRegistry] = None,
         user_mask_manager: Optional[UserMaskManager] = None,
         scenario_engine: Optional[ScenarioEngine] = None,
+        metacognition_engine: Optional[MetacognitionEngine] = None,
     ):
         """
         Initialize the prompt builder.
@@ -35,11 +37,13 @@ class PromptBuilder:
             tool_registry: Optional tool registry for function calling
             user_mask_manager: Optional user mask (persona) system
             scenario_engine: Optional scenario/world tree system
+            metacognition_engine: Optional internal thought tracking system
         """
         self.universal_rules = universal_rules
         self.tool_registry = tool_registry
         self.user_mask_manager = user_mask_manager
         self.scenario_engine = scenario_engine
+        self.metacognition_engine = metacognition_engine
 
     def build_system_prompt(
         self, persona: PersonaCartridge, user_preferences: Dict[str, bool], user_id: str
