@@ -2,7 +2,7 @@
 AgentCore - The platform-agnostic intelligence engine for Project Myriad.
 
 This module is the central brain of the system. It:
-1. Manages persona switching and state
+1. Orchestrates persona management via PersonaManager
 2. Handles memory injection via the Automated Discretion Engine
 3. Communicates with the LLM API
 4. Processes messages and generates responses
@@ -11,10 +11,11 @@ This module is the central brain of the system. It:
 CRITICAL: This module must NEVER import discord or any platform-specific code.
 It operates purely on strings and data structures.
 
-REFACTORED (RDSSC Phase 3):
-- Extracted conversation context building to ConversationContextBuilder
-- Extracted message processing pipeline to MessageProcessor
-- Simplified constructor to use MyriadConfig
+REFACTORED (RDSSC):
+- Phase 1: Extracted conversation context building to ConversationContextBuilder
+- Phase 1: Extracted message processing pipeline to MessageProcessor
+- Phase 3: Simplified constructor to use MyriadConfig
+- Phase 4: Extracted persona management to PersonaManager
 """
 
 from typing import List, Dict, Any, Optional
@@ -23,6 +24,7 @@ from openai import OpenAI
 from core.config import MyriadConfig
 from core.context import ConversationContextBuilder
 from core.message_processor import MessageProcessor
+from core.persona_manager import PersonaManager
 from database.memory_matrix import MemoryMatrix
 from database.graph_memory import GraphMemory
 from database.limbic_engine import LimbicEngine
@@ -102,6 +104,12 @@ class AgentCore:
             personas_dir=personas_dir,
             db_path=db_path,
             vision_service=vision_service,
+        )
+
+        # Persona Manager (Ensemble Mode)
+        self.persona_manager = PersonaManager(
+            persona_loader=self.persona_loader,
+            memory_matrix=self.memory_matrix,
         )
 
         # User Preferences (Per-User Feature Toggles)
@@ -206,6 +214,7 @@ class AgentCore:
     # ========================
     # PERSONA MANAGEMENT (ENSEMBLE MODE)
     # ========================
+    # These methods delegate to PersonaManager
 
     def get_active_personas(self, user_id: str) -> List[PersonaCartridge]:
         """
@@ -217,15 +226,7 @@ class AgentCore:
         Returns:
             List of PersonaCartridge objects (empty if none active)
         """
-        persona_ids = self.memory_matrix.get_active_personas(user_id)
-
-        personas = []
-        for persona_id in persona_ids:
-            persona = self.persona_loader.get_persona(persona_id)
-            if persona:
-                personas.append(persona)
-
-        return personas
+        return self.persona_manager.get_active_personas(user_id)
 
     def add_active_persona(self, user_id: str, persona_id: str) -> bool:
         """
@@ -238,14 +239,7 @@ class AgentCore:
         Returns:
             True if successful, False if persona doesn't exist
         """
-        # Verify persona exists
-        persona = self.persona_loader.get_persona(persona_id)
-        if not persona:
-            return False
-
-        # Add to active ensemble
-        self.memory_matrix.add_active_persona(user_id, persona_id)
-        return True
+        return self.persona_manager.add_active_persona(user_id, persona_id)
 
     def remove_active_persona(self, user_id: str, persona_id: str) -> bool:
         """
@@ -258,7 +252,7 @@ class AgentCore:
         Returns:
             True if persona was removed, False if it wasn't active
         """
-        return self.memory_matrix.remove_active_persona(user_id, persona_id)
+        return self.persona_manager.remove_active_persona(user_id, persona_id)
 
     def clear_active_personas(self, user_id: str) -> None:
         """
@@ -267,7 +261,7 @@ class AgentCore:
         Args:
             user_id: Unique user identifier
         """
-        self.memory_matrix.clear_active_personas(user_id)
+        self.persona_manager.clear_active_personas(user_id)
 
     def get_active_persona(self, user_id: str) -> Optional[PersonaCartridge]:
         """
@@ -279,8 +273,7 @@ class AgentCore:
         Returns:
             PersonaCartridge if user has an active persona, None otherwise
         """
-        personas = self.get_active_personas(user_id)
-        return personas[0] if personas else None
+        return self.persona_manager.get_active_persona(user_id)
 
     def switch_persona(self, user_id: str, persona_id: str) -> bool:
         """
@@ -293,14 +286,7 @@ class AgentCore:
         Returns:
             True if successful, False if persona doesn't exist
         """
-        # Verify persona exists
-        persona = self.persona_loader.get_persona(persona_id)
-        if not persona:
-            return False
-
-        # Update user state (sets single persona, clearing others)
-        self.memory_matrix.set_active_persona(user_id, persona_id)
-        return True
+        return self.persona_manager.switch_persona(user_id, persona_id)
 
     def list_personas(self) -> List[str]:
         """
@@ -309,7 +295,7 @@ class AgentCore:
         Returns:
             List of persona_id strings
         """
-        return self.persona_loader.list_available_personas()
+        return self.persona_manager.list_personas()
 
     # ========================
     # MEMORY MANAGEMENT
