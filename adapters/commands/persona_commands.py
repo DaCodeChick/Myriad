@@ -270,19 +270,24 @@ def register_persona_commands(bot: "MyriadDiscordBot") -> None:
             )
 
     @persona_group.command(
-        name="set_image",
-        description="Process character image and cache physical appearance",
+        name="add_image",
+        description="Add an image to a persona folder (auto-generates appearance cache)",
     )
     @app_commands.describe(
         persona_id="The ID of the persona to update",
         image="Character image attachment",
+        filename="Optional filename (default: uses attachment name)",
     )
-    async def set_persona_image(
+    async def add_persona_image(
         interaction: discord.Interaction,
         persona_id: str,
         image: discord.Attachment,
+        filename: str = "",
     ):
-        """Process a character image and cache the appearance description."""
+        """Add an image to a persona folder and trigger appearance regeneration."""
+        import os
+        from pathlib import Path
+
         # Check if vision cache service is available
         if not hasattr(bot, "vision_cache_service") or bot.vision_cache_service is None:
             await interaction.response.send_message(
@@ -301,7 +306,7 @@ def register_persona_commands(bot: "MyriadDiscordBot") -> None:
             await interaction.response.send_message(
                 ResponseFormatter.error(
                     f"Persona '{persona_id}' not found.\n"
-                    f"Available personas: {', '.join(available)}"
+                    f"Available personas: {', '.join(available[:10])}"
                 ),
                 ephemeral=True,
             )
@@ -317,63 +322,302 @@ def register_persona_commands(bot: "MyriadDiscordBot") -> None:
             )
             return
 
-        # Defer response since vision processing may take time
+        # Defer response since processing may take time
         await interaction.response.defer(ephemeral=True)
 
         try:
             # Download image bytes
             image_bytes = await image.read()
 
-            # Determine image format
-            image_format = (
-                image.content_type.split("/")[1] if "/" in image.content_type else "png"
-            )
+            # Determine filename - use provided filename or attachment name
+            if filename and filename.strip():
+                save_filename = filename.strip()
+            else:
+                save_filename = image.filename
 
-            # Process image through vision model
-            appearance_description = (
-                bot.vision_cache_service.generate_appearance_description(
-                    image_bytes, image_format
-                )
-            )
+            # Ensure proper extension
+            if not any(
+                save_filename.lower().endswith(ext)
+                for ext in [".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"]
+            ):
+                # Try to get extension from content type
+                if image.content_type:
+                    ext = image.content_type.split("/")[1]
+                    if ext == "jpeg":
+                        ext = "jpg"
+                    save_filename = f"{save_filename}.{ext}"
+                else:
+                    save_filename = f"{save_filename}.png"
 
-            if not appearance_description:
+            # Build path to persona folder
+            persona_folder = Path("personas") / persona_id
+            if not persona_folder.exists():
                 await interaction.followup.send(
                     ResponseFormatter.error(
-                        "Failed to process image. The vision model may be unavailable or returned an empty description."
+                        f"Persona folder not found: {persona_folder}"
                     ),
                     ephemeral=True,
                 )
                 return
 
-            # Save to persona
-            success = bot.agent_core.persona_loader.update_persona_appearance(
-                persona_id, appearance_description
-            )
+            # Save image to persona folder
+            image_path = persona_folder / save_filename
+            with open(image_path, "wb") as f:
+                f.write(image_bytes)
 
-            if success:
-                # Reload persona to clear cache
-                bot.agent_core.persona_loader.reload_persona(persona_id)
+            # Force reload persona to regenerate appearance cache
+            bot.agent_core.persona_loader.reload_persona(persona_id)
 
+            # Get updated persona with new cached appearance
+            updated_persona = bot.agent_core.persona_loader.get_persona(persona_id)
+
+            if updated_persona and updated_persona.cached_appearance:
                 await interaction.followup.send(
                     ResponseFormatter.success(
-                        f"✅ Image processed and cached for **{persona.name}** (`{persona_id}`)!\n\n"
-                        f"**Here is how the AI will see this character:**\n"
-                        f"{appearance_description}\n\n"
-                        f"This description will be injected into the system prompt whenever this persona is active."
+                        f"✅ Image saved to **{persona.name}** (`{persona_id}`)!\n\n"
+                        f"**File:** `{save_filename}`\n"
+                        f"**Location:** `{image_path}`\n\n"
+                        f"**Generated appearance cache:**\n"
+                        f"{updated_persona.cached_appearance[:500]}{'...' if len(updated_persona.cached_appearance) > 500 else ''}\n\n"
+                        f"The appearance will be automatically injected into the system prompt."
                     ),
                     ephemeral=True,
                 )
             else:
                 await interaction.followup.send(
-                    ResponseFormatter.error(
-                        f"Failed to save appearance cache for '{persona_id}'. Check logs for details."
+                    ResponseFormatter.warning(
+                        f"✓ Image saved to `{image_path}`, but appearance generation failed.\n"
+                        f"The image will be processed on next persona load."
                     ),
                     ephemeral=True,
                 )
 
         except Exception as e:
             await interaction.followup.send(
-                ResponseFormatter.error(f"Error processing image: {str(e)}"),
+                ResponseFormatter.error(f"Failed to add image: {str(e)}"),
+                ephemeral=True,
+            )
+
+    @persona_group.command(
+        name="list_images",
+        description="List all images in a persona folder",
+    )
+    @app_commands.describe(persona_id="The ID of the persona to check")
+    async def list_persona_images(
+        interaction: discord.Interaction,
+        persona_id: str,
+    ):
+        """List all images in a persona folder."""
+        from pathlib import Path
+
+        # Verify persona exists
+        persona = bot.agent_core.persona_loader.get_persona(persona_id)
+        if not persona:
+            available = bot.agent_core.list_personas()
+            await interaction.response.send_message(
+                ResponseFormatter.error(
+                    f"Persona '{persona_id}' not found.\n"
+                    f"Available personas: {', '.join(available[:10])}"
+                ),
+                ephemeral=True,
+            )
+            return
+
+        # Build path to persona folder
+        persona_folder = Path("personas") / persona_id
+        if not persona_folder.exists():
+            await interaction.response.send_message(
+                ResponseFormatter.error(f"Persona folder not found: {persona_folder}"),
+                ephemeral=True,
+            )
+            return
+
+        # Find all image files
+        image_extensions = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"}
+        images = [
+            f
+            for f in persona_folder.iterdir()
+            if f.is_file() and f.suffix.lower() in image_extensions
+        ]
+
+        if not images:
+            await interaction.response.send_message(
+                ResponseFormatter.warning(
+                    f"**{persona.name}** (`{persona_id}`) has no images.\n\n"
+                    f"Use `/persona add_image` to add images for appearance generation."
+                ),
+                ephemeral=True,
+            )
+            return
+
+        # Build response
+        response = f"**Images for {persona.name}** (`{persona_id}`):\n\n"
+
+        for img in sorted(images):
+            size_kb = img.stat().st_size / 1024
+            response += f"• `{img.name}` ({size_kb:.1f} KB)\n"
+
+        response += f"\n**Total:** {len(images)} image(s)"
+
+        # Show cached appearance status
+        if persona.cached_appearance:
+            response += f"\n\n✅ **Cached appearance:** Generated ({len(persona.cached_appearance)} chars)"
+        else:
+            response += f"\n\n⚠️ **Cached appearance:** Not yet generated"
+
+        await interaction.response.send_message(response, ephemeral=True)
+
+    @persona_group.command(
+        name="remove_image",
+        description="Remove an image from a persona folder",
+    )
+    @app_commands.describe(
+        persona_id="The ID of the persona",
+        filename="The image filename to remove",
+    )
+    async def remove_persona_image(
+        interaction: discord.Interaction,
+        persona_id: str,
+        filename: str,
+    ):
+        """Remove an image from a persona folder and regenerate appearance."""
+        from pathlib import Path
+        import os
+
+        # Verify persona exists
+        persona = bot.agent_core.persona_loader.get_persona(persona_id)
+        if not persona:
+            await interaction.response.send_message(
+                ResponseFormatter.error(f"Persona '{persona_id}' not found."),
+                ephemeral=True,
+            )
+            return
+
+        # Build path to image
+        persona_folder = Path("personas") / persona_id
+        image_path = persona_folder / filename
+
+        if not image_path.exists():
+            await interaction.response.send_message(
+                ResponseFormatter.error(
+                    f"Image '{filename}' not found in persona folder.\n"
+                    f"Use `/persona list_images {persona_id}` to see available images."
+                ),
+                ephemeral=True,
+            )
+            return
+
+        # Delete the image
+        try:
+            os.remove(image_path)
+
+            # Force reload to regenerate appearance cache
+            bot.agent_core.persona_loader.reload_persona(persona_id)
+
+            await interaction.response.send_message(
+                ResponseFormatter.success(
+                    f"✅ Removed `{filename}` from **{persona.name}**\n\n"
+                    f"Appearance cache has been regenerated from remaining images."
+                ),
+                ephemeral=True,
+            )
+        except Exception as e:
+            await interaction.response.send_message(
+                ResponseFormatter.error(f"Failed to remove image: {str(e)}"),
+                ephemeral=True,
+            )
+
+    @persona_group.command(
+        name="regenerate_appearance",
+        description="Force regenerate appearance cache from persona images",
+    )
+    @app_commands.describe(persona_id="The ID of the persona to regenerate")
+    async def regenerate_appearance(
+        interaction: discord.Interaction,
+        persona_id: str,
+    ):
+        """Force regenerate the appearance cache from images."""
+        from pathlib import Path
+        import sqlite3
+
+        # Check if vision cache service is available
+        if not hasattr(bot, "vision_cache_service") or bot.vision_cache_service is None:
+            await interaction.response.send_message(
+                ResponseFormatter.error("Vision cache service is not configured."),
+                ephemeral=True,
+            )
+            return
+
+        # Verify persona exists
+        persona = bot.agent_core.persona_loader.get_persona(persona_id)
+        if not persona:
+            await interaction.response.send_message(
+                ResponseFormatter.error(f"Persona '{persona_id}' not found."),
+                ephemeral=True,
+            )
+            return
+
+        # Check if persona has images
+        persona_folder = Path("personas") / persona_id
+        image_extensions = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"}
+        images = [
+            f
+            for f in persona_folder.iterdir()
+            if f.is_file() and f.suffix.lower() in image_extensions
+        ]
+
+        if not images:
+            await interaction.response.send_message(
+                ResponseFormatter.warning(
+                    f"**{persona.name}** has no images.\n"
+                    f"Use `/persona add_image` to add images first."
+                ),
+                ephemeral=True,
+            )
+            return
+
+        # Defer response
+        await interaction.response.defer(ephemeral=True)
+
+        try:
+            # Clear cached appearance from database to force regeneration
+            if bot.agent_core.persona_loader.db_path:
+                conn = sqlite3.connect(bot.agent_core.persona_loader.db_path)
+                cursor = conn.cursor()
+                cursor.execute(
+                    "DELETE FROM persona_appearances WHERE persona_id = ?",
+                    (persona_id,),
+                )
+                conn.commit()
+                conn.close()
+
+            # Force reload persona - this will trigger appearance generation
+            bot.agent_core.persona_loader.reload_persona(persona_id)
+
+            # Get updated persona
+            updated_persona = bot.agent_core.persona_loader.get_persona(persona_id)
+
+            if updated_persona and updated_persona.cached_appearance:
+                await interaction.followup.send(
+                    ResponseFormatter.success(
+                        f"✅ Regenerated appearance for **{persona.name}**\n\n"
+                        f"**Processed {len(images)} image(s)**\n\n"
+                        f"**New appearance:**\n"
+                        f"{updated_persona.cached_appearance[:500]}{'...' if len(updated_persona.cached_appearance) > 500 else ''}"
+                    ),
+                    ephemeral=True,
+                )
+            else:
+                await interaction.followup.send(
+                    ResponseFormatter.error(
+                        f"Failed to regenerate appearance. Check vision service status."
+                    ),
+                    ephemeral=True,
+                )
+
+        except Exception as e:
+            await interaction.followup.send(
+                ResponseFormatter.error(f"Error regenerating appearance: {str(e)}"),
                 ephemeral=True,
             )
 

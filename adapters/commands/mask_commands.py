@@ -1,8 +1,9 @@
 """
 User Mask management commands for Discord.
 
-User masks are simply personas from the personas/user_masks/ directory.
-Users can wear them as their character identity in conversations.
+User masks are personas that users wear as their character identity.
+ANY persona can be worn as a mask - there's no separate "user_masks" folder anymore.
+When a user wears a persona, the AI recognizes them as that character.
 """
 
 import discord
@@ -30,10 +31,10 @@ def register_mask_commands(bot: "MyriadDiscordBot") -> None:
 
     @mask_group.command(
         name="wear",
-        description="Wear a persona as your character (e.g., 'user_masks/schala')",
+        description="Wear any persona as your character identity",
     )
     @app_commands.describe(
-        persona_id="The persona ID to wear (e.g., 'user_masks/schala')"
+        persona_id="The persona ID to wear (e.g., 'chrono/schala', 'generic/coding_mentor')"
     )
     async def wear_mask(interaction: discord.Interaction, persona_id: str):
         """Activate a user persona."""
@@ -44,21 +45,21 @@ def register_mask_commands(bot: "MyriadDiscordBot") -> None:
             persona = bot.agent_core.persona_loader.load_persona(persona_id)
 
             if not persona:
-                # List available user masks
+                # List available personas (show first 10)
                 all_personas = bot.agent_core.persona_loader.list_available_personas()
-                user_masks = [p for p in all_personas if p.startswith("user_masks/")]
 
-                if user_masks:
-                    mask_list = ", ".join([f"'{m}'" for m in user_masks[:5]])
+                if all_personas:
+                    persona_list = ", ".join([f"'{p}'" for p in all_personas[:10]])
                     more = (
-                        f" and {len(user_masks) - 5} more"
-                        if len(user_masks) > 5
+                        f" (and {len(all_personas) - 10} more)"
+                        if len(all_personas) > 10
                         else ""
                     )
                     await interaction.response.send_message(
                         ResponseFormatter.error(
-                            f"Persona '{persona_id}' not found.\n"
-                            f"Available user masks: {mask_list}{more}"
+                            f"Persona '{persona_id}' not found.\n\n"
+                            f"**Examples:** {persona_list}{more}\n\n"
+                            f"Use `/personas` to see all available personas."
                         ),
                         ephemeral=True,
                     )
@@ -66,7 +67,7 @@ def register_mask_commands(bot: "MyriadDiscordBot") -> None:
                     await interaction.response.send_message(
                         ResponseFormatter.error(
                             f"Persona '{persona_id}' not found.\n"
-                            f"No user masks exist yet in personas/user_masks/"
+                            f"No personas exist yet in personas/ folder."
                         ),
                         ephemeral=True,
                     )
@@ -125,52 +126,58 @@ def register_mask_commands(bot: "MyriadDiscordBot") -> None:
 
     @mask_group.command(
         name="list",
-        description="List all available user masks (personas in user_masks/)",
+        description="List all available personas (any can be worn as a mask)",
     )
     async def list_masks(interaction: discord.Interaction):
-        """List all available user masks."""
+        """List all available personas that can be worn."""
         try:
             user_id = str(interaction.user.id)
             active_mask = bot.agent_core.user_mask_manager.get_active_mask(user_id)
 
-            # Get all personas and filter for user_masks
+            # Get all personas
             all_personas = bot.agent_core.persona_loader.list_available_personas()
-            user_masks = [p for p in all_personas if p.startswith("user_masks/")]
 
-            if not user_masks:
+            if not all_personas:
                 await interaction.response.send_message(
                     ResponseFormatter.warning(
-                        "No user masks found.\n"
-                        "Create personas in `personas/user_masks/` directory."
+                        "No personas found.\nCreate personas in `personas/` directory."
                     ),
                     ephemeral=True,
                 )
                 return
 
-            # Load and display each mask
-            mask_list = []
-            for persona_id in sorted(user_masks):
+            # Load and display personas (limit to first 15 for brevity)
+            persona_list = []
+            for persona_id in sorted(all_personas[:15]):
                 persona = bot.agent_core.persona_loader.load_persona(persona_id)
                 if persona:
                     active_indicator = (
-                        " 🎭 **(ACTIVE)**"
+                        " 🎭 **(WEARING)**"
                         if active_mask and persona.persona_id == active_mask.persona_id
                         else ""
                     )
                     bg_indicator = " 📖" if persona.background else ""
-                    mask_list.append(
-                        f"• **{persona.name}** (`{persona_id}`){active_indicator}{bg_indicator}\n"
-                        f"  _{persona.system_prompt[:100]}..._"
+                    img_indicator = " 🖼️" if persona.cached_appearance else ""
+                    persona_list.append(
+                        f"• **{persona.name}** (`{persona_id}`){active_indicator}{bg_indicator}{img_indicator}\n"
+                        f"  _{persona.system_prompt[:80]}..._"
                     )
 
-            response = "**Available User Masks:**\n\n" + "\n\n".join(mask_list)
+            response = "**Available Personas (any can be worn):**\n\n" + "\n\n".join(
+                persona_list
+            )
+
+            if len(all_personas) > 15:
+                response += f"\n\n_...and {len(all_personas) - 15} more. Use `/personas` to see all._"
+
             response += "\n\n📖 = Has background lore"
-            response += "\n\nUse `/mask wear <persona_id>` to wear a mask."
+            response += "\n🖼️ = Has appearance images"
+            response += "\n\nUse `/mask wear <persona_id>` to wear a persona."
 
             await interaction.response.send_message(response, ephemeral=True)
         except Exception as e:
             await interaction.response.send_message(
-                ResponseFormatter.error(f"Failed to list masks: {str(e)}"),
+                ResponseFormatter.error(f"Failed to list personas: {str(e)}"),
                 ephemeral=True,
             )
 
