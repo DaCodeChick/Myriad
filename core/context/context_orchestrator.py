@@ -21,7 +21,7 @@ from database.limbic_modifiers import DigitalPharmacy
 from database.metacognition_engine import MetacognitionEngine
 from database.mode_manager import ModeManager
 from database.user_masks import UserMaskManager
-from database.scenario_engine import ScenarioEngine
+from database.scenario import ScenarioEngine
 from core.tool_registry import ToolRegistry
 
 

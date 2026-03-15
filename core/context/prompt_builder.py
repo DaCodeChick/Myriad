@@ -13,7 +13,7 @@ from typing import List, Dict, Optional
 
 from core.persona import PersonaCartridge
 from database.user_masks import UserMaskManager
-from database.scenario_engine import ScenarioEngine
+from database.scenario import ScenarioEngine
 from database.metacognition_engine import MetacognitionEngine
 from core.tool_registry import ToolRegistry
 

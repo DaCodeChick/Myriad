@@ -33,7 +33,7 @@ from database.save_states_engine import SaveStatesEngine
 from database.user_preferences import UserPreferences
 from database.mode_manager import ModeManager
 from database.user_masks import UserMaskManager
-from database.scenario_engine import ScenarioEngine
+from database.scenario import ScenarioEngine
 from core.persona import PersonaLoader, PersonaCartridge
 from core.tool_registry import ToolRegistry
 from core.cadence_degrader import CadenceDegrader
