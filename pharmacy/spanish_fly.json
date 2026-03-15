@@ -1,5 +1,5 @@
 {
-  "drug_id": "spanish_fly",
+  "substance_id": "spanish_fly",
   "name": "Weaponized Aphrodisiac",
   "limbic_deltas": {
     "DOPAMINE": 2.0,
