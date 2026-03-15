@@ -209,3 +209,4 @@ __marimo__/
 # Project Myriad - Database files and user data
 data/
 *_log.txt
+myriad.db

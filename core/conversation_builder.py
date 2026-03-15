@@ -270,7 +270,7 @@ class ConversationContextBuilder:
                 content += "\n\n# [ACTIVE INTERLOCUTOR IDENTITY]\n"
                 content += "The user is currently embodying the following persona:\n\n"
                 content += f"**Name:** {user_mask.name}\n"
-                content += f"**Description:** {user_mask.description}\n"
+                content += f"**Identity:** {user_mask.system_prompt}\n"
                 if user_mask.background:
                     content += f"**Lore/Background:** {user_mask.background}\n"
 

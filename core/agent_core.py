@@ -69,6 +69,7 @@ class AgentCore:
         config: MyriadConfig,
         db_path: str = "data/myriad_state.db",
         personas_dir: str = "personas",
+        vision_service=None,
     ):
         """
         Initialize the AgentCore.
@@ -77,6 +78,7 @@ class AgentCore:
             config: Complete Myriad configuration object
             db_path: Path to SQLite database
             personas_dir: Directory containing persona JSON files
+            vision_service: Optional VisionCacheService for appearance generation
         """
         # Store configuration
         self.config = config
@@ -96,7 +98,11 @@ class AgentCore:
         self.memory_matrix = MemoryMatrix(
             db_path=db_path, vector_memory_enabled=config.memory.vector_memory_enabled
         )
-        self.persona_loader = PersonaLoader(personas_dir=personas_dir)
+        self.persona_loader = PersonaLoader(
+            personas_dir=personas_dir,
+            db_path=db_path,
+            vision_service=vision_service,
+        )
 
         # User Preferences (Per-User Feature Toggles)
         self.user_preferences = UserPreferences(db_path=db_path)
