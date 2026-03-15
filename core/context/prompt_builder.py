@@ -173,7 +173,7 @@ class PromptBuilder:
         # Add tool definitions if enabled
         if self.tool_registry and user_preferences.get("tools_enabled", True):
             content += "\n\n# [AVAILABLE TOOLS]\n"
-            content += self.tool_registry.get_tool_system_prompt()
+            content += self.tool_registry.get_tool_definitions_text()
 
         # Add metacognition instructions if enabled
         if user_preferences.get("metacognition_enabled", True):
@@ -258,7 +258,7 @@ class PromptBuilder:
         # Add tool definitions (narrator can use dice, knowledge graph, etc.)
         if self.tool_registry and user_preferences.get("tools_enabled", True):
             content += "\n\n# [NARRATOR TOOLS]\n"
-            content += self.tool_registry.get_tool_system_prompt()
+            content += self.tool_registry.get_tool_definitions_text()
             content += (
                 "\n\n**NARRATOR SPECIFIC TOOLS:**\n"
                 "- `roll_dice(sides)` - Roll dice for gameplay mechanics (d4, d6, d20, etc.)\n"
@@ -342,7 +342,7 @@ class PromptBuilder:
         # Add tool definitions
         if self.tool_registry and user_preferences.get("tools_enabled", True):
             content += "\n\n# [AVAILABLE TOOLS]\n"
-            content += self.tool_registry.get_tool_system_prompt()
+            content += self.tool_registry.get_tool_definitions_text()
 
         # Metacognition for ensemble (each persona can have thoughts)
         if user_preferences.get("metacognition_enabled", True):
