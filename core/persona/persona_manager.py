@@ -1,151 +1,22 @@
 """
-Persona Cartridge System - Hot-swappable personality loader for Project Myriad.
+Persona manager - main coordinator for persona loading and management.
 
-This module handles loading and validating persona metadata from the personas/
-directory and its subdirectories (supporting categorization).
-
-Each persona is a folder containing:
-- metadata.json: Persona definition (system prompt, traits, relationships, etc.)
-- image files: Character appearance images (automatically processed into cached descriptions)
+Handles loading personas from disk, managing the in-memory cache, updating
+metadata files, and coordinating appearance generation.
 """
 
 import json
 import os
-import hashlib
-import sqlite3
-from typing import Dict, Any, List, Optional
-from dataclasses import dataclass
 from pathlib import Path
+from typing import Dict, Any, List, Optional
 
-
-@dataclass
-class PersonaRelationship:
-    """Represents a relationship override for a specific target."""
-
-    target_id: str
-    description: str
-    personality_traits_override: Optional[List[str]] = None
-    rules_of_engagement_override: Optional[List[str]] = None
-    limbic_baseline_override: Optional[Dict[str, float]] = None
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "PersonaRelationship":
-        """Create a PersonaRelationship from a dictionary."""
-        return cls(
-            target_id=data["target_id"],
-            description=data["description"],
-            personality_traits_override=data.get("personality_traits_override"),
-            rules_of_engagement_override=data.get("rules_of_engagement_override"),
-            limbic_baseline_override=data.get("limbic_baseline_override"),
-        )
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert relationship to dictionary format."""
-        result = {
-            "target_id": self.target_id,
-            "description": self.description,
-        }
-        if self.personality_traits_override:
-            result["personality_traits_override"] = self.personality_traits_override
-        if self.rules_of_engagement_override:
-            result["rules_of_engagement_override"] = self.rules_of_engagement_override
-        if self.limbic_baseline_override:
-            result["limbic_baseline_override"] = self.limbic_baseline_override
-        return result
-
-
-@dataclass
-class PersonaCartridge:
-    """Represents a loaded persona cartridge with all its configuration."""
-
-    persona_id: str
-    name: str
-    system_prompt: str
-    personality_traits: List[str]
-    temperature: float
-    max_tokens: int
-    rules_of_engagement: Optional[List[str]] = None
-    background: Optional[str] = None
-    limbic_baseline: Optional[Dict[str, float]] = None
-    relationships: Optional[List[PersonaRelationship]] = None
-    cached_appearance: Optional[str] = None  # Loaded from database, not metadata.json
-    is_narrator: bool = False  # Dungeon Master/Narrator personas (no physical body)
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "PersonaCartridge":
-        """Create a PersonaCartridge from a dictionary (loaded JSON)."""
-        # Parse relationships if present
-        relationships = None
-        if "relationships" in data and data["relationships"]:
-            relationships = [
-                PersonaRelationship.from_dict(rel) for rel in data["relationships"]
-            ]
-
-        return cls(
-            persona_id=data["persona_id"],
-            name=data["name"],
-            system_prompt=data["system_prompt"],
-            personality_traits=data.get("personality_traits", []),
-            temperature=data.get("temperature", 0.7),
-            max_tokens=data.get("max_tokens", 1000),
-            rules_of_engagement=data.get("rules_of_engagement"),
-            background=data.get("background"),
-            cached_appearance=data.get("cached_appearance"),
-            limbic_baseline=data.get("limbic_baseline"),
-            relationships=relationships,
-            is_narrator=data.get("is_narrator", False),
-        )
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert persona to dictionary format (for metadata.json, excludes cached_appearance)."""
-        result = {
-            "persona_id": self.persona_id,
-            "name": self.name,
-            "system_prompt": self.system_prompt,
-            "personality_traits": self.personality_traits,
-            "temperature": self.temperature,
-            "max_tokens": self.max_tokens,
-        }
-        if self.rules_of_engagement:
-            result["rules_of_engagement"] = self.rules_of_engagement
-        if self.background:
-            result["background"] = self.background
-        # Note: cached_appearance is NOT included (stored in database)
-        if self.limbic_baseline:
-            result["limbic_baseline"] = self.limbic_baseline
-        if self.relationships:
-            result["relationships"] = [rel.to_dict() for rel in self.relationships]
-        if self.is_narrator:
-            result["is_narrator"] = self.is_narrator
-        return result
-
-    def get_relationship_override(
-        self, target_id: str
-    ) -> Optional[PersonaRelationship]:
-        """
-        Find a relationship override for a specific target.
-
-        Args:
-            target_id: The ID to match (user mask ID or another persona ID)
-
-        Returns:
-            PersonaRelationship if found, None otherwise
-        """
-        if not self.relationships:
-            return None
-
-        for relationship in self.relationships:
-            if relationship.target_id == target_id:
-                return relationship
-
-        return None
+from core.persona.persona_models import PersonaCartridge
+from core.persona.persona_cache import PersonaCache
+from core.persona.appearance_generator import AppearanceGenerator
 
 
 class PersonaLoader:
     """Manages loading and caching of persona cartridges."""
-
-    # Supported image formats for appearance generation
-    IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"}
 
     # Hardcoded system personas (always available, no file required)
     SYSTEM_PERSONAS = {
@@ -195,37 +66,14 @@ class PersonaLoader:
         """
         self.personas_dir = personas_dir
         self.db_path = db_path
-        self.vision_service = vision_service
         self._cache: Dict[str, PersonaCartridge] = {}
+
+        # Initialize components
+        self.persona_cache = PersonaCache(db_path)
+        self.appearance_generator = AppearanceGenerator(vision_service)
 
         # Ensure personas directory exists
         os.makedirs(personas_dir, exist_ok=True)
-
-        # Ensure database schema exists (if db_path is provided)
-        if self.db_path:
-            self._ensure_schema()
-
-    def _ensure_schema(self) -> None:
-        """Ensure persona_appearances table exists in the database."""
-        if not self.db_path:
-            return
-
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS persona_appearances (
-                persona_id TEXT PRIMARY KEY,
-                cached_appearance TEXT,
-                last_generated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                image_hashes TEXT
-            )
-            """
-        )
-
-        conn.commit()
-        conn.close()
 
     def load_persona(self, persona_id: str) -> Optional[PersonaCartridge]:
         """
@@ -283,11 +131,8 @@ class PersonaLoader:
             persona = PersonaCartridge.from_dict(data)
 
             # Load cached appearance from database (if available)
-            if self.db_path:
-                cached_appearance = self._load_cached_appearance(
-                    persona_id, persona_folder
-                )
-                persona.cached_appearance = cached_appearance
+            cached_appearance = self._load_cached_appearance(persona_id, persona_folder)
+            persona.cached_appearance = cached_appearance
 
             # Cache it
             self._cache[persona_id] = persona
@@ -323,135 +168,34 @@ class PersonaLoader:
         Returns:
             Cached appearance description, or None if not available
         """
-        if not self.db_path:
-            return None
-
         # Find all image files in the persona folder
-        image_files = self._get_image_files(persona_folder)
+        image_files = self.appearance_generator.get_image_files(persona_folder)
 
         if not image_files:
             return None  # No images, no appearance
 
         # Calculate hash of all images to detect changes
-        current_hash = self._calculate_images_hash(image_files)
+        current_hash = self.appearance_generator.calculate_images_hash(image_files)
 
         # Check if we have a cached appearance and if it's still valid
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+        cache_result = self.persona_cache.get_cached_appearance(persona_id)
 
-        cursor.execute(
-            """
-            SELECT cached_appearance, image_hashes
-            FROM persona_appearances
-            WHERE persona_id = ?
-            """,
-            (persona_id,),
-        )
-
-        row = cursor.fetchone()
-
-        if row and row[1] == current_hash:
-            # Cache is valid, return it
-            conn.close()
-            return row[0]
+        if cache_result:
+            cached_appearance, cached_hash = cache_result
+            if cached_hash == current_hash:
+                # Cache is valid, return it
+                return cached_appearance
 
         # Cache is stale or missing, need to generate new appearance
-        conn.close()
-
-        if not self.vision_service:
-            return None  # Can't generate without vision service
-
-        # Generate new appearance description
-        appearance = self._generate_appearance_from_images(image_files)
+        appearance = self.appearance_generator.generate_from_images(image_files)
 
         if appearance:
             # Store in database
-            self._store_cached_appearance(persona_id, appearance, current_hash)
+            self.persona_cache.store_cached_appearance(
+                persona_id, appearance, current_hash
+            )
 
         return appearance
-
-    def _get_image_files(self, persona_folder: Path) -> List[Path]:
-        """Get all image files in a persona folder."""
-        image_files = []
-        for file in persona_folder.iterdir():
-            if file.is_file() and file.suffix.lower() in self.IMAGE_EXTENSIONS:
-                image_files.append(file)
-        return sorted(image_files)  # Sort for consistent hashing
-
-    def _calculate_images_hash(self, image_files: List[Path]) -> str:
-        """Calculate combined hash of all image files."""
-        hasher = hashlib.sha256()
-
-        for image_file in image_files:
-            # Hash filename and content
-            hasher.update(image_file.name.encode())
-            with open(image_file, "rb") as f:
-                hasher.update(f.read())
-
-        return hasher.hexdigest()
-
-    def _generate_appearance_from_images(
-        self, image_files: List[Path]
-    ) -> Optional[str]:
-        """Generate appearance description from multiple images."""
-        if not self.vision_service:
-            return None
-
-        descriptions = []
-
-        for image_file in image_files:
-            try:
-                with open(image_file, "rb") as f:
-                    image_bytes = f.read()
-
-                # Determine image format from extension
-                image_format = image_file.suffix.lower().lstrip(".")
-
-                # Generate description for this image
-                description = self.vision_service.generate_appearance_description(
-                    image_bytes, image_format
-                )
-
-                if description:
-                    descriptions.append(description)
-
-            except Exception as e:
-                print(f"Error processing image {image_file}: {e}")
-
-        if not descriptions:
-            return None
-
-        # If multiple descriptions, combine them
-        if len(descriptions) == 1:
-            return descriptions[0]
-        else:
-            # Concatenate with separators
-            combined = "COMBINED APPEARANCE FROM MULTIPLE IMAGES:\n\n"
-            for i, desc in enumerate(descriptions, 1):
-                combined += f"Image {i}: {desc}\n\n"
-            return combined.strip()
-
-    def _store_cached_appearance(
-        self, persona_id: str, appearance: str, image_hash: str
-    ) -> None:
-        """Store cached appearance in database."""
-        if not self.db_path:
-            return
-
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-
-        cursor.execute(
-            """
-            INSERT OR REPLACE INTO persona_appearances
-            (persona_id, cached_appearance, image_hashes, last_generated)
-            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-            """,
-            (persona_id, appearance, image_hash),
-        )
-
-        conn.commit()
-        conn.close()
 
     def list_available_personas(self) -> List[str]:
         """
@@ -590,48 +334,20 @@ class PersonaLoader:
         Returns:
             True if successful, False if persona doesn't exist or update failed
         """
-        if not self.db_path:
-            return False
-
         # Load the persona first to ensure it exists
         persona = self.load_persona(persona_id)
         if not persona:
             return False
 
-        # Update the cached_appearance in database
-        try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
+        # Update in cache
+        success = self.persona_cache.update_appearance(persona_id, cached_appearance)
 
-            if cached_appearance:
-                # Store new appearance
-                cursor.execute(
-                    """
-                    INSERT OR REPLACE INTO persona_appearances
-                    (persona_id, cached_appearance, image_hashes, last_generated)
-                    VALUES (?, ?, '', CURRENT_TIMESTAMP)
-                    """,
-                    (persona_id, cached_appearance),
-                )
-            else:
-                # Clear appearance
-                cursor.execute(
-                    "DELETE FROM persona_appearances WHERE persona_id = ?",
-                    (persona_id,),
-                )
-
-            conn.commit()
-            conn.close()
-
+        if success:
             # Update cached persona object
             persona.cached_appearance = cached_appearance
             self._cache[persona_id] = persona
 
-            return True
-
-        except Exception as e:
-            print(f"Error updating persona appearance '{persona_id}': {e}")
-            return False
+        return success
 
     def create_persona(
         self,

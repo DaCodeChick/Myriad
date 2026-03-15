@@ -16,7 +16,7 @@ ENSEMBLE MODE: Supports multiple active masks simultaneously (user can wear mult
 import sqlite3
 import json
 from typing import Optional, List
-from core.persona_loader import PersonaLoader, PersonaCartridge
+from core.persona import PersonaLoader, PersonaCartridge
 
 
 class UserMaskManager:

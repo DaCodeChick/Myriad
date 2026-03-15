@@ -22,7 +22,7 @@ from database.activity_tracker import ActivityTracker
 from database.user_state import UserStateManager
 from database.limbic_engine import LimbicEngine
 from database.user_preferences import UserPreferences
-from core.persona_loader import PersonaLoader
+from core.persona import PersonaLoader
 
 
 class AutonomyEngine:

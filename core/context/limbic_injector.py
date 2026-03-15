@@ -12,7 +12,7 @@ Created during RDSSC Phase 1.
 
 from typing import Optional
 
-from core.persona_loader import PersonaCartridge
+from core.persona import PersonaCartridge
 from database.limbic_engine import LimbicEngine
 from database.limbic_modifiers import DigitalPharmacy
 from database.metacognition_engine import MetacognitionEngine

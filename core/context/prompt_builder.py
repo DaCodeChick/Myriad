@@ -11,7 +11,7 @@ Part of RDSSC refactoring - extracted from conversation_builder.py
 
 from typing import List, Dict, Optional
 
-from core.persona_loader import PersonaCartridge
+from core.persona import PersonaCartridge
 from database.user_masks import UserMaskManager
 from database.scenario_engine import ScenarioEngine
 from database.metacognition_engine import MetacognitionEngine

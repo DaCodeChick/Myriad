@@ -14,7 +14,7 @@ import re
 from typing import List, Dict, Optional
 from openai import OpenAI
 
-from core.persona_loader import PersonaCartridge
+from core.persona import PersonaCartridge
 from core.tool_registry import ToolRegistry, parse_tool_call, format_tool_response
 from database.limbic_engine import LimbicEngine
 from database.metacognition_engine import MetacognitionEngine

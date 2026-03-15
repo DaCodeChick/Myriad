@@ -10,7 +10,7 @@ Created during RDSSC Phase 1.
 
 from typing import List, Dict, Optional
 
-from core.persona_loader import PersonaCartridge
+from core.persona import PersonaCartridge
 from core.context.prompt_builder import PromptBuilder
 from core.context.memory_assembler import MemoryAssembler
 from core.context.limbic_injector import LimbicInjector
