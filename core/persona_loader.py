@@ -165,6 +165,32 @@ class PersonaLoader:
         # Ensure personas directory exists
         os.makedirs(personas_dir, exist_ok=True)
 
+        # Ensure database schema exists (if db_path is provided)
+        if self.db_path:
+            self._ensure_schema()
+
+    def _ensure_schema(self) -> None:
+        """Ensure persona_appearances table exists in the database."""
+        if not self.db_path:
+            return
+
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS persona_appearances (
+                persona_id TEXT PRIMARY KEY,
+                cached_appearance TEXT,
+                last_generated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                image_hashes TEXT
+            )
+            """
+        )
+
+        conn.commit()
+        conn.close()
+
     def load_persona(self, persona_id: str) -> Optional[PersonaCartridge]:
         """
         Load a persona cartridge from disk.

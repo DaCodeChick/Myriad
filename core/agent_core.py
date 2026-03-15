@@ -157,7 +157,10 @@ class AgentCore:
         )
 
         # Scenario Engine (World Tree for hierarchical environmental contexts)
-        self.scenario_engine = ScenarioEngine(db_path=db_path)
+        self.scenario_engine = ScenarioEngine(
+            db_path=db_path,
+            vision_service=vision_service,
+        )
 
         # Tool Registry (pass graph_memory, limbic_engine, and digital_pharmacy)
         # NOTE: user_id and persona_id will be passed when creating tool registry per message

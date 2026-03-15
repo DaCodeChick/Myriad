@@ -1,9 +1,13 @@
 """
 Scenario Engine (World Tree) for Project Myriad.
 
-This module manages hierarchical environmental contexts stored as JSON files,
+This module manages hierarchical environmental contexts stored as folder-based scenarios,
 allowing the AI to understand nested locations and world states
 (e.g., a room within a building within a city within an era).
+
+Each scenario is a folder containing:
+- metadata.json: Scenario definition (name, description, parent_name)
+- Image files (optional): Automatically processed into cached appearance descriptions
 
 The system uses a parent-child relationship structure where scenarios can be nested infinitely.
 Cached appearances are stored in SQLite for AI-generated visual descriptions.
@@ -12,6 +16,7 @@ Cached appearances are stored in SQLite for AI-generated visual descriptions.
 import sqlite3
 import json
 import os
+import hashlib
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from dataclasses import dataclass
@@ -48,17 +53,27 @@ class Scenario:
 class ScenarioEngine:
     """Manages hierarchical scenario contexts (World Tree)."""
 
-    def __init__(self, db_path: str, scenarios_directory: str = "scenarios"):
+    # Supported image formats for appearance generation
+    IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"}
+
+    def __init__(
+        self,
+        db_path: str,
+        scenarios_directory: str = "scenarios",
+        vision_service=None,
+    ):
         """
         Initialize scenario engine.
 
         Args:
             db_path: Path to SQLite database file (for cached appearances and active scenario tracking)
-            scenarios_directory: Directory where scenario JSON files are stored
+            scenarios_directory: Directory where scenario folders are stored
+            vision_service: Optional VisionCacheService for generating appearance descriptions
         """
         self.db_path = db_path
         self.scenarios_directory = Path(scenarios_directory)
         self.scenarios_directory.mkdir(parents=True, exist_ok=True)
+        self.vision_service = vision_service
         self._ensure_schema()
 
     def _get_connection(self) -> sqlite3.Connection:
@@ -78,7 +93,8 @@ class ScenarioEngine:
             CREATE TABLE IF NOT EXISTS scenario_appearances (
                 scenario_name TEXT PRIMARY KEY,
                 cached_appearance TEXT,
-                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                last_generated TEXT DEFAULT CURRENT_TIMESTAMP,
+                image_hashes TEXT
             )
         """
         )
@@ -98,24 +114,43 @@ class ScenarioEngine:
         conn.commit()
         conn.close()
 
-    def _get_scenario_file_path(self, name: str) -> Path:
-        """Get the file path for a scenario JSON file."""
+    def _get_scenario_folder_path(self, name: str) -> Path:
+        """Get the folder path for a scenario."""
         # Sanitize name to be filesystem-safe
         safe_name = "".join(
             c for c in name if c.isalnum() or c in (" ", "_", "-")
         ).strip()
         safe_name = safe_name.replace(" ", "_").lower()
 
-        return self.scenarios_directory / f"{safe_name}.json"
+        return self.scenarios_directory / safe_name
+
+    def _get_scenario_metadata_path(self, name: str) -> Path:
+        """Get the metadata.json path for a scenario."""
+        return self._get_scenario_folder_path(name) / "metadata.json"
 
     def _load_cached_appearance(self, name: str) -> Optional[str]:
-        """Load cached appearance from database."""
+        """Load cached appearance from database or generate if needed."""
+        scenario_folder = self._get_scenario_folder_path(name)
+
+        if not scenario_folder.exists():
+            return None
+
+        # Find all image files in the scenario folder
+        image_files = self._get_image_files(scenario_folder)
+
+        if not image_files:
+            return None  # No images, no appearance
+
+        # Calculate hash of all images to detect changes
+        current_hash = self._calculate_images_hash(image_files)
+
+        # Check if we have a cached appearance and if it's still valid
         conn = self._get_connection()
         cursor = conn.cursor()
 
         cursor.execute(
             """
-            SELECT cached_appearance 
+            SELECT cached_appearance, image_hashes 
             FROM scenario_appearances 
             WHERE scenario_name = ?
         """,
@@ -123,15 +158,112 @@ class ScenarioEngine:
         )
 
         row = cursor.fetchone()
+
+        if row and row["image_hashes"] == current_hash:
+            # Cache is valid, return it
+            conn.close()
+            return row["cached_appearance"]
+
+        # Cache is stale or missing, need to generate new appearance
         conn.close()
 
-        return row["cached_appearance"] if row else None
+        if not self.vision_service:
+            return None  # Can't generate without vision service
+
+        # Generate new appearance description
+        appearance = self._generate_appearance_from_images(image_files)
+
+        if appearance:
+            # Store in database
+            self._store_cached_appearance(name, appearance, current_hash)
+
+        return appearance
+
+    def _get_image_files(self, scenario_folder: Path) -> List[Path]:
+        """Get all image files in a scenario folder."""
+        image_files = []
+        for file in scenario_folder.iterdir():
+            if file.is_file() and file.suffix.lower() in self.IMAGE_EXTENSIONS:
+                image_files.append(file)
+        return sorted(image_files)  # Sort for consistent hashing
+
+    def _calculate_images_hash(self, image_files: List[Path]) -> str:
+        """Calculate combined hash of all image files."""
+        hasher = hashlib.sha256()
+
+        for image_file in image_files:
+            # Hash filename and content
+            hasher.update(image_file.name.encode())
+            with open(image_file, "rb") as f:
+                hasher.update(f.read())
+
+        return hasher.hexdigest()
+
+    def _generate_appearance_from_images(
+        self, image_files: List[Path]
+    ) -> Optional[str]:
+        """Generate appearance description from multiple images."""
+        if not self.vision_service:
+            return None
+
+        descriptions = []
+
+        for image_file in image_files:
+            try:
+                with open(image_file, "rb") as f:
+                    image_bytes = f.read()
+
+                # Determine image format from extension
+                image_format = image_file.suffix.lower().lstrip(".")
+
+                # Generate description for this image
+                description = self.vision_service.generate_appearance_description(
+                    image_bytes, image_format
+                )
+
+                if description:
+                    descriptions.append(description)
+
+            except Exception as e:
+                print(f"Error processing image {image_file}: {e}")
+
+        if not descriptions:
+            return None
+
+        # If multiple descriptions, combine them
+        if len(descriptions) == 1:
+            return descriptions[0]
+        else:
+            # Concatenate with separators
+            combined = "COMBINED VISUAL DESCRIPTION FROM MULTIPLE IMAGES:\n\n"
+            for i, desc in enumerate(descriptions, 1):
+                combined += f"Image {i}: {desc}\n\n"
+            return combined.strip()
+
+    def _store_cached_appearance(
+        self, name: str, appearance: str, image_hash: str
+    ) -> None:
+        """Store cached appearance in database."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            INSERT OR REPLACE INTO scenario_appearances
+            (scenario_name, cached_appearance, image_hashes, last_generated)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            """,
+            (name, appearance, image_hash),
+        )
+
+        conn.commit()
+        conn.close()
 
     def create_scenario(
         self, name: str, description: str, parent_name: Optional[str] = None
     ) -> Scenario:
         """
-        Create a new scenario.
+        Create a new scenario folder with metadata.json.
 
         Args:
             name: Unique name for the scenario
@@ -145,9 +277,10 @@ class ScenarioEngine:
             FileExistsError: If a scenario with this name already exists
             ValueError: If parent_name doesn't exist
         """
-        scenario_path = self._get_scenario_file_path(name)
+        scenario_folder = self._get_scenario_folder_path(name)
+        metadata_path = self._get_scenario_metadata_path(name)
 
-        if scenario_path.exists():
+        if scenario_folder.exists():
             raise FileExistsError(f"Scenario '{name}' already exists")
 
         # Verify parent exists if specified
@@ -162,8 +295,9 @@ class ScenarioEngine:
             parent_name=parent_name,
         )
 
-        # Write to JSON file
-        with open(scenario_path, "w", encoding="utf-8") as f:
+        # Create folder and write metadata.json
+        scenario_folder.mkdir(parents=True, exist_ok=True)
+        with open(metadata_path, "w", encoding="utf-8") as f:
             json.dump(scenario.to_dict(), f, indent=2, ensure_ascii=False)
 
         return scenario
@@ -178,17 +312,17 @@ class ScenarioEngine:
         Returns:
             Scenario if found, None otherwise
         """
-        scenario_path = self._get_scenario_file_path(name)
+        metadata_path = self._get_scenario_metadata_path(name)
 
-        if not scenario_path.exists():
+        if not metadata_path.exists():
             return None
 
         try:
-            with open(scenario_path, "r", encoding="utf-8") as f:
+            with open(metadata_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
             scenario = Scenario.from_dict(data)
-            # Load cached appearance from database
+            # Load cached appearance from database (with image processing)
             scenario.cached_appearance = self._load_cached_appearance(name)
             return scenario
 
@@ -249,10 +383,10 @@ class ScenarioEngine:
                 f"Cannot set '{parent_name}' as parent of '{child_name}': would create a cycle"
             )
 
-        # Update child scenario
+        # Update child scenario metadata
         child.parent_name = parent_name
-        scenario_path = self._get_scenario_file_path(child_name)
-        with open(scenario_path, "w", encoding="utf-8") as f:
+        metadata_path = self._get_scenario_metadata_path(child_name)
+        with open(metadata_path, "w", encoding="utf-8") as f:
             json.dump(child.to_dict(), f, indent=2, ensure_ascii=False)
 
     def set_active_scenario(self, user_id: str, scenario_name: Optional[str]) -> None:
@@ -321,18 +455,26 @@ class ScenarioEngine:
         """
         scenarios = []
 
-        for scenario_file in sorted(self.scenarios_directory.glob("*.json")):
+        # Find all folders containing metadata.json
+        for scenario_folder in sorted(self.scenarios_directory.iterdir()):
+            if not scenario_folder.is_dir():
+                continue
+
+            metadata_path = scenario_folder / "metadata.json"
+            if not metadata_path.exists():
+                continue
+
             try:
-                with open(scenario_file, "r", encoding="utf-8") as f:
+                with open(metadata_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
 
                 scenario = Scenario.from_dict(data)
-                # Load cached appearance from database
+                # Load cached appearance from database (with image processing)
                 scenario.cached_appearance = self._load_cached_appearance(scenario.name)
                 scenarios.append(scenario)
 
             except (json.JSONDecodeError, KeyError) as e:
-                print(f"Error loading scenario from {scenario_file}: {e}")
+                print(f"Error loading scenario from {metadata_path}: {e}")
                 continue
 
         return scenarios
@@ -362,9 +504,12 @@ class ScenarioEngine:
                 f"Delete or reparent them first."
             )
 
-        # Delete JSON file
-        scenario_path = self._get_scenario_file_path(name)
-        scenario_path.unlink()
+        # Delete scenario folder and all contents (metadata.json and images)
+        scenario_folder = self._get_scenario_folder_path(name)
+        if scenario_folder.exists():
+            import shutil
+
+            shutil.rmtree(scenario_folder)
 
         # Delete cached appearance from database
         conn = self._get_connection()
