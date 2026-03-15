@@ -25,6 +25,9 @@ from adapters.commands.mode_commands import register_mode_commands
 from adapters.commands.persona_commands import register_persona_commands
 from adapters.commands.saves_commands import register_saves_commands
 from adapters.commands.scenario_commands import register_scenario_commands
+from adapters.commands.search_cache_commands import (
+    setup_commands as setup_cache_commands,
+)
 from core.agent_core import AgentCore
 from core.autonomy_engine import AutonomyEngine
 from core.config import MyriadConfig
@@ -436,6 +439,9 @@ def create_discord_bot(
     register_config_commands(bot)
     register_mode_commands(bot)
     register_dm_commands(bot)  # Dungeon Master world event injection
+
+    # Search cache management commands
+    setup_cache_commands(bot.tree)
 
     return bot
 

@@ -16,7 +16,13 @@ Categories:
 from core.tools.base import Tool, ToolContext
 
 # Import tools from categorized subdirectories
-from core.tools.utility import GetCurrentTimeTool, RollDiceTool, SearchWebTool
+from core.tools.utility import (
+    GetCurrentTimeTool,
+    RollDiceTool,
+    SearchWebTool,
+    SearchWebImagesTool,
+    SearchNewsTool,
+)
 from core.tools.memory import AddKnowledgeTool
 from core.tools.limbic import InjectEmotionTool, ConsumeSubstanceTool
 
@@ -27,6 +33,8 @@ __all__ = [
     "GetCurrentTimeTool",
     "RollDiceTool",
     "SearchWebTool",
+    "SearchWebImagesTool",
+    "SearchNewsTool",
     # Memory tools
     "AddKnowledgeTool",
     # Limbic tools
@@ -42,6 +50,8 @@ BUILTIN_TOOLS = [
     GetCurrentTimeTool,
     RollDiceTool,
     SearchWebTool,
+    SearchWebImagesTool,
+    SearchNewsTool,
     # Memory tools
     AddKnowledgeTool,
     # Limbic tools
