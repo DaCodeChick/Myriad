@@ -44,7 +44,6 @@ class MessageProcessor:
         cadence_degrader: Optional[CadenceDegrader] = None,
         mode_manager: Optional[ModeManager] = None,
         user_mask_manager: Optional["UserMaskManager"] = None,
-        show_thoughts_inline: bool = True,
     ):
         """
         Initialize the message processor.
@@ -58,7 +57,6 @@ class MessageProcessor:
             cadence_degrader: Optional cadence degrader for text post-processing
             mode_manager: Optional mode override manager
             user_mask_manager: Optional user mask manager for relationship overrides
-            show_thoughts_inline: Display thoughts inline vs terminal-only
         """
         self.client = client
         self.model = model
@@ -68,7 +66,6 @@ class MessageProcessor:
         self.cadence_degrader = cadence_degrader
         self.mode_manager = mode_manager
         self.user_mask_manager = user_mask_manager
-        self.show_thoughts_inline = show_thoughts_inline
 
     def process(
         self,

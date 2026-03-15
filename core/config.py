@@ -150,15 +150,24 @@ class DatabasePaths:
 
 @dataclass
 class FeatureFlags:
-    """Feature enable/disable flags."""
+    """
+    System-level feature flags (NOT per-user preferences).
+
+    These control whether engines are loaded at bot startup.
+    Per-user preferences are managed in database/user_preferences.py.
+
+    IMPORTANT: The following are per-user preferences (NOT system flags):
+    - limbic_enabled, cadence_degrader_enabled, metacognition_enabled
+    - show_thoughts_inline, autonomy_enabled
+    - These are controlled via /config commands and stored in user_preferences table
+
+    System flags control infrastructure:
+    - graph_memory_enabled: Load knowledge graph engine?
+    - lives_enabled: Load lives & save states engines?
+    """
 
     graph_memory_enabled: bool = True
-    limbic_enabled: bool = True
-    digital_pharmacy_enabled: bool = True
-    cadence_degrader_enabled: bool = True
-    metacognition_enabled: bool = True
     lives_enabled: bool = True
-    show_thoughts_inline: bool = True
 
     @classmethod
     def from_env(cls) -> "FeatureFlags":
@@ -166,20 +175,7 @@ class FeatureFlags:
         return cls(
             graph_memory_enabled=os.getenv("GRAPH_MEMORY_ENABLED", "true").lower()
             == "true",
-            limbic_enabled=os.getenv("LIMBIC_ENABLED", "true").lower() == "true",
-            digital_pharmacy_enabled=os.getenv(
-                "DIGITAL_PHARMACY_ENABLED", "true"
-            ).lower()
-            == "true",
-            cadence_degrader_enabled=os.getenv(
-                "CADENCE_DEGRADER_ENABLED", "true"
-            ).lower()
-            == "true",
-            metacognition_enabled=os.getenv("METACOGNITION_ENABLED", "true").lower()
-            == "true",
             lives_enabled=os.getenv("LIVES_ENABLED", "true").lower() == "true",
-            show_thoughts_inline=os.getenv("SHOW_THOUGHTS_INLINE", "true").lower()
-            == "true",
         )
 
 
@@ -244,12 +240,18 @@ class MyriadConfig:
     def __repr__(self) -> str:
         """Return a safe string representation without sensitive data."""
         whitelist_count = len(self.discord.whitelisted_bot_ids)
+        features_count = sum(
+            [
+                self.features.graph_memory_enabled,
+                self.features.lives_enabled,
+            ]
+        )
         return (
             f"MyriadConfig(\n"
             f"  llm={self.llm.model} @ {self.llm.base_url}\n"
             f"  vision={'enabled' if self.vision.enabled else 'disabled'}\n"
             f"  memory=short_term({self.memory.short_term_limit}), semantic({self.memory.semantic_recall_limit})\n"
-            f"  features={sum([self.features.graph_memory_enabled, self.features.limbic_enabled, self.features.digital_pharmacy_enabled, self.features.cadence_degrader_enabled, self.features.metacognition_enabled, self.features.lives_enabled])} enabled\n"
+            f"  features={features_count} system flags enabled\n"
             f"  bot_whitelist={whitelist_count} bot(s)\n"
             f")"
         )

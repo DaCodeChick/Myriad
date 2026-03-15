@@ -126,29 +126,21 @@ class AgentCore:
         )
 
         # Limbic System (Emotional Neurochemistry)
-        self.limbic_engine = (
-            LimbicEngine(db_path=config.database_paths.limbic_db_path)
-            if config.features.limbic_enabled
-            else None
-        )
+        # Always loaded - controlled by per-user preferences
+        self.limbic_engine = LimbicEngine(db_path=config.database_paths.limbic_db_path)
 
         # Digital Pharmacy (Substance-Based Limbic Overrides)
-        self.digital_pharmacy = (
-            DigitalPharmacy(self.limbic_engine)
-            if config.features.digital_pharmacy_enabled and self.limbic_engine
-            else None
-        )
+        # Always loaded - controlled by per-user preferences
+        self.digital_pharmacy = DigitalPharmacy(self.limbic_engine)
 
         # Cadence Degradation Engine (Text Post-Processing)
-        self.cadence_degrader = (
-            CadenceDegrader() if config.features.cadence_degrader_enabled else None
-        )
+        # Always loaded - controlled by per-user preferences
+        self.cadence_degrader = CadenceDegrader()
 
         # Metacognition Engine (Hidden Monologue / Internal Thought Tracking)
-        self.metacognition_engine = (
-            MetacognitionEngine(db_path=config.database_paths.metacognition_db_path)
-            if config.features.metacognition_enabled
-            else None
+        # Always loaded - controlled by per-user preferences
+        self.metacognition_engine = MetacognitionEngine(
+            db_path=config.database_paths.metacognition_db_path
         )
 
         # Lives & Memories System (Timeline Management and Save States)
@@ -208,7 +200,6 @@ class AgentCore:
             cadence_degrader=self.cadence_degrader,
             mode_manager=self.mode_manager,
             user_mask_manager=self.user_mask_manager,
-            show_thoughts_inline=config.features.show_thoughts_inline,
         )
 
     # ========================
