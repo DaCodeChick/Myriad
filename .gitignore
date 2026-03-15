@@ -209,3 +209,8 @@ __marimo__/
 # Project Myriad - Database files and user data
 data/
 *_log.txt
+*.bmp
+*.jpeg
+*.jpg
+*.png
+*.webp
