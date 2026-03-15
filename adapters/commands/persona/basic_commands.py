@@ -28,8 +28,13 @@ def register_basic_commands(bot: "MyriadDiscordBot") -> None:
     @app_commands.describe(persona_id="The ID of the persona to switch to")
     async def swap_persona(interaction: discord.Interaction, persona_id: str):
         """Switch the user's active persona."""
-        # Defer immediately to prevent timeout
-        await interaction.response.defer(ephemeral=True)
+        try:
+            # Defer immediately to prevent timeout
+            await interaction.response.defer(ephemeral=True)
+        except discord.errors.NotFound:
+            # Interaction expired before we could defer (Discord API latency)
+            # This is a transient error - user should try again
+            return
 
         user_id = str(interaction.user.id)
 
@@ -58,8 +63,12 @@ def register_basic_commands(bot: "MyriadDiscordBot") -> None:
     @bot.tree.command(name="personas", description="List all available personas")
     async def list_personas_cmd(interaction: discord.Interaction):
         """List all available persona cartridges."""
-        # Defer immediately to prevent timeout
-        await interaction.response.defer(ephemeral=True)
+        try:
+            # Defer immediately to prevent timeout
+            await interaction.response.defer(ephemeral=True)
+        except discord.errors.NotFound:
+            # Interaction expired before we could defer (Discord API latency)
+            return
 
         personas = bot.agent_core.list_personas()
 
@@ -81,8 +90,12 @@ def register_basic_commands(bot: "MyriadDiscordBot") -> None:
     @bot.tree.command(name="whoami", description="Check your current active persona(s)")
     async def whoami(interaction: discord.Interaction):
         """Show the user's current active persona(s)."""
-        # Defer immediately to prevent timeout
-        await interaction.response.defer(ephemeral=True)
+        try:
+            # Defer immediately to prevent timeout
+            await interaction.response.defer(ephemeral=True)
+        except discord.errors.NotFound:
+            # Interaction expired before we could defer (Discord API latency)
+            return
 
         user_id = str(interaction.user.id)
 
@@ -156,69 +169,6 @@ def register_basic_commands(bot: "MyriadDiscordBot") -> None:
                 response += f"\n• Background: ✓ Defined ({len(persona.background)} chars) - use `/persona view_background {persona.persona_id}` to view"
 
             await interaction.followup.send(
-                response,
-                ephemeral=True,
-            )
-            return
-
-        # If ensemble mode (multiple personas)
-        if len(active_personas) > 1:
-            response = (
-                f"**🎭 Ensemble Mode Active** ({len(active_personas)} personas)\n\n"
-            )
-
-            for persona in active_personas:
-                # Check if narrator
-                if persona.is_narrator:
-                    response += (
-                        f"**{persona.name}** (`{persona.persona_id}`) 🎲 **[NARRATOR]**\n"
-                        f"• Role: Omniscient environmental narrator\n"
-                        f"• Temp: {persona.temperature} | Tokens: {persona.max_tokens}\n\n"
-                    )
-                else:
-                    traits = (
-                        ", ".join(persona.personality_traits[:3])
-                        if persona.personality_traits
-                        else "None"
-                    )
-                    bg_indicator = " 📖" if persona.background else ""
-                    img_indicator = " 🖼️" if persona.cached_appearance else ""
-
-                    response += (
-                        f"**{persona.name}** (`{persona.persona_id}`){bg_indicator}{img_indicator}\n"
-                        f"• Traits: {traits}\n"
-                        f"• Temp: {persona.temperature} | Tokens: {persona.max_tokens}\n\n"
-                    )
-
-            response += "The AI is controlling multiple characters as Dungeon Master/Narrator.\n"
-            response += "\n📖 = Has background | 🖼️ = Has appearance images | 🎲 = Narrator (no body)"
-
-            await interaction.response.send_message(response, ephemeral=True)
-        else:
-            # Single persona mode
-            persona = active_personas[0]
-            traits = (
-                ", ".join(persona.personality_traits)
-                if persona.personality_traits
-                else "None"
-            )
-
-            # Build response with background info if available
-            response = (
-                f"**Current Persona:**\n"
-                f"• ID: `{persona.persona_id}`\n"
-                f"• Name: **{persona.name}**\n"
-                f"• Traits: {traits}\n"
-                f"• Temperature: {persona.temperature}\n"
-                f"• Max Tokens: {persona.max_tokens}"
-            )
-
-            if persona.background:
-                # Show "Has background" indicator with character count
-                # User can use /persona view_background to see full text
-                response += f"\n• Background: ✓ Defined ({len(persona.background)} chars) - use `/persona view_background {persona.persona_id}` to view"
-
-            await interaction.response.send_message(
                 response,
                 ephemeral=True,
             )
