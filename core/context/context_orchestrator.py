@@ -22,6 +22,7 @@ from database.metacognition_engine import MetacognitionEngine
 from database.mode_manager import ModeManager
 from database.user_masks import UserMaskManager
 from database.scenario import ScenarioEngine
+from database.session_notes import SessionNotesManager
 from core.tool_registry import ToolRegistry
 
 
@@ -53,6 +54,7 @@ class ConversationContextBuilder:
         mode_manager: Optional[ModeManager] = None,
         user_mask_manager: Optional[UserMaskManager] = None,
         scenario_engine: Optional[ScenarioEngine] = None,
+        session_notes: Optional[SessionNotesManager] = None,
     ):
         """
         Initialize the conversation context builder.
@@ -70,8 +72,10 @@ class ConversationContextBuilder:
             mode_manager: Optional mode override manager
             user_mask_manager: Optional user mask (persona) system
             scenario_engine: Optional scenario/world tree system
+            session_notes: Optional session notes manager for silent context injection
         """
         self.mode_manager = mode_manager
+        self.session_notes = session_notes
 
         # Initialize sub-components
         self.prompt_builder = PromptBuilder(
@@ -241,5 +245,15 @@ class ConversationContextBuilder:
             user_id, persona.persona_id, life_id, mode_override
         )
         messages.extend(short_term_messages)
+
+        # 8. Session Note (Silent Meta-Level Context Injection)
+        # Injected AFTER all memories but BEFORE the final user message
+        # This ensures it's close to the bottom of the context window for maximum impact
+        if self.session_notes:
+            note_text = self.session_notes.get_note(user_id)
+            if note_text:
+                messages.append(
+                    {"role": "system", "content": f"[System Note: {note_text}]"}
+                )
 
         return messages

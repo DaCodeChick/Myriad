@@ -37,6 +37,7 @@ from database.user_preferences import UserPreferences
 from database.mode_manager import ModeManager
 from database.user_masks import UserMaskManager
 from database.scenario import ScenarioEngine
+from database.session_notes import SessionNotesManager
 from core.persona import PersonaLoader, PersonaCartridge
 from core.tool_registry import ToolRegistry
 from core.cadence_degrader import CadenceDegrader
@@ -164,6 +165,9 @@ class AgentCore:
             vision_service=vision_service,
         )
 
+        # Session Notes Manager (Silent meta-level context injection)
+        self.session_notes = SessionNotesManager(db_path=db_path)
+
         # Tool Registry (pass graph_memory, limbic_engine, and digital_pharmacy)
         # NOTE: user_id and persona_id will be passed when creating tool registry per message
         self.base_tool_registry = (
@@ -190,6 +194,7 @@ class AgentCore:
             mode_manager=self.mode_manager,
             user_mask_manager=self.user_mask_manager,
             scenario_engine=self.scenario_engine,
+            session_notes=self.session_notes,
         )
 
         # Message Processor

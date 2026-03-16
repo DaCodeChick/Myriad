@@ -23,6 +23,7 @@ from adapters.commands.mask_commands import register_mask_commands
 from adapters.commands.memory_commands import register_memory_commands
 from adapters.commands.mode_commands import register_mode_commands
 from adapters.commands.narrative_commands import register_narrative_commands
+from adapters.commands.note_commands import register_note_commands
 from adapters.commands.persona import register_persona_commands
 from adapters.commands.saves_commands import register_saves_commands
 from adapters.commands.scenario import register_scenario_commands
@@ -121,6 +122,7 @@ def create_discord_bot(
     register_mode_commands(bot)
     register_dm_commands(bot)  # Dungeon Master world event injection
     register_narrative_commands(bot)  # Narrative control (narrate, improvise, retcon)
+    register_note_commands(bot)  # Silent meta-level context injection
     register_degradation_commands(bot, bot.tree)  # Text degradation customization
 
     # Search cache management commands
