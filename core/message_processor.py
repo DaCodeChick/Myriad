@@ -214,19 +214,33 @@ class MessageProcessor:
                 import asyncio
 
                 try:
-                    loop = asyncio.get_event_loop()
-                except RuntimeError:
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
+                    # Check if event loop is already running
+                    loop = asyncio.get_running_loop()
+                    # If we get here, we're in an async context already
+                    # Use asyncio.create_task or similar
+                    import concurrent.futures
 
-                assistant_message = loop.run_until_complete(
-                    self.provider.generate(
-                        messages=messages,
-                        temperature=persona.temperature,
-                        max_tokens=persona.max_tokens,
-                        image_data=image_data if tool_iterations == 0 else None,
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(
+                            asyncio.run,
+                            self.provider.generate(
+                                messages=messages,
+                                temperature=persona.temperature,
+                                max_tokens=persona.max_tokens,
+                                image_data=image_data if tool_iterations == 0 else None,
+                            ),
+                        )
+                        assistant_message = future.result()
+                except RuntimeError:
+                    # No event loop running, safe to use asyncio.run()
+                    assistant_message = asyncio.run(
+                        self.provider.generate(
+                            messages=messages,
+                            temperature=persona.temperature,
+                            max_tokens=persona.max_tokens,
+                            image_data=image_data if tool_iterations == 0 else None,
+                        )
                     )
-                )
 
                 if not assistant_message:
                     return None
@@ -260,10 +274,29 @@ class MessageProcessor:
                         if tool_name == "generate_image" and hasattr(
                             tool_registry, "execute_tool_async"
                         ):
-                            # Run async tool in event loop
-                            result = asyncio.run(
-                                tool_registry.execute_tool_async(tool_name, tool_args)
-                            )
+                            # Run async tool - handle event loop properly
+                            try:
+                                loop = asyncio.get_running_loop()
+                                # Event loop running, use ThreadPoolExecutor
+                                import concurrent.futures
+
+                                with (
+                                    concurrent.futures.ThreadPoolExecutor() as executor
+                                ):
+                                    future = executor.submit(
+                                        asyncio.run,
+                                        tool_registry.execute_tool_async(
+                                            tool_name, tool_args
+                                        ),
+                                    )
+                                    result = future.result()
+                            except RuntimeError:
+                                # No event loop, safe to use asyncio.run()
+                                result = asyncio.run(
+                                    tool_registry.execute_tool_async(
+                                        tool_name, tool_args
+                                    )
+                                )
                         else:
                             # Use sync execution for other tools
                             result = tool_registry.execute_tool(tool_name, tool_args)
