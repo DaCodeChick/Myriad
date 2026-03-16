@@ -331,6 +331,7 @@ class MemoryMatrix:
         content: str,
         visibility_scope: str = "ISOLATED",
         life_id: Optional[str] = None,
+        importance_score: int = 5,
     ) -> int:
         """
         Add a new memory to the database.
@@ -342,6 +343,7 @@ class MemoryMatrix:
             content: The message content
             visibility_scope: 'GLOBAL' or 'ISOLATED' (default: ISOLATED)
             life_id: Timeline/session ID (optional for backwards compatibility)
+            importance_score: Importance rating 1-10 (default: 5)
 
         Returns:
             The ID of the inserted memory
@@ -363,6 +365,7 @@ class MemoryMatrix:
             content=content,
             visibility_scope=visibility_scope,
             life_id=life_id,
+            importance_score=importance_score,
         )
 
     def get_context_memories(

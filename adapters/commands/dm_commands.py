@@ -71,6 +71,7 @@ def register_dm_commands(bot: "MyriadDiscordBot") -> None:
                 content=narration,
                 visibility_scope="GLOBAL",
                 life_id=life_id or "",
+                importance_score=7,
             )
 
             # Generate narrator response using the narrator persona
