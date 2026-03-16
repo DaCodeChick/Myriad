@@ -47,6 +47,7 @@ class MessageProcessor:
         mode_manager: Optional[ModeManager] = None,
         user_mask_manager: Optional["UserMaskManager"] = None,
         user_preferences_manager: Optional[UserPreferences] = None,
+        session_notes: Optional["SessionNotesManager"] = None,
     ):
         """
         Initialize the message processor.
@@ -61,6 +62,7 @@ class MessageProcessor:
             mode_manager: Optional mode override manager
             user_mask_manager: Optional user mask manager for relationship overrides
             user_preferences_manager: Optional user preferences manager for degradation profiles
+            session_notes: Optional session notes manager for TTL tracking
         """
         self.client = client
         self.model = model
@@ -71,6 +73,7 @@ class MessageProcessor:
         self.mode_manager = mode_manager
         self.user_mask_manager = user_mask_manager
         self.user_preferences_manager = user_preferences_manager
+        self.session_notes = session_notes
 
     def process(
         self,
@@ -147,6 +150,10 @@ class MessageProcessor:
             final_response = self._apply_cadence_degradation(
                 final_response, user_id, persona.persona_id, user_preferences
             )
+
+        # Decrement session note TTL (after successful response generation)
+        if self.session_notes:
+            self.session_notes.decrement_ttl(user_id)
 
         return final_response
 

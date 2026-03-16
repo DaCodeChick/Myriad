@@ -208,6 +208,7 @@ class AgentCore:
             mode_manager=self.mode_manager,
             user_mask_manager=self.user_mask_manager,
             user_preferences_manager=self.user_preferences,
+            session_notes=self.session_notes,
         )
 
     # ========================
