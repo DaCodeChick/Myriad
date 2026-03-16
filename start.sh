@@ -15,6 +15,8 @@ GPU_LAYERS="99"
 # Network Ports
 TEXT_PORT="5001"
 VISION_PORT="5002"
+
+START_TIME=15
 # ==========================================
 
 echo "🚀 Booting Project Myriad Ecosystem..."
@@ -29,11 +31,11 @@ koboldcpp "$TEXT_MODEL" $HW_FLAG --gpulayers $GPU_LAYERS --contextsize 8192 --po
 
 echo "👁️ Booting Vision Eyes on Port $VISION_PORT (Partial GPU / 2K Context)..."
 # Using 15 layers and 2048 context to save VRAM for the main text model
-koboldcpp "$VISION_MODEL" --mmproj "$VISION_PROJ" $HW_FLAG --gpulayers 15 --contextsize 2048 --port $VISION_PORT > logs/vision.log 2>&1 &
+koboldcpp "$VISION_MODEL" --mmproj "$VISION_PROJ" $HW_FLAG --gpulayers 0 --contextsize 2048 --port $VISION_PORT > logs/vision.log 2>&1 &
 
-echo "⏳ Waiting 25 seconds for both models to load into VRAM..."
+echo "⏳ Waiting $START_TIME seconds for both models to load into VRAM..."
 # Increased sleep time to ensure the vision server finishes loading before Python tries to connect!
-sleep 25
+sleep $START_TIME
 
 echo "🤖 Starting Myriad Python Core..."
 echo "   (Autonomy engine runs integrated in the main process if AUTONOMY_ENABLED=true)"

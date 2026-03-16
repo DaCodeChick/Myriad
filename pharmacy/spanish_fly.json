@@ -1,6 +1,6 @@
 {
   "substance_id": "spanish_fly",
-  "name": "Weaponized Aphrodisiac",
+  "display_name": "Weaponized Aphrodisiac",
   "limbic_deltas": {
     "DOPAMINE": 2.0,
     "OXYTOCIN": 1.5,
