@@ -12,7 +12,7 @@ from discord.ext import commands
 from core.agent_core import AgentCore
 from core.vision_bridge import VisionBridge
 from core.vision_cache_service import VisionCacheService
-from database.activity_tracker import ActivityTracker
+from core.features.roleplay.activity_tracker import ActivityTracker
 from adapters.discord.event_handlers import EventHandlers
 from adapters.discord.vision_processor import VisionProcessor
 from adapters.commands.config_commands import register_config_commands

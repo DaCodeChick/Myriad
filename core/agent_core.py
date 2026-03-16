@@ -136,6 +136,14 @@ class AgentCore:
         roleplay_feature = cast(
             Optional[RoleplayFeature], self.features.get("roleplay")
         )
+
+        # Collect feature tools (e.g., roleplay tools)
+        feature_tools = []
+        if roleplay_feature:
+            from core.features.roleplay.tools import ROLEPLAY_TOOLS
+
+            feature_tools.extend(ROLEPLAY_TOOLS)
+
         self.base_tool_registry = (
             ToolRegistry(
                 graph_memory=self.graph_memory,
@@ -146,6 +154,7 @@ class AgentCore:
                 if roleplay_feature
                 else None,
                 llm_provider=self.provider,
+                feature_tools=feature_tools if feature_tools else None,
             )
             if config.tools.enabled
             else None
@@ -434,6 +443,14 @@ class AgentCore:
             roleplay_feature = cast(
                 Optional[RoleplayFeature], self.features.get("roleplay")
             )
+
+            # Collect feature tools (e.g., roleplay tools)
+            feature_tools = []
+            if roleplay_feature:
+                from core.features.roleplay.tools import ROLEPLAY_TOOLS
+
+                feature_tools.extend(ROLEPLAY_TOOLS)
+
             tool_registry = ToolRegistry(
                 graph_memory=self.graph_memory,
                 limbic_engine=roleplay_feature.limbic_engine
@@ -445,6 +462,7 @@ class AgentCore:
                 current_user_id=user_id,
                 current_persona_id=persona.persona_id if persona else None,
                 llm_provider=self.provider,
+                feature_tools=feature_tools if feature_tools else None,
             )
 
         # If vision description is provided, prepend it to the message

@@ -18,8 +18,8 @@ from datetime import datetime
 from typing import Optional, Callable, Awaitable, Tuple
 from openai import OpenAI
 
-from database.activity_tracker import ActivityTracker
-from database.user_state import UserStateManager
+from core.features.roleplay.activity_tracker import ActivityTracker
+from core.features.roleplay.user_state import UserStateManager
 from core.features.roleplay.limbic_engine import LimbicEngine
 from database.user_preferences import UserPreferences
 from core.features.roleplay.persona import PersonaLoader

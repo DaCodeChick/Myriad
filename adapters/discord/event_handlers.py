@@ -12,8 +12,8 @@ import discord
 from discord.ext import tasks
 
 from core.agent_core import AgentCore
-from core.autonomy_engine import AutonomyEngine
-from database.activity_tracker import ActivityTracker
+from core.features.roleplay.autonomy_engine import AutonomyEngine
+from core.features.roleplay.activity_tracker import ActivityTracker
 from adapters.discord.utils import chunk_message
 from adapters.discord.vision_processor import VisionProcessor
 

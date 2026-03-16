@@ -12,6 +12,9 @@ from core.features.roleplay.save_states_engine import SaveStatesEngine
 from core.features.roleplay.user_masks import UserMaskManager
 from core.features.roleplay.scenario import ScenarioEngine
 from core.features.roleplay.session_notes import SessionNotesManager
+from core.features.roleplay.user_state import UserStateManager
+from core.features.roleplay.activity_tracker import ActivityTracker
+from core.features.roleplay.autonomy_engine import AutonomyEngine
 
 __all__ = [
     "RoleplayFeature",
@@ -27,4 +30,7 @@ __all__ = [
     "UserMaskManager",
     "ScenarioEngine",
     "SessionNotesManager",
+    "UserStateManager",
+    "ActivityTracker",
+    "AutonomyEngine",
 ]

@@ -36,6 +36,7 @@ class ToolRegistry:
         current_user_id: Optional[str] = None,
         current_persona_id: Optional[str] = None,
         llm_provider: Optional["LLMProvider"] = None,
+        feature_tools: Optional[List[type["Tool"]]] = None,
     ):
         """
         Initialize the tool registry with available tools.
@@ -47,6 +48,7 @@ class ToolRegistry:
             current_user_id: Current user ID (needed for inject_emotion context)
             current_persona_id: Current persona ID (needed for inject_emotion context)
             llm_provider: Optional LLM provider instance (for tools like image generation)
+            feature_tools: Optional list of tool classes from features (e.g., roleplay tools)
         """
         # Create tool context for dependency injection
         self.context = ToolContext(
@@ -68,9 +70,38 @@ class ToolRegistry:
         # Load built-in tools
         self._load_builtin_tools()
 
+        # Load feature-specific tools if provided
+        if feature_tools:
+            self._load_feature_tools(feature_tools)
+
     def _load_builtin_tools(self) -> None:
         """Load all built-in tools from the core/tools/ directory."""
         for tool_class in BUILTIN_TOOLS:
+            # Instantiate the tool with context
+            tool_instance = tool_class(self.context)
+
+            # Only register tools that can execute (have required dependencies)
+            if tool_instance.can_execute():
+                self.tool_instances[tool_instance.name] = tool_instance
+
+                # Build tool definition in OpenAI function calling format
+                self.tools[tool_instance.name] = {
+                    "type": "function",
+                    "function": {
+                        "name": tool_instance.name,
+                        "description": tool_instance.description,
+                        "parameters": tool_instance.parameters,
+                    },
+                }
+
+    def _load_feature_tools(self, feature_tools: List[type["Tool"]]) -> None:
+        """
+        Load feature-specific tools (e.g., roleplay tools).
+
+        Args:
+            feature_tools: List of tool classes from features
+        """
+        for tool_class in feature_tools:
             # Instantiate the tool with context
             tool_instance = tool_class(self.context)
 
