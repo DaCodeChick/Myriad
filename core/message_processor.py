@@ -12,6 +12,7 @@ Refactored to use modular provider system for LLM backends.
 """
 
 import re
+import asyncio
 from typing import List, Dict, Optional, TYPE_CHECKING, Tuple
 
 from core.persona import PersonaCartridge
@@ -76,6 +77,22 @@ class MessageProcessor:
         self.user_mask_manager = user_mask_manager
         self.user_preferences_manager = user_preferences_manager
         self.session_notes = session_notes
+
+    def get_pending_images(
+        self, tool_registry: Optional[ToolRegistry]
+    ) -> List[Tuple[bytes, str]]:
+        """
+        Retrieve any images generated during the last message processing.
+
+        Args:
+            tool_registry: Tool registry that may contain pending images
+
+        Returns:
+            List of (image_bytes, mime_type) tuples
+        """
+        if tool_registry and hasattr(tool_registry, "get_pending_images"):
+            return tool_registry.get_pending_images()
+        return []
 
     def process(
         self,
@@ -238,8 +255,19 @@ class MessageProcessor:
 
                         print(f"[Tool Call {tool_iterations}] {tool_name}({tool_args})")
 
-                        # Execute the tool
-                        result = tool_registry.execute_tool(tool_name, tool_args)
+                        # Execute the tool (async if available)
+                        # Check if this is the generate_image tool which needs async
+                        if tool_name == "generate_image" and hasattr(
+                            tool_registry, "execute_tool_async"
+                        ):
+                            # Run async tool in event loop
+                            result = asyncio.run(
+                                tool_registry.execute_tool_async(tool_name, tool_args)
+                            )
+                        else:
+                            # Use sync execution for other tools
+                            result = tool_registry.execute_tool(tool_name, tool_args)
+
                         tool_response_text = format_tool_response(tool_name, result)
 
                         print(f"[Tool Result] {result}")

@@ -8,7 +8,7 @@ CRITICAL: This module must remain platform-agnostic (no Discord imports).
 """
 
 import json
-from typing import Dict, Any, List, Optional, TYPE_CHECKING
+from typing import Dict, Any, List, Optional, TYPE_CHECKING, Tuple
 
 from core.tools import BUILTIN_TOOLS, ToolContext
 
@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from database.limbic_engine import LimbicEngine
     from database.limbic_modifiers import DigitalPharmacy
     from core.tools.base import Tool
+    from core.providers.base import LLMProvider
 
 
 class ToolRegistry:
@@ -34,6 +35,7 @@ class ToolRegistry:
         digital_pharmacy: Optional["DigitalPharmacy"] = None,
         current_user_id: Optional[str] = None,
         current_persona_id: Optional[str] = None,
+        llm_provider: Optional["LLMProvider"] = None,
     ):
         """
         Initialize the tool registry with available tools.
@@ -44,6 +46,7 @@ class ToolRegistry:
             digital_pharmacy: Optional DigitalPharmacy instance for substance tools
             current_user_id: Current user ID (needed for inject_emotion context)
             current_persona_id: Current persona ID (needed for inject_emotion context)
+            llm_provider: Optional LLM provider instance (for tools like image generation)
         """
         # Create tool context for dependency injection
         self.context = ToolContext(
@@ -52,11 +55,15 @@ class ToolRegistry:
             digital_pharmacy=digital_pharmacy,
             current_user_id=current_user_id,
             current_persona_id=current_persona_id,
+            llm_provider=llm_provider,
         )
 
         # Storage for tool instances and definitions
         self.tool_instances: Dict[str, "Tool"] = {}
         self.tools: Dict[str, Dict[str, Any]] = {}
+
+        # Storage for generated images (cleared after retrieval)
+        self.pending_images: List[Tuple[bytes, str]] = []
 
         # Load built-in tools
         self._load_builtin_tools()
@@ -196,6 +203,64 @@ class ToolRegistry:
                 "error": f"Tool execution error: {str(e)}",
                 "result": None,
             }
+
+    async def execute_tool_async(
+        self, tool_name: str, arguments: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Execute a tool asynchronously by name with the provided arguments.
+
+        Stores generated images in self.pending_images for later retrieval.
+
+        Args:
+            tool_name: Name of the tool to execute
+            arguments: Dictionary of arguments to pass to the tool
+
+        Returns:
+            Dictionary with 'success', 'result', and optional 'error' keys
+        """
+        if tool_name not in self.tool_instances:
+            return {
+                "success": False,
+                "error": f"Unknown tool: {tool_name}",
+                "result": None,
+            }
+
+        try:
+            tool = self.tool_instances[tool_name]
+
+            # Check if tool has async execution method
+            if hasattr(tool, "execute_async"):
+                result = await tool.execute_async(**arguments)  # type: ignore
+            else:
+                # Fall back to sync execution
+                result = tool.execute(**arguments)
+
+            # Check if result contains images (from image generation tool)
+            if isinstance(result, dict) and "images" in result:
+                images = result.get("images", [])
+                if images:
+                    # Store images for later retrieval
+                    self.pending_images.extend(images)
+
+            return {"success": True, "result": result, "error": None}
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Tool execution error: {str(e)}",
+                "result": None,
+            }
+
+    def get_pending_images(self) -> List[Tuple[bytes, str]]:
+        """
+        Retrieve and clear pending images from image generation.
+
+        Returns:
+            List of (image_bytes, mime_type) tuples
+        """
+        images = self.pending_images.copy()
+        self.pending_images.clear()
+        return images
 
 
 def parse_tool_call(response: str) -> Optional[Dict[str, Any]]:

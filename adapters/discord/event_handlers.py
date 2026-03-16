@@ -4,6 +4,7 @@ Discord event handlers for Project Myriad.
 Handles Discord events like on_ready, on_message, and autonomy check loops.
 """
 
+import io
 import os
 from typing import Optional, Callable, Awaitable
 
@@ -259,7 +260,7 @@ class EventHandlers:
         # Show typing indicator
         async with message.channel.typing():
             # Process message through AgentCore (with native vision or description)
-            response = self.agent_core.process_message(
+            response, generated_images = self.agent_core.process_message(
                 user_id=user_id,
                 message=content,
                 memory_visibility="ISOLATED",  # Default to persona-specific memories
@@ -278,3 +279,20 @@ class EventHandlers:
                 f"{message.author.mention} Error processing your message. "
                 f"Please check the bot logs."
             )
+
+        # Send any generated images
+        if generated_images:
+            print(f"[Image Gen] Sending {len(generated_images)} generated image(s)")
+            for idx, (image_bytes, mime_type) in enumerate(generated_images):
+                # Determine file extension from MIME type
+                ext = mime_type.split("/")[-1] if "/" in mime_type else "png"
+                filename = f"generated_image_{idx + 1}.{ext}"
+
+                # Create Discord file object
+                file = discord.File(
+                    fp=io.BytesIO(image_bytes),
+                    filename=filename,
+                )
+
+                # Send the image
+                await message.channel.send(file=file)

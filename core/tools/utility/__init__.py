@@ -2,7 +2,8 @@
 Utility tools - General-purpose helper tools.
 
 These tools provide basic utility functions like getting the current time,
-rolling dice, searching the web, searching images, searching news, and reading URLs.
+rolling dice, searching the web, searching images, searching news, reading URLs,
+and generating images.
 """
 
 from core.tools.utility.get_current_time import GetCurrentTimeTool
@@ -11,6 +12,7 @@ from core.tools.utility.search_web import SearchWebTool
 from core.tools.utility.search_web_images import SearchWebImagesTool
 from core.tools.utility.search_news import SearchNewsTool
 from core.tools.utility.read_url import ReadUrlTool
+from core.tools.utility.generate_image import GenerateImageTool
 
 __all__ = [
     "GetCurrentTimeTool",
@@ -19,4 +21,5 @@ __all__ = [
     "SearchWebImagesTool",
     "SearchNewsTool",
     "ReadUrlTool",
+    "GenerateImageTool",
 ]

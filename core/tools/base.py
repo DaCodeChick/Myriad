@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from database.graph_memory import GraphMemory
     from database.limbic_engine import LimbicEngine
     from database.limbic_modifiers import DigitalPharmacy
+    from core.providers.base import LLMProvider
 
 
 @dataclass
@@ -32,6 +33,9 @@ class ToolContext:
     digital_pharmacy: Optional["DigitalPharmacy"] = None
     current_user_id: Optional[str] = None
     current_persona_id: Optional[str] = None
+    llm_provider: Optional["LLMProvider"] = (
+        None  # For tools that need LLM access (e.g., image generation)
+    )
 
 
 class Tool(ABC):

@@ -171,13 +171,14 @@ class AgentCore:
         # Session Notes Manager (Silent meta-level context injection)
         self.session_notes = SessionNotesManager(db_path=db_path)
 
-        # Tool Registry (pass graph_memory, limbic_engine, and digital_pharmacy)
+        # Tool Registry (pass graph_memory, limbic_engine, digital_pharmacy, and provider)
         # NOTE: user_id and persona_id will be passed when creating tool registry per message
         self.base_tool_registry = (
             ToolRegistry(
                 graph_memory=self.graph_memory,
                 limbic_engine=self.limbic_engine,
                 digital_pharmacy=self.digital_pharmacy,
+                llm_provider=self.provider,  # Pass provider for tools like image generation
             )
             if config.tools.enabled
             else None
@@ -378,7 +379,7 @@ class AgentCore:
         memory_visibility: str = None,
         vision_description: Optional[str] = None,
         image_data: Optional[List[Tuple[bytes, str]]] = None,
-    ) -> Optional[str]:
+    ) -> Tuple[Optional[str], List[Tuple[bytes, str]]]:
         """
         Process a user message and generate a response.
 
@@ -397,13 +398,14 @@ class AgentCore:
             image_data: Optional list of (image_bytes, mime_type) tuples for native vision
 
         Returns:
-            AI response string, or None if no active persona
+            Tuple of (AI response string or None, list of generated images)
+            Generated images are (image_bytes, mime_type) tuples from image generation tool
         """
         # Get active personas (Ensemble Mode support)
         personas = self.get_active_personas(user_id)
 
         if not personas:
-            return None
+            return None, []  # Return empty images list
 
         # Primary persona (first in list) for backwards compatibility
         persona = personas[0]
@@ -437,6 +439,7 @@ class AgentCore:
                 digital_pharmacy=self.digital_pharmacy,
                 current_user_id=user_id,
                 current_persona_id=persona.persona_id,
+                llm_provider=self.provider,  # Pass provider for tools like image generation
             )
 
         # If vision description is provided, prepend it to the message
@@ -497,7 +500,7 @@ class AgentCore:
         )
 
         if not final_response:
-            return None
+            return None, []
 
         # Save final assistant response to memory
         save_message("assistant", final_response)
@@ -506,7 +509,10 @@ class AgentCore:
         # Keeping this would create duplicate console output
         # logger.log_ai_message(persona.persona_id, final_response)
 
-        return final_response
+        # Retrieve any generated images from the tool registry
+        generated_images = self.message_processor.get_pending_images(tool_registry)
+
+        return final_response, generated_images
 
     # ========================
     # UTILITY METHODS
