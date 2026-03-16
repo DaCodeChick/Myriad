@@ -5,7 +5,7 @@ Provider implementation for OpenAI API and OpenAI-compatible endpoints
 (e.g., local models via KoboldCPP, LM Studio, text-generation-webui, etc.)
 """
 
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from openai import OpenAI
 
 from core.providers.base import LLMProvider
@@ -45,6 +45,7 @@ class OpenAIProvider(LLMProvider):
         messages: List[Dict[str, str]],
         temperature: float = 0.9,
         max_tokens: int = 500,
+        **kwargs: Any,
     ) -> Optional[str]:
         """
         Generate a response using OpenAI-compatible API.
@@ -53,6 +54,7 @@ class OpenAIProvider(LLMProvider):
             messages: Conversation history in OpenAI format
             temperature: Sampling temperature (0.0-2.0)
             max_tokens: Maximum tokens to generate
+            **kwargs: Additional provider-specific parameters (ignored)
 
         Returns:
             Generated response string, or None on error

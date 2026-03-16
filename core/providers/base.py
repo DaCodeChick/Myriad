@@ -6,7 +6,7 @@ Ensures consistent API across different backends (OpenAI, Gemini, Anthropic, etc
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple, Any
 
 
 class LLMProvider(ABC):
@@ -23,6 +23,7 @@ class LLMProvider(ABC):
         messages: List[Dict[str, str]],
         temperature: float = 0.9,
         max_tokens: int = 500,
+        **kwargs: Any,
     ) -> Optional[str]:
         """
         Generate a response from the LLM.
@@ -32,9 +33,13 @@ class LLMProvider(ABC):
                      [{"role": "system|user|assistant", "content": "..."}]
             temperature: Sampling temperature (0.0-2.0)
             max_tokens: Maximum tokens to generate
+            **kwargs: Provider-specific parameters (e.g., image_data for vision models)
 
         Returns:
             Generated response string, or None on error
+
+        Provider-Specific Parameters:
+            image_data (Gemini): List of (image_bytes, mime_type) tuples for vision
         """
         pass
 
