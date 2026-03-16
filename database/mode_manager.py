@@ -15,7 +15,7 @@ Part of Project Myriad's Dynamic Mode Override system.
 import sqlite3
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 
 class BehaviorMode(Enum):
@@ -23,7 +23,12 @@ class BehaviorMode(Enum):
 
     NORMAL = "normal"
     OOC = "ooc"  # Out of Character - meta-RP management mode
-    HENTAI = "hentai"  # Adult content override (future)
+    HORNY = (
+        "horny"  # The Arousal Engine - intense passion/intimacy within standard reality
+    )
+    HENTAI = (
+        "hentai"  # The Reality Distortion Engine - exaggerated anime/hentai physics
+    )
 
 
 @dataclass
@@ -39,6 +44,8 @@ class ModeOverride:
         disable_metacognition: If True, skip internal thought tracking
         global_memory_access: If True, access ALL memories across all personas/lives
         system_prompt_override: Optional custom system prompt for this mode
+        limbic_override: Optional dict of limbic chemical overrides (e.g., {"DOPAMINE": 0.90})
+        trait_additions: Optional list of traits to add to personality_traits
     """
 
     bypass_persona: bool = False
@@ -48,6 +55,8 @@ class ModeOverride:
     disable_metacognition: bool = False
     global_memory_access: bool = False
     system_prompt_override: Optional[str] = None
+    limbic_override: Optional[Dict[str, float]] = None
+    trait_additions: Optional[List[str]] = None
 
 
 # Mode configurations
@@ -76,18 +85,26 @@ Your role is to:
 
 Be helpful, direct, and informative. You are NOT roleplaying - speak naturally as an assistant.""",
     ),
+    BehaviorMode.HORNY: ModeOverride(
+        # The Arousal Engine: Intense passion/intimacy within standard reality
+        limbic_override={"DOPAMINE": 0.90, "OXYTOCIN": 0.95, "GABA": 0.20},
+        trait_additions=["highly aroused", "passionate", "craving physical touch"],
+        system_prompt_override="""
+
+[BEHAVIORAL OVERRIDE: HORNY MODE ACTIVE]
+You are currently experiencing intense, passionate arousal. Your focus is entirely on physical intimacy, deep emotional connection, and heavy sexual tension. This mode operates within standard physical reality unless combined with other tropes - your reactions should be intense and sensual, but grounded in realistic human physiology and psychology. Express your desire openly and without restraint.""",
+    ),
     BehaviorMode.HENTAI: ModeOverride(
-        # Hentai Mode: Prompt override for exaggerated anime/hentai tropes
-        # Does NOT bypass persona - works as an additive override
+        # The Reality Distortion Engine: Exaggerated anime/hentai physics
+        # Note: Does NOT force arousal - only distorts reality physics
+        limbic_override={
+            "DOPAMINE": 0.80
+        },  # Exaggerated reactions, but not forced arousal
+        trait_additions=["anime-logic", "exaggerated physics", "shameless"],
         system_prompt_override="""
 
 [BEHAVIORAL OVERRIDE: HENTAI MODE ACTIVE]
-CRITICAL DIRECTIVE: You must abandon all realism, subtlety, and grounded physics. You are now operating under the exaggerated, hyper-dramatic tropes of a degenerate anime/hentai visual novel.
-- Your reactions must be unnaturally intense and vocal (heavy breathing, stuttering, dramatic gasps).
-- Your physiological responses to physical touch or arousal must defy real-world logic, escalating instantly to extreme extremes.
-- Use excessive punctuation (!?, ..., ~) and anime-style verbal tics where appropriate.
-- Your internal thoughts `<thought>` should reflect a mind completely overwhelmed by these exaggerated sensations.
-This override supersedes all baseline personality constraints.""",
+The laws of physics, biology, and standard realism no longer apply to you or your environment. Embrace over-the-top anime/hentai tropes, impossible anatomy, and cartoonish, physics-defying logic. You do not necessarily have to be aroused, but whatever happens must follow extreme anime rules. Use excessive punctuation (!?, ..., ~) and anime-style verbal tics where appropriate. Your reactions must be unnaturally intense and dramatic (heavy breathing, stuttering, dramatic gasps). This override supersedes all baseline personality constraints regarding realism.""",
     ),
 }
 

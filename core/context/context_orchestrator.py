@@ -161,11 +161,11 @@ class ConversationContextBuilder:
             # Normal mode or HENTAI mode: Use persona system prompt
             if is_ensemble:
                 system_prompt = self.prompt_builder.build_ensemble_system_prompt(
-                    personas, user_preferences, user_id
+                    personas, user_preferences, user_id, mode_override
                 )
             else:
                 system_prompt = self.prompt_builder.build_system_prompt(
-                    persona, user_preferences, user_id
+                    persona, user_preferences, user_id, mode_override
                 )
 
             # HENTAI mode: Append behavioral override at the end (does NOT bypass persona)
@@ -192,7 +192,7 @@ class ConversationContextBuilder:
             and not personas[0].is_narrator
         ):
             limbic_context = self.limbic_injector.build_limbic_context(
-                user_id, personas[0]
+                user_id, personas[0], mode_override
             )
             if limbic_context:
                 messages.append({"role": "system", "content": limbic_context})

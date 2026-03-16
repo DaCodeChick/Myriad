@@ -1,7 +1,7 @@
 """
 Mode override commands for Discord.
 
-Handles dynamic behavioral mode switching (OOC, HENTAI, NORMAL).
+Handles dynamic behavioral mode switching (OOC, HORNY, HENTAI, NORMAL).
 """
 
 import discord
@@ -24,14 +24,14 @@ def register_mode_commands(bot: "MyriadDiscordBot") -> None:
     """
 
     @bot.tree.command(
-        name="mode", description="Switch behavioral mode (normal, ooc, hentai)"
+        name="mode", description="Switch behavioral mode (normal, ooc, horny, hentai)"
     )
     @app_commands.describe(
-        mode="The behavioral mode to activate (normal, ooc, or hentai)"
+        mode="The behavioral mode to activate (normal, ooc, horny, or hentai)"
     )
     async def mode_switch(
         interaction: discord.Interaction,
-        mode: Literal["normal", "ooc", "hentai"],
+        mode: Literal["normal", "ooc", "horny", "hentai"],
     ):
         """
         Switch the user's active behavioral mode.
@@ -39,7 +39,8 @@ def register_mode_commands(bot: "MyriadDiscordBot") -> None:
         Modes:
         - normal: Standard persona behavior
         - ooc: Out of Character - meta-RP management with global memory access
-        - hentai: Adult content override (future implementation)
+        - horny: The Arousal Engine - intense passion/intimacy within standard reality
+        - hentai: The Reality Distortion Engine - exaggerated anime/hentai physics
         """
         user_id = str(interaction.user.id)
 
@@ -61,16 +62,29 @@ def register_mode_commands(bot: "MyriadDiscordBot") -> None:
                     "• Help you manage RP sessions, timelines, and character development\n\n"
                     "Use `/mode normal` to return to standard roleplay mode."
                 )
+            elif mode_enum == BehaviorMode.HORNY:
+                response = (
+                    "🔥 **HORNY Mode Activated (The Arousal Engine)**\n\n"
+                    "Your persona is now experiencing intense, passionate arousal:\n"
+                    "• LIMBIC OVERRIDE: DOPAMINE 0.90, OXYTOCIN 0.95, GABA 0.20\n"
+                    "• TRAITS ADDED: highly aroused, passionate, craving physical touch\n"
+                    "• Focus entirely on physical intimacy and deep emotional connection\n"
+                    "• Heavy sexual tension within standard physical reality\n"
+                    "• Grounded in realistic human physiology and psychology\n\n"
+                    "⚠️ This mode operates within standard reality (not exaggerated anime physics).\n\n"
+                    "Use `/mode normal` to return to standard roleplay mode."
+                )
             elif mode_enum == BehaviorMode.HENTAI:
                 response = (
-                    "🔞 **HENTAI Mode Activated**\n\n"
-                    "Behavioral override applied. Your persona will now:\n"
-                    "• Adopt exaggerated anime/hentai visual novel tropes\n"
-                    "• React with unnaturally intense, vocal responses\n"
-                    "• Escalate physiological reactions beyond realistic limits\n"
-                    "• Use excessive punctuation and anime-style verbal tics\n"
-                    "• Display hyper-dramatic emotional/physical responses\n\n"
-                    "⚠️ This override supersedes baseline personality constraints.\n\n"
+                    "🔞 **HENTAI Mode Activated (The Reality Distortion Engine)**\n\n"
+                    "Physics and biology no longer apply. Your persona will now:\n"
+                    "• LIMBIC OVERRIDE: DOPAMINE 0.80 (exaggerated reactions)\n"
+                    "• TRAITS ADDED: anime-logic, exaggerated physics, shameless\n"
+                    "• Abandon all realism and embrace cartoonish anime/hentai tropes\n"
+                    "• Use impossible anatomy and physics-defying reactions\n"
+                    "• React with unnaturally intense, dramatic responses\n"
+                    "• Use excessive punctuation (!?, ..., ~) and anime-style verbal tics\n\n"
+                    "⚠️ This mode does NOT force arousal - only distorts reality physics.\n\n"
                     "Use `/mode normal` to return to standard roleplay mode."
                 )
             else:  # NORMAL
@@ -109,6 +123,7 @@ def register_mode_commands(bot: "MyriadDiscordBot") -> None:
         status_emoji = {
             BehaviorMode.NORMAL: "✅",
             BehaviorMode.OOC: "🔧",
+            BehaviorMode.HORNY: "🔥",
             BehaviorMode.HENTAI: "🔞",
         }
 
@@ -126,6 +141,14 @@ def register_mode_commands(bot: "MyriadDiscordBot") -> None:
                 response += (
                     "• Prompt override appended to persona (behavioral modification)\n"
                 )
+            if mode_override.limbic_override:
+                override_str = ", ".join(
+                    f"{k}={v}" for k, v in mode_override.limbic_override.items()
+                )
+                response += f"• Limbic Override: {override_str}\n"
+            if mode_override.trait_additions:
+                traits_str = ", ".join(mode_override.trait_additions)
+                response += f"• Trait Additions: {traits_str}\n"
             if mode_override.disable_limbic:
                 response += "• Limbic System disabled\n"
             if mode_override.disable_cadence:
@@ -139,7 +162,7 @@ def register_mode_commands(bot: "MyriadDiscordBot") -> None:
         else:
             response += "No overrides active. Standard persona behavior."
 
-        response += "\n\nUse `/mode <normal|ooc|hentai>` to switch modes."
+        response += "\n\nUse `/mode <normal|ooc|horny|hentai>` to switch modes."
 
         await interaction.response.send_message(
             response,

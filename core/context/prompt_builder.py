@@ -15,6 +15,7 @@ from core.persona import PersonaCartridge
 from database.user_masks import UserMaskManager
 from database.scenario import ScenarioEngine
 from database.metacognition_engine import MetacognitionEngine
+from database.mode_manager import ModeOverride
 from core.tool_registry import ToolRegistry
 
 
@@ -46,7 +47,11 @@ class PromptBuilder:
         self.metacognition_engine = metacognition_engine
 
     def build_system_prompt(
-        self, persona: PersonaCartridge, user_preferences: Dict[str, bool], user_id: str
+        self,
+        persona: PersonaCartridge,
+        user_preferences: Dict[str, bool],
+        user_id: str,
+        mode_override: Optional[ModeOverride] = None,
     ) -> str:
         """
         Build the complete system prompt including universal rules, persona identity,
@@ -55,11 +60,15 @@ class PromptBuilder:
         Applies relationship overrides if the user has an active mask that matches
         a relationship in the persona's relationships array.
 
+        Applies mode trait additions if present (e.g., HORNY mode adds ["highly aroused", "passionate", "craving physical touch"]).
+
         Special handling for narrator personas (is_narrator=True).
         """
         # Check if this is a Narrator/DM persona
         if persona.is_narrator:
-            return self.build_narrator_system_prompt(persona, user_preferences, user_id)
+            return self.build_narrator_system_prompt(
+                persona, user_preferences, user_id, mode_override
+            )
 
         # Check for relationship overrides based on active user mask
         # Special handling: If no mask is active, check for "@user" relationship
@@ -173,8 +182,12 @@ class PromptBuilder:
                     )
 
         # Add personality traits (either from relationship override or base persona)
+        # Also add mode trait additions if present (e.g., HORNY mode)
         content += "\n\n# [PERSONALITY TRAITS]\n"
-        content += "\n".join(f"- {trait}" for trait in effective_personality_traits)
+        all_traits = list(effective_personality_traits)
+        if mode_override and mode_override.trait_additions:
+            all_traits.extend(mode_override.trait_additions)
+        content += "\n".join(f"- {trait}" for trait in all_traits)
 
         # Add rules of engagement (either from relationship override or base persona)
         content += "\n\n# [RULES OF ENGAGEMENT]\n"
@@ -204,7 +217,11 @@ class PromptBuilder:
         return content
 
     def build_narrator_system_prompt(
-        self, persona: PersonaCartridge, user_preferences: Dict[str, bool], user_id: str
+        self,
+        persona: PersonaCartridge,
+        user_preferences: Dict[str, bool],
+        user_id: str,
+        mode_override: Optional[ModeOverride] = None,
     ) -> str:
         """
         Build system prompt for Narrator/Dungeon Master personas.
@@ -263,8 +280,12 @@ class PromptBuilder:
                     )
 
         # Add personality traits
+        # Also add mode trait additions if present (for consistency with regular personas)
         content += "\n\n# [NARRATIVE STYLE]\n"
-        content += "\n".join(f"- {trait}" for trait in persona.personality_traits)
+        all_traits = list(persona.personality_traits)
+        if mode_override and mode_override.trait_additions:
+            all_traits.extend(mode_override.trait_additions)
+        content += "\n".join(f"- {trait}" for trait in all_traits)
 
         # Add rules of engagement (storytelling guidelines)
         content += "\n\n# [STORYTELLING GUIDELINES]\n"
@@ -302,6 +323,7 @@ class PromptBuilder:
         personas: List[PersonaCartridge],
         user_preferences: Dict[str, bool],
         user_id: str,
+        mode_override: Optional[ModeOverride] = None,
     ) -> str:
         """
         Build system prompt for Ensemble Mode (multiple active personas).
@@ -338,7 +360,10 @@ class PromptBuilder:
                 content += f"**Appearance:** {persona.cached_appearance}\n\n"
 
             content += "**Personality:**\n"
-            content += "\n".join(f"- {trait}" for trait in persona.personality_traits)
+            all_traits = list(persona.personality_traits)
+            if mode_override and mode_override.trait_additions:
+                all_traits.extend(mode_override.trait_additions)
+            content += "\n".join(f"- {trait}" for trait in all_traits)
             content += "\n\n"
 
             content += "**Rules:**\n"
