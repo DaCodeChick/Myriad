@@ -180,9 +180,8 @@ class MessageProcessor:
 
         while tool_iterations < self.max_tool_iterations:
             try:
-                # Log request to LLM
-                logger = get_logger()
-                logger.log_brain_request(persona.persona_id, len(messages))
+                # Note: Brain request logging removed - only thoughts are logged to console
+                # File logging still captures all LLM activity
 
                 # Call LLM API
                 response = self.client.chat.completions.create(
@@ -198,8 +197,9 @@ class MessageProcessor:
                 if not assistant_message:
                     return None
 
-                # Log response from LLM
-                logger.log_brain_response(persona.persona_id, assistant_message)
+                # Note: Brain response logging is handled later after thought extraction
+                # to avoid duplicate output. Thoughts are logged separately as narrative.
+                # The final clean response (without <thought> tags) will be logged if needed.
 
                 # Check if this is a tool call
                 if tool_registry:
