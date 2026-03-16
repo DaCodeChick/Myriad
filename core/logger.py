@@ -164,20 +164,13 @@ class MyriadLogger:
         timestamp = self._format_timestamp()
         timestamp_file = self._format_timestamp_file()
 
-        # Truncate preview to 100 chars for console
-        preview = (
-            response_preview[:100] + "..."
-            if len(response_preview) > 100
-            else response_preview
-        )
-
-        # Console output
+        # Console output - no truncation
         if self.brain_console_enabled:
             print(
-                f"{self.COLOR_TIMESTAMP}[{timestamp}]{self.COLOR_RESET} {self.COLOR_AI}[{persona_name}]:{self.COLOR_RESET} {preview}"
+                f"{self.COLOR_TIMESTAMP}[{timestamp}]{self.COLOR_RESET} {self.COLOR_AI}[{persona_name}]:{self.COLOR_RESET} {response_preview}"
             )
 
-        # File output (full response, not truncated)
+        # File output (full response)
         if self.brain_file_enabled:
             log_msg = f"[{timestamp_file}] [BRAIN RESPONSE: {persona_name}] {response_preview}"
             self._write_to_file(self.brain_log_file, log_msg)
