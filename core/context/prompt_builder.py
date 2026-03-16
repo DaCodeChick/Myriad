@@ -184,14 +184,17 @@ class PromptBuilder:
         # Add personality traits (either from relationship override or base persona)
         # Also add mode trait additions if present (e.g., HORNY mode)
         content += "\n\n# [PERSONALITY TRAITS]\n"
-        all_traits = list(effective_personality_traits)
+        all_traits = (
+            list(effective_personality_traits) if effective_personality_traits else []
+        )
         if mode_override and mode_override.trait_additions:
             all_traits.extend(mode_override.trait_additions)
         content += "\n".join(f"- {trait}" for trait in all_traits)
 
         # Add rules of engagement (either from relationship override or base persona)
         content += "\n\n# [RULES OF ENGAGEMENT]\n"
-        content += "\n".join(f"- {rule}" for rule in effective_rules)
+        rules = effective_rules if effective_rules else []
+        content += "\n".join(f"- {rule}" for rule in rules)
 
         # Add tool definitions if enabled
         if self.tool_registry and user_preferences.get("tools_enabled", True):
@@ -282,14 +285,17 @@ class PromptBuilder:
         # Add personality traits
         # Also add mode trait additions if present (for consistency with regular personas)
         content += "\n\n# [NARRATIVE STYLE]\n"
-        all_traits = list(persona.personality_traits)
+        all_traits = (
+            list(persona.personality_traits) if persona.personality_traits else []
+        )
         if mode_override and mode_override.trait_additions:
             all_traits.extend(mode_override.trait_additions)
         content += "\n".join(f"- {trait}" for trait in all_traits)
 
         # Add rules of engagement (storytelling guidelines)
         content += "\n\n# [STORYTELLING GUIDELINES]\n"
-        content += "\n".join(f"- {rule}" for rule in persona.rules_of_engagement)
+        rules = persona.rules_of_engagement if persona.rules_of_engagement else []
+        content += "\n".join(f"- {rule}" for rule in rules)
 
         # Add tool definitions (narrator can use dice, knowledge graph, etc.)
         if self.tool_registry and user_preferences.get("tools_enabled", True):
@@ -360,14 +366,17 @@ class PromptBuilder:
                 content += f"**Appearance:** {persona.cached_appearance}\n\n"
 
             content += "**Personality:**\n"
-            all_traits = list(persona.personality_traits)
+            all_traits = (
+                list(persona.personality_traits) if persona.personality_traits else []
+            )
             if mode_override and mode_override.trait_additions:
                 all_traits.extend(mode_override.trait_additions)
             content += "\n".join(f"- {trait}" for trait in all_traits)
             content += "\n\n"
 
             content += "**Rules:**\n"
-            content += "\n".join(f"- {rule}" for rule in persona.rules_of_engagement)
+            rules = persona.rules_of_engagement if persona.rules_of_engagement else []
+            content += "\n".join(f"- {rule}" for rule in rules)
             content += "\n\n---\n\n"
 
         # Add ensemble coordination rules
