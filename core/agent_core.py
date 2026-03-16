@@ -88,8 +88,11 @@ class AgentCore:
 
         # Initialize global logger
         initialize_logger(
-            brain_logging_enabled=config.logging.brain_logging_enabled,
-            eyes_logging_enabled=config.logging.eyes_logging_enabled,
+            brain_console_enabled=config.logging.brain_console_enabled,
+            eyes_console_enabled=config.logging.eyes_console_enabled,
+            brain_file_enabled=config.logging.brain_file_enabled,
+            eyes_file_enabled=config.logging.eyes_file_enabled,
+            log_dir=config.logging.log_dir,
         )
 
         # Universal Rules - use provided rules or fall back to defaults

@@ -170,19 +170,31 @@ class UniversalRulesConfig:
 
 @dataclass
 class LoggingConfig:
-    """Console logging configuration."""
+    """Logging configuration for console and file output."""
 
-    brain_logging_enabled: bool = False
-    eyes_logging_enabled: bool = False
+    brain_console_enabled: bool = False
+    eyes_console_enabled: bool = False
+    brain_file_enabled: bool = False
+    eyes_file_enabled: bool = False
+    log_dir: str = "logs"
 
     @classmethod
     def from_env(cls) -> "LoggingConfig":
         """Load logging configuration from environment variables."""
         return cls(
-            brain_logging_enabled=os.getenv("ENABLE_BRAIN_LOGGING", "false").lower()
+            brain_console_enabled=os.getenv(
+                "ENABLE_BRAIN_CONSOLE_LOGGING", "false"
+            ).lower()
             == "true",
-            eyes_logging_enabled=os.getenv("ENABLE_EYES_LOGGING", "false").lower()
+            eyes_console_enabled=os.getenv(
+                "ENABLE_EYES_CONSOLE_LOGGING", "false"
+            ).lower()
             == "true",
+            brain_file_enabled=os.getenv("ENABLE_BRAIN_FILE_LOGGING", "false").lower()
+            == "true",
+            eyes_file_enabled=os.getenv("ENABLE_EYES_FILE_LOGGING", "false").lower()
+            == "true",
+            log_dir=os.getenv("LOG_DIR", "logs"),
         )
 
 
