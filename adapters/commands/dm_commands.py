@@ -74,13 +74,25 @@ def register_dm_commands(bot: "MyriadDiscordBot") -> None:
                 importance_score=7,
             )
 
+            # Save current active persona to restore later
+            current_persona = bot.agent_core.get_active_persona(user_id)
+            current_persona_id = current_persona.persona_id if current_persona else None
+
+            # Temporarily switch to narrator persona
+            bot.agent_core.persona_manager.set_active_persona(user_id, "narrator")
+
             # Generate narrator response using the narrator persona
-            response = await bot.agent_core.process_message(
+            response = bot.agent_core.process_message(
                 user_id=user_id,
                 message=narration,
-                persona_id="narrator",
-                ensemble_mode=False,
+                memory_visibility="GLOBAL",
             )
+
+            # Restore original persona if there was one
+            if current_persona_id:
+                bot.agent_core.persona_manager.set_active_persona(
+                    user_id, current_persona_id
+                )
 
             # Send the narration to the channel
             await interaction.followup.send(response)
