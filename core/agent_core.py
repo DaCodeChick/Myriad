@@ -574,3 +574,45 @@ class AgentCore:
             "global": global_count,
             "isolated": isolated_count,
         }
+
+    # ========================
+    # BACKWARD COMPATIBILITY DELEGATION PROPERTIES
+    # ========================
+    # These properties delegate to the roleplay feature for backward compatibility
+    # with existing commands and code that access these attributes directly.
+
+    @property
+    def lives_engine(self):
+        """Access lives_engine from roleplay feature (backward compatibility)."""
+        roleplay_feature = self.features.get("roleplay")
+        return roleplay_feature.lives_engine if roleplay_feature else None
+
+    @property
+    def save_states_engine(self):
+        """Access save_states_engine from roleplay feature (backward compatibility)."""
+        roleplay_feature = self.features.get("roleplay")
+        return roleplay_feature.save_states_engine if roleplay_feature else None
+
+    @property
+    def mode_manager(self):
+        """Access mode_manager from roleplay feature (backward compatibility)."""
+        roleplay_feature = self.features.get("roleplay")
+        return roleplay_feature.mode_manager if roleplay_feature else None
+
+    @property
+    def limbic_engine(self):
+        """Access limbic_engine from roleplay feature (backward compatibility)."""
+        roleplay_feature = self.features.get("roleplay")
+        return roleplay_feature.limbic_engine if roleplay_feature else None
+
+    @property
+    def persona_manager(self):
+        """Access persona_manager from roleplay feature (backward compatibility)."""
+        roleplay_feature = self.features.get("roleplay")
+        return roleplay_feature.persona_manager if roleplay_feature else None
+
+    @property
+    def scenario_engine(self):
+        """Access scenario_engine from roleplay feature (backward compatibility)."""
+        roleplay_feature = self.features.get("roleplay")
+        return roleplay_feature.scenario_engine if roleplay_feature else None
