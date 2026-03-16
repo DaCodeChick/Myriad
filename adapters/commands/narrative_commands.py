@@ -76,7 +76,6 @@ def register_narrative_commands(bot: "MyriadDiscordBot") -> None:
                 content=narration,
                 visibility_scope="GLOBAL",
                 life_id=life_id or "",
-                importance_score=7,  # Narration is important context
             )
 
             await interaction.response.send_message(
@@ -150,7 +149,6 @@ def register_narrative_commands(bot: "MyriadDiscordBot") -> None:
                 content=improvise_directive,
                 visibility_scope="GLOBAL",
                 life_id=life_id or "",
-                importance_score=3,  # Low importance - just a modifier
             )
 
             await interaction.response.send_message(
@@ -254,7 +252,6 @@ def register_narrative_commands(bot: "MyriadDiscordBot") -> None:
                 content=retcon_directive,
                 visibility_scope="GLOBAL",
                 life_id=life_id or "",
-                importance_score=9,  # Very important - requires immediate action
             )
 
             # Trigger a regeneration by calling process_message with empty message
