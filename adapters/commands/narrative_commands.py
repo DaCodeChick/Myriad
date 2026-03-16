@@ -262,8 +262,6 @@ def register_narrative_commands(bot: "MyriadDiscordBot") -> None:
             response = await bot.agent_core.process_message(
                 user_id=user_id,
                 message="[Apply retcon and regenerate last response]",
-                persona_id=persona.persona_id,
-                ensemble_mode=len(personas) > 1,
             )
 
             # Send confirmation with preview of new response
