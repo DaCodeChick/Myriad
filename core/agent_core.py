@@ -19,7 +19,7 @@ REFACTORED (RDSSC):
 - Phase 5: Refactored to use modular provider system
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 
 from core.config import MyriadConfig
 from core.providers import ProviderFactory
@@ -377,6 +377,7 @@ class AgentCore:
         message: str,
         memory_visibility: str = None,
         vision_description: Optional[str] = None,
+        image_data: Optional[List[Tuple[bytes, str]]] = None,
     ) -> Optional[str]:
         """
         Process a user message and generate a response.
@@ -393,6 +394,7 @@ class AgentCore:
                              ('GLOBAL', 'USER_SHARED', or 'ISOLATED')
                              If None, uses user's default preference
             vision_description: Optional vision model description to inject into context
+            image_data: Optional list of (image_bytes, mime_type) tuples for native vision
 
         Returns:
             AI response string, or None if no active persona
@@ -491,6 +493,7 @@ class AgentCore:
             tool_registry=tool_registry,
             on_message_saved=save_message,
             user_preferences=user_preferences,
+            image_data=image_data,
         )
 
         if not final_response:

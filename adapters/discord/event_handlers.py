@@ -71,7 +71,7 @@ class EventHandlers:
         """Initialize the autonomy engine with shared resources from AgentCore."""
         try:
             self.autonomy_engine = AutonomyEngine(
-                llm_client=self.agent_core.client,
+                llm_client=self.agent_core.provider,
                 activity_tracker=self.activity_tracker,
                 user_state=self.agent_core.memory_matrix,
                 persona_loader=self.agent_core.persona_loader,
@@ -224,17 +224,47 @@ class EventHandlers:
         # Track last channel for spontaneous outreach
         self.activity_tracker.update_last_channel(user_id, str(message.channel.id))
 
-        # Process image attachments if present (Split-Brain Vision Pipeline)
-        vision_description = await self.vision_processor.process_attachments(message)
+        # Extract image attachments for native vision support (Gemini)
+        image_data = None
+        vision_description = None
+
+        if message.attachments:
+            # Check if provider supports native vision (Gemini)
+            if self.agent_core.provider.provider_name == "gemini":
+                # Extract image bytes for native Gemini vision
+                image_data = []
+                for attachment in message.attachments:
+                    if attachment.content_type and attachment.content_type.startswith(
+                        "image/"
+                    ):
+                        try:
+                            image_bytes = await attachment.read()
+                            mime_type = attachment.content_type
+                            image_data.append((image_bytes, mime_type))
+                            print(
+                                f"[Vision] Attached image: {attachment.filename} ({mime_type})"
+                            )
+                        except Exception as e:
+                            print(f"[Vision] Error downloading attachment: {e}")
+
+                # Convert to None if empty
+                if not image_data:
+                    image_data = None
+            else:
+                # Fallback to split-brain vision pipeline for non-Gemini providers
+                vision_description = await self.vision_processor.process_attachments(
+                    message
+                )
 
         # Show typing indicator
         async with message.channel.typing():
-            # Process message through AgentCore (with vision description if available)
+            # Process message through AgentCore (with native vision or description)
             response = self.agent_core.process_message(
                 user_id=user_id,
                 message=content,
                 memory_visibility="ISOLATED",  # Default to persona-specific memories
                 vision_description=vision_description,
+                image_data=image_data,
             )
 
         # Send response

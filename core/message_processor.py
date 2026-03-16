@@ -12,7 +12,7 @@ Refactored to use modular provider system for LLM backends.
 """
 
 import re
-from typing import List, Dict, Optional, TYPE_CHECKING
+from typing import List, Dict, Optional, TYPE_CHECKING, Tuple
 
 from core.persona import PersonaCartridge
 from core.providers.base import LLMProvider
@@ -85,6 +85,7 @@ class MessageProcessor:
         tool_registry: Optional[ToolRegistry] = None,
         on_message_saved: Optional[callable] = None,
         user_preferences: Optional[Dict[str, bool]] = None,
+        image_data: Optional[List[Tuple[bytes, str]]] = None,
     ) -> Optional[str]:
         """
         Process messages through the complete AI pipeline.
@@ -97,6 +98,7 @@ class MessageProcessor:
             on_message_saved: Optional callback for saving messages (assistant/tool messages)
                             Signature: on_message_saved(role: str, content: str)
             user_preferences: Optional user preference flags
+            image_data: Optional list of (image_bytes, mime_type) tuples for vision
 
         Returns:
             Final AI response string, or None on error
@@ -125,7 +127,7 @@ class MessageProcessor:
 
         # Execute tool loop and get final response
         final_response = self._execute_tool_loop(
-            messages, persona, tool_registry, on_message_saved
+            messages, persona, tool_registry, on_message_saved, image_data
         )
 
         if not final_response:
@@ -165,6 +167,7 @@ class MessageProcessor:
         persona: PersonaCartridge,
         tool_registry: Optional[ToolRegistry],
         on_message_saved: Optional[callable],
+        image_data: Optional[List[Tuple[bytes, str]]] = None,
     ) -> Optional[str]:
         """
         Execute the tool execution loop.
@@ -181,6 +184,7 @@ class MessageProcessor:
             persona: Current persona for temperature/max_tokens
             tool_registry: Optional tool registry
             on_message_saved: Optional callback for saving messages
+            image_data: Optional list of (image_bytes, mime_type) tuples for vision
 
         Returns:
             Final response string, or None on error
@@ -203,6 +207,7 @@ class MessageProcessor:
                         messages=messages,
                         temperature=persona.temperature,
                         max_tokens=persona.max_tokens,
+                        image_data=image_data if tool_iterations == 0 else None,
                     )
                 )
 
