@@ -79,7 +79,7 @@ def register_dm_commands(bot: "MyriadDiscordBot") -> None:
             current_persona_id = current_persona.persona_id if current_persona else None
 
             # Temporarily switch to narrator persona
-            bot.agent_core.persona_manager.set_active_persona(user_id, "narrator")
+            bot.agent_core.persona_manager.switch_persona(user_id, "narrator")
 
             # Generate narrator response using the narrator persona
             response = bot.agent_core.process_message(
@@ -90,7 +90,7 @@ def register_dm_commands(bot: "MyriadDiscordBot") -> None:
 
             # Restore original persona if there was one
             if current_persona_id:
-                bot.agent_core.persona_manager.set_active_persona(
+                bot.agent_core.persona_manager.switch_persona(
                     user_id, current_persona_id
                 )
 
