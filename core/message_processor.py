@@ -195,6 +195,7 @@ class MessageProcessor:
                     return None
 
                 # Log response from LLM (strip <thought> tags to avoid duplicate with thought logging)
+                logger = get_logger()
                 response_without_thoughts = re.sub(
                     r"<thought>.*?</thought>\s*", "", assistant_message, flags=re.DOTALL
                 ).strip()
