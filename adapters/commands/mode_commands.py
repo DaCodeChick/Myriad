@@ -9,7 +9,7 @@ from discord import app_commands
 from typing import TYPE_CHECKING, Literal
 
 from adapters.commands.base import ResponseFormatter
-from database.mode_manager import BehaviorMode
+from core.features.roleplay.mode_manager import BehaviorMode
 
 if TYPE_CHECKING:
     from adapters.discord_adapter import MyriadDiscordBot

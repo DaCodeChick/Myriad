@@ -18,7 +18,7 @@ import tempfile
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from database.limbic_engine import LimbicEngine
+from core.features.roleplay.limbic_engine import LimbicEngine
 
 
 def test_initial_state_is_baseline():

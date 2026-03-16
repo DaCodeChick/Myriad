@@ -11,11 +11,11 @@ Part of RDSSC refactoring - extracted from conversation_builder.py
 
 from typing import List, Dict, Optional
 
-from core.persona import PersonaCartridge
-from database.user_masks import UserMaskManager
-from database.scenario import ScenarioEngine
-from database.metacognition_engine import MetacognitionEngine
-from database.mode_manager import ModeOverride
+from core.features.roleplay.persona import PersonaCartridge
+from core.features.roleplay.user_masks import UserMaskManager
+from core.features.roleplay.scenario import ScenarioEngine
+from core.features.roleplay.metacognition_engine import MetacognitionEngine
+from core.features.roleplay.mode_manager import ModeOverride
 from core.tool_registry import ToolRegistry
 
 

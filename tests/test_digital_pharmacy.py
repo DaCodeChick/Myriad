@@ -18,8 +18,8 @@ import tempfile
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from database.limbic_engine import LimbicEngine
-from database.limbic_modifiers import DigitalPharmacy
+from core.features.roleplay.limbic_engine import LimbicEngine
+from core.features.roleplay.limbic_modifiers import DigitalPharmacy
 
 
 def test_consume_substance_xanax():

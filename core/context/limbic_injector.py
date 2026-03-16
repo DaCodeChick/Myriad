@@ -12,12 +12,12 @@ Created during RDSSC Phase 1.
 
 from typing import Dict, Optional
 
-from core.persona import PersonaCartridge
-from database.limbic_engine import LimbicEngine
-from database.limbic_modifiers import DigitalPharmacy
-from database.metacognition_engine import MetacognitionEngine
-from database.user_masks import UserMaskManager
-from database.mode_manager import ModeOverride
+from core.features.roleplay.persona import PersonaCartridge
+from core.features.roleplay.limbic_engine import LimbicEngine
+from core.features.roleplay.limbic_modifiers import DigitalPharmacy
+from core.features.roleplay.metacognition_engine import MetacognitionEngine
+from core.features.roleplay.user_masks import UserMaskManager
+from core.features.roleplay.mode_manager import ModeOverride
 
 
 class LimbicInjector:

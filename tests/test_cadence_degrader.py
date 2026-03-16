@@ -16,7 +16,7 @@ import sys
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.cadence_degrader import CadenceDegrader
+from core.features.roleplay.cadence_degrader import CadenceDegrader
 
 
 def test_panic_effects_trigger():

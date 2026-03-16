@@ -18,7 +18,7 @@ import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from database.lives_memory import LivesMemoryManager
+from core.features.roleplay.lives_memory import LivesMemoryManager
 from database.memory_repository import MemoryRepository
 from database.user_state import UserStateManager
 from database.vector_memory import VectorMemory

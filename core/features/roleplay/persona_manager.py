@@ -9,7 +9,7 @@ Extracted from AgentCore during RDSSC Phase 4.
 
 from typing import List, Optional
 
-from core.persona import PersonaLoader, PersonaCartridge
+from core.features.roleplay.persona import PersonaLoader, PersonaCartridge
 from database.memory_matrix import MemoryMatrix
 
 

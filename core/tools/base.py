@@ -15,8 +15,8 @@ from dataclasses import dataclass
 
 if TYPE_CHECKING:
     from database.graph_memory import GraphMemory
-    from database.limbic_engine import LimbicEngine
-    from database.limbic_modifiers import DigitalPharmacy
+    from core.features.roleplay.limbic_engine import LimbicEngine
+    from core.features.roleplay.limbic_modifiers import DigitalPharmacy
     from core.providers.base import LLMProvider
 
 

@@ -10,19 +10,19 @@ Created during RDSSC Phase 1.
 
 from typing import List, Dict, Optional
 
-from core.persona import PersonaCartridge
+from core.features.roleplay.persona import PersonaCartridge
 from core.context.prompt_builder import PromptBuilder
 from core.context.memory_assembler import MemoryAssembler
 from core.context.limbic_injector import LimbicInjector
 from database.memory_matrix import MemoryMatrix
 from database.graph_memory import GraphMemory
-from database.limbic_engine import LimbicEngine
-from database.limbic_modifiers import DigitalPharmacy
-from database.metacognition_engine import MetacognitionEngine
-from database.mode_manager import ModeManager
-from database.user_masks import UserMaskManager
-from database.scenario import ScenarioEngine
-from database.session_notes import SessionNotesManager
+from core.features.roleplay.limbic_engine import LimbicEngine
+from core.features.roleplay.limbic_modifiers import DigitalPharmacy
+from core.features.roleplay.metacognition_engine import MetacognitionEngine
+from core.features.roleplay.mode_manager import ModeManager
+from core.features.roleplay.user_masks import UserMaskManager
+from core.features.roleplay.scenario import ScenarioEngine
+from core.features.roleplay.session_notes import SessionNotesManager
 from core.tool_registry import ToolRegistry
 
 

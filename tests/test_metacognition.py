@@ -19,7 +19,7 @@ import re
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from database.metacognition_engine import MetacognitionEngine
+from core.features.roleplay.metacognition_engine import MetacognitionEngine
 
 
 def test_save_and_retrieve_thought():

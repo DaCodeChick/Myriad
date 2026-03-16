@@ -15,19 +15,19 @@ import re
 import asyncio
 from typing import List, Dict, Optional, TYPE_CHECKING, Tuple
 
-from core.persona import PersonaCartridge
+from core.features.roleplay.persona import PersonaCartridge
 from core.providers.base import LLMProvider
 from core.tool_registry import ToolRegistry, parse_tool_call, format_tool_response
 from core.logger import get_logger
-from database.limbic_engine import LimbicEngine
-from database.metacognition_engine import MetacognitionEngine
-from database.mode_manager import ModeManager
+from core.features.roleplay.limbic_engine import LimbicEngine
+from core.features.roleplay.metacognition_engine import MetacognitionEngine
+from core.features.roleplay.mode_manager import ModeManager
 from database.user_preferences import UserPreferences
-from core.cadence_degrader import CadenceDegrader
+from core.features.roleplay.cadence_degrader import CadenceDegrader
 
 if TYPE_CHECKING:
-    from database.user_masks import UserMaskManager
-    from database.session_notes import SessionNotesManager
+    from core.features.roleplay.user_masks import UserMaskManager
+    from core.features.roleplay.session_notes import SessionNotesManager
 
 
 class MessageProcessor:

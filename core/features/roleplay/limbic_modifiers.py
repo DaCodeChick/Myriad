@@ -17,7 +17,7 @@ import json
 import os
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
-from database.limbic_engine import LimbicEngine
+from core.features.roleplay.limbic_engine import LimbicEngine
 
 
 @dataclass

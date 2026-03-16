@@ -20,9 +20,9 @@ from openai import OpenAI
 
 from database.activity_tracker import ActivityTracker
 from database.user_state import UserStateManager
-from database.limbic_engine import LimbicEngine
+from core.features.roleplay.limbic_engine import LimbicEngine
 from database.user_preferences import UserPreferences
-from core.persona import PersonaLoader
+from core.features.roleplay.persona import PersonaLoader
 
 
 class AutonomyEngine:

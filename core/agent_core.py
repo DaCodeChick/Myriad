@@ -2,7 +2,7 @@
 AgentCore - The platform-agnostic intelligence engine for Project Myriad.
 
 This module is the central brain of the system. It:
-1. Orchestrates persona management via PersonaManager
+1. Loads feature modules (roleplay, etc.) dynamically
 2. Handles memory injection via the Automated Discretion Engine
 3. Communicates with the LLM API via modular provider system
 4. Processes messages and generates responses
@@ -17,39 +17,34 @@ REFACTORED (RDSSC):
 - Phase 3: Simplified constructor to use MyriadConfig
 - Phase 4: Extracted persona management to PersonaManager
 - Phase 5: Refactored to use modular provider system
+- Phase 6: Refactored to use modular feature system (roleplay becomes optional)
 """
 
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, cast
 
 from core.config import MyriadConfig
 from core.providers import ProviderFactory
 from core.context import ConversationContextBuilder
 from core.message_processor import MessageProcessor
-from core.persona_manager import PersonaManager
 from core.logger import initialize_logger, get_logger
 from database.memory_matrix import MemoryMatrix
 from database.graph_memory import GraphMemory
-from database.limbic_engine import LimbicEngine
-from database.limbic_modifiers import DigitalPharmacy
-from database.metacognition_engine import MetacognitionEngine
-from database.lives_engine import LivesEngine
-from database.save_states_engine import SaveStatesEngine
 from database.user_preferences import UserPreferences
-from database.mode_manager import ModeManager
-from database.user_masks import UserMaskManager
-from database.scenario import ScenarioEngine
-from database.session_notes import SessionNotesManager
-from core.persona import PersonaLoader, PersonaCartridge
 from core.tool_registry import ToolRegistry
-from core.cadence_degrader import CadenceDegrader
+
+# Feature imports
+from core.features import RoleplayFeature
+from core.features.base_feature import BaseFeature
 
 
 class AgentCore:
     """
-    The platform-agnostic AI engine.
+    The platform-agnostic AI engine with modular feature system.
 
     This class is the core intelligence that can be adapted to any frontend
     (Discord, Telegram, CLI, web interface, etc.)
+
+    Features (like roleplay) are loaded dynamically and can be enabled/disabled.
     """
 
     # ========================
@@ -75,18 +70,21 @@ class AgentCore:
         db_path: str = "data/myriad_state.db",
         personas_dir: str = "personas",
         vision_service=None,
+        enable_roleplay: bool = True,  # Enable roleplay feature by default
     ):
         """
-        Initialize the AgentCore.
+        Initialize the AgentCore with optional features.
 
         Args:
             config: Complete Myriad configuration object
             db_path: Path to SQLite database
-            personas_dir: Directory containing persona JSON files
+            personas_dir: Directory containing persona JSON files (for roleplay feature)
             vision_service: Optional VisionCacheService for appearance generation
+            enable_roleplay: Enable the roleplay feature (personas, limbic, lives, etc.)
         """
         # Store configuration
         self.config = config
+        self.db_path = db_path
 
         # Initialize global logger
         initialize_logger(
@@ -110,195 +108,187 @@ class AgentCore:
         print(f"   Model: {self.provider.model_name}")
         print(f"   Provider: {self.provider.provider_name}\n")
 
-        # Core Systems
+        # ====================
+        # CORE INFRASTRUCTURE (always loaded)
+        # ====================
+
+        # Memory & User State
         self.memory_matrix = MemoryMatrix(
             db_path=db_path, vector_memory_enabled=config.memory.vector_memory_enabled
         )
-        self.persona_loader = PersonaLoader(
-            personas_dir=personas_dir,
-            db_path=db_path,
-            vision_service=vision_service,
-        )
-
-        # Persona Manager (Ensemble Mode)
-        self.persona_manager = PersonaManager(
-            persona_loader=self.persona_loader,
-            memory_matrix=self.memory_matrix,
-        )
-
-        # User Preferences (Per-User Feature Toggles)
         self.user_preferences = UserPreferences(db_path=db_path)
-
-        # Mode Manager (Dynamic Behavioral Overrides)
-        self.mode_manager = ModeManager(db_path=db_path)
 
         # Knowledge Graph Memory (Always loaded)
         self.graph_memory = GraphMemory(db_path=config.database_paths.graph_db_path)
 
-        # Limbic System (Emotional Neurochemistry)
-        # Always loaded - controlled by per-user preferences
-        self.limbic_engine = LimbicEngine(db_path=config.database_paths.main_db_path)
+        # ====================
+        # FEATURE SYSTEM (modular components)
+        # ====================
 
-        # Digital Pharmacy (Substance-Based Limbic Overrides)
-        # Always loaded - controlled by per-user preferences
-        self.digital_pharmacy = DigitalPharmacy(self.limbic_engine)
+        self.features: Dict[str, BaseFeature] = {}
 
-        # Cadence Degradation Engine (Text Post-Processing)
-        # Always loaded - controlled by per-user preferences
-        self.cadence_degrader = CadenceDegrader()
+        # Load Roleplay Feature (if enabled)
+        if enable_roleplay:
+            self._load_roleplay_feature(personas_dir, vision_service)
 
-        # Metacognition Engine (Hidden Monologue / Internal Thought Tracking)
-        # Always loaded - controlled by per-user preferences
-        self.metacognition_engine = MetacognitionEngine(
-            db_path=config.database_paths.main_db_path
+        # Base Tool Registry (without roleplay-specific components)
+        # Features can add their own tools via get_tools()
+        roleplay_feature = cast(
+            Optional[RoleplayFeature], self.features.get("roleplay")
         )
-
-        # Lives & Memories System (Always loaded - controlled by per-user preferences)
-        self.lives_engine = LivesEngine(db_path=db_path)
-        self.save_states_engine = SaveStatesEngine(db_path=db_path)
-
-        # User Mask System (User-Side Personas for Roleplay)
-        self.user_mask_manager = UserMaskManager(
-            db_path=db_path, persona_loader=self.persona_loader
-        )
-
-        # Scenario Engine (World Tree for hierarchical environmental contexts)
-        self.scenario_engine = ScenarioEngine(
-            db_path=db_path,
-            vision_service=vision_service,
-        )
-
-        # Session Notes Manager (Silent meta-level context injection)
-        self.session_notes = SessionNotesManager(db_path=db_path)
-
-        # Tool Registry (pass graph_memory, limbic_engine, digital_pharmacy, and provider)
-        # NOTE: user_id and persona_id will be passed when creating tool registry per message
         self.base_tool_registry = (
             ToolRegistry(
                 graph_memory=self.graph_memory,
-                limbic_engine=self.limbic_engine,
-                digital_pharmacy=self.digital_pharmacy,
-                llm_provider=self.provider,  # Pass provider for tools like image generation
+                limbic_engine=roleplay_feature.limbic_engine
+                if roleplay_feature
+                else None,
+                digital_pharmacy=roleplay_feature.digital_pharmacy
+                if roleplay_feature
+                else None,
+                llm_provider=self.provider,
             )
             if config.tools.enabled
             else None
         )
 
+        # ====================
+        # CONTEXT & PROCESSING PIPELINES
+        # ====================
+
         # Conversation Context Builder
+        self._init_context_builder()
+
+        # Message Processor
+        self._init_message_processor()
+
+    def _load_roleplay_feature(self, personas_dir: str, vision_service) -> None:
+        """Load the roleplay feature with all its components."""
+        print("\n📦 Loading Features...")
+
+        roleplay = RoleplayFeature(
+            config=self.config,  # Pass full config for now
+            db_path=self.db_path,
+            personas_dir=personas_dir,
+        )
+
+        # Initialize with dependencies
+        roleplay.initialize(
+            memory_matrix=self.memory_matrix,
+            vision_service=vision_service,
+        )
+
+        self.features["roleplay"] = roleplay
+
+        # Convenience property for backward compatibility
+        self.roleplay = roleplay
+
+    def _init_context_builder(self) -> None:
+        """Initialize the conversation context builder with available features."""
+        roleplay_feature = cast(
+            Optional[RoleplayFeature], self.features.get("roleplay")
+        )
+
         self.context_builder = ConversationContextBuilder(
             memory_matrix=self.memory_matrix,
             universal_rules=self.universal_rules,
-            short_term_limit=config.memory.short_term_limit,
-            semantic_recall_limit=config.memory.semantic_recall_limit,
+            short_term_limit=self.config.memory.short_term_limit,
+            semantic_recall_limit=self.config.memory.semantic_recall_limit,
             graph_memory=self.graph_memory,
-            limbic_engine=self.limbic_engine,
-            digital_pharmacy=self.digital_pharmacy,
-            metacognition_engine=self.metacognition_engine,
+            limbic_engine=roleplay_feature.limbic_engine if roleplay_feature else None,
+            digital_pharmacy=roleplay_feature.digital_pharmacy
+            if roleplay_feature
+            else None,
+            metacognition_engine=roleplay_feature.metacognition_engine
+            if roleplay_feature
+            else None,
             tool_registry=self.base_tool_registry,
-            mode_manager=self.mode_manager,
-            user_mask_manager=self.user_mask_manager,
-            scenario_engine=self.scenario_engine,
-            session_notes=self.session_notes,
+            mode_manager=roleplay_feature.mode_manager if roleplay_feature else None,
+            user_mask_manager=roleplay_feature.user_mask_manager
+            if roleplay_feature
+            else None,
+            scenario_engine=roleplay_feature.scenario_engine
+            if roleplay_feature
+            else None,
+            session_notes=roleplay_feature.session_notes if roleplay_feature else None,
         )
 
-        # Message Processor
+    def _init_message_processor(self) -> None:
+        """Initialize the message processor with available features."""
+        roleplay_feature = cast(
+            Optional[RoleplayFeature], self.features.get("roleplay")
+        )
+
         self.message_processor = MessageProcessor(
             provider=self.provider,
-            max_tool_iterations=config.tools.max_iterations,
-            limbic_engine=self.limbic_engine,
-            metacognition_engine=self.metacognition_engine,
-            cadence_degrader=self.cadence_degrader,
-            mode_manager=self.mode_manager,
-            user_mask_manager=self.user_mask_manager,
+            max_tool_iterations=self.config.tools.max_iterations,
+            limbic_engine=roleplay_feature.limbic_engine if roleplay_feature else None,
+            metacognition_engine=roleplay_feature.metacognition_engine
+            if roleplay_feature
+            else None,
+            cadence_degrader=roleplay_feature.cadence_degrader
+            if roleplay_feature
+            else None,
+            mode_manager=roleplay_feature.mode_manager if roleplay_feature else None,
+            user_mask_manager=roleplay_feature.user_mask_manager
+            if roleplay_feature
+            else None,
             user_preferences_manager=self.user_preferences,
-            session_notes=self.session_notes,
+            session_notes=roleplay_feature.session_notes if roleplay_feature else None,
         )
 
     # ========================
-    # PERSONA MANAGEMENT (ENSEMBLE MODE)
+    # PERSONA MANAGEMENT (delegated to roleplay feature)
     # ========================
-    # These methods delegate to PersonaManager
+    # These methods provide backward compatibility
 
-    def get_active_personas(self, user_id: str) -> List[PersonaCartridge]:
-        """
-        Get all currently active personas for a user (Ensemble Mode).
+    def get_active_personas(self, user_id: str):
+        """Get active personas (requires roleplay feature)."""
+        if "roleplay" not in self.features:
+            raise RuntimeError("Roleplay feature not loaded - cannot use personas")
+        roleplay_feature = cast(RoleplayFeature, self.features["roleplay"])
+        return roleplay_feature.get_active_personas(user_id)
 
-        Args:
-            user_id: Unique user identifier (platform-agnostic)
-
-        Returns:
-            List of PersonaCartridge objects (empty if none active)
-        """
-        return self.persona_manager.get_active_personas(user_id)
+    def get_active_persona(self, user_id: str):
+        """Get first active persona (requires roleplay feature)."""
+        if "roleplay" not in self.features:
+            raise RuntimeError("Roleplay feature not loaded - cannot use personas")
+        roleplay_feature = cast(RoleplayFeature, self.features["roleplay"])
+        return roleplay_feature.get_active_persona(user_id)
 
     def add_active_persona(self, user_id: str, persona_id: str) -> bool:
-        """
-        Add a persona to the active ensemble (appends, does not replace).
-
-        Args:
-            user_id: Unique user identifier
-            persona_id: The persona to add
-
-        Returns:
-            True if successful, False if persona doesn't exist
-        """
-        return self.persona_manager.add_active_persona(user_id, persona_id)
+        """Add persona to ensemble (requires roleplay feature)."""
+        if "roleplay" not in self.features:
+            raise RuntimeError("Roleplay feature not loaded - cannot use personas")
+        roleplay_feature = cast(RoleplayFeature, self.features["roleplay"])
+        return roleplay_feature.add_active_persona(user_id, persona_id)
 
     def remove_active_persona(self, user_id: str, persona_id: str) -> bool:
-        """
-        Remove a specific persona from the active ensemble.
-
-        Args:
-            user_id: Unique user identifier
-            persona_id: The persona to remove
-
-        Returns:
-            True if persona was removed, False if it wasn't active
-        """
-        return self.persona_manager.remove_active_persona(user_id, persona_id)
+        """Remove persona from ensemble (requires roleplay feature)."""
+        if "roleplay" not in self.features:
+            raise RuntimeError("Roleplay feature not loaded - cannot use personas")
+        roleplay_feature = cast(RoleplayFeature, self.features["roleplay"])
+        return roleplay_feature.remove_active_persona(user_id, persona_id)
 
     def clear_active_personas(self, user_id: str) -> None:
-        """
-        Clear all active personas for a user.
-
-        Args:
-            user_id: Unique user identifier
-        """
-        self.persona_manager.clear_active_personas(user_id)
-
-    def get_active_persona(self, user_id: str) -> Optional[PersonaCartridge]:
-        """
-        Get the first active persona for a user (legacy method for backwards compatibility).
-
-        Args:
-            user_id: Unique user identifier (platform-agnostic)
-
-        Returns:
-            PersonaCartridge if user has an active persona, None otherwise
-        """
-        return self.persona_manager.get_active_persona(user_id)
+        """Clear all active personas (requires roleplay feature)."""
+        if "roleplay" not in self.features:
+            raise RuntimeError("Roleplay feature not loaded - cannot use personas")
+        roleplay_feature = cast(RoleplayFeature, self.features["roleplay"])
+        roleplay_feature.clear_active_personas(user_id)
 
     def switch_persona(self, user_id: str, persona_id: str) -> bool:
-        """
-        Switch a user's active persona (legacy method - clears other personas).
-
-        Args:
-            user_id: Unique user identifier
-            persona_id: The persona to switch to
-
-        Returns:
-            True if successful, False if persona doesn't exist
-        """
-        return self.persona_manager.switch_persona(user_id, persona_id)
+        """Switch to single persona (requires roleplay feature)."""
+        if "roleplay" not in self.features:
+            raise RuntimeError("Roleplay feature not loaded - cannot use personas")
+        roleplay_feature = cast(RoleplayFeature, self.features["roleplay"])
+        return roleplay_feature.switch_persona(user_id, persona_id)
 
     def list_personas(self) -> List[str]:
-        """
-        List all available persona IDs.
-
-        Returns:
-            List of persona_id strings
-        """
-        return self.persona_manager.list_personas()
+        """List available personas (requires roleplay feature)."""
+        if "roleplay" not in self.features:
+            raise RuntimeError("Roleplay feature not loaded - cannot use personas")
+        roleplay_feature = cast(RoleplayFeature, self.features["roleplay"])
+        return roleplay_feature.list_personas()
 
     # ========================
     # MEMORY MANAGEMENT
@@ -307,10 +297,10 @@ class AgentCore:
     def _build_conversation_context(
         self,
         user_id: str,
-        persona: PersonaCartridge,
+        persona=None,  # Made optional for non-roleplay features
         current_message: Optional[str] = None,
         life_id: Optional[str] = None,
-        ensemble_personas: Optional[List[PersonaCartridge]] = None,
+        ensemble_personas: Optional[List] = None,
     ) -> List[Dict[str, str]]:
         """
         Build the conversation context for LLM injection using Hybrid Memory Architecture.
@@ -319,7 +309,7 @@ class AgentCore:
 
         Args:
             user_id: User identifier
-            persona: Primary active persona (for backwards compatibility)
+            persona: Primary active persona (optional, for roleplay feature)
             current_message: Optional current user message for semantic search
             life_id: Optional timeline/session ID for memory scoping
             ensemble_personas: Optional list of ALL active personas (Ensemble Mode)
@@ -342,7 +332,7 @@ class AgentCore:
     def _save_message_to_memory(
         self,
         user_id: str,
-        persona_id: str,
+        persona_id: Optional[str],  # Made optional for non-roleplay features
         role: str,
         content: str,
         visibility: str = "ISOLATED",
@@ -353,7 +343,7 @@ class AgentCore:
 
         Args:
             user_id: User identifier
-            persona_id: The persona that originated this memory
+            persona_id: The persona that originated this memory (optional)
             role: 'user', 'assistant', or 'system'
             content: Message content
             visibility: 'GLOBAL', 'USER_SHARED', or 'ISOLATED' (default: ISOLATED)
@@ -361,7 +351,7 @@ class AgentCore:
         """
         self.memory_matrix.add_memory(
             user_id=user_id,
-            origin_persona=persona_id,
+            origin_persona=persona_id or "system",  # Default to "system" if no persona
             role=role,
             content=content,
             visibility_scope=visibility,
@@ -376,7 +366,7 @@ class AgentCore:
         self,
         user_id: str,
         message: str,
-        memory_visibility: str = None,
+        memory_visibility: Optional[str] = None,
         vision_description: Optional[str] = None,
         image_data: Optional[List[Tuple[bytes, str]]] = None,
     ) -> Tuple[Optional[str], List[Tuple[bytes, str]]]:
@@ -384,7 +374,7 @@ class AgentCore:
         Process a user message and generate a response.
 
         This is the main entry point for the AI engine with Tool Execution Loop
-        and Limbic Respiration Cycle (INHALE/EXHALE).
+        and optional Limbic Respiration Cycle (INHALE/EXHALE) if roleplay is enabled.
 
         This method delegates to MessageProcessor for the actual processing pipeline.
 
@@ -401,17 +391,17 @@ class AgentCore:
             Tuple of (AI response string or None, list of generated images)
             Generated images are (image_bytes, mime_type) tuples from image generation tool
         """
-        # Get active personas (Ensemble Mode support)
-        personas = self.get_active_personas(user_id)
+        # Get active personas (only if roleplay feature is loaded)
+        personas = []
+        persona = None
+        is_ensemble = False
 
-        if not personas:
-            return None, []  # Return empty images list
-
-        # Primary persona (first in list) for backwards compatibility
-        persona = personas[0]
-
-        # Check if we're in Ensemble Mode
-        is_ensemble = len(personas) > 1
+        if "roleplay" in self.features:
+            personas = self.get_active_personas(user_id)
+            if not personas:
+                return None, []  # Return empty images list
+            persona = personas[0]
+            is_ensemble = len(personas) > 1
 
         # Update user interaction timestamp
         self.memory_matrix.update_user_interaction(user_id)
@@ -419,10 +409,18 @@ class AgentCore:
         # Get user preferences (including memory visibility and lives preferences)
         user_preferences = self.user_preferences.get_preferences(user_id)
 
-        # Get or create active life for this user+persona (if user has lives enabled)
+        # Get or create active life for this user+persona (if roleplay + lives enabled)
         life_id = None
-        if user_preferences.get("lives_enabled", True):
-            life_id = self.lives_engine.ensure_default_life(user_id, persona.persona_id)
+        if (
+            "roleplay" in self.features
+            and persona
+            and user_preferences.get("lives_enabled", True)
+        ):
+            roleplay_feature = cast(RoleplayFeature, self.features["roleplay"])
+            if roleplay_feature.lives_engine:
+                life_id = roleplay_feature.lives_engine.ensure_default_life(
+                    user_id, persona.persona_id
+                )
 
         # Use user's default memory visibility if not specified
         if memory_visibility is None:
@@ -433,13 +431,20 @@ class AgentCore:
         # Create context-specific tool registry with user_id and persona_id
         tool_registry = None
         if self.base_tool_registry:
+            roleplay_feature = cast(
+                Optional[RoleplayFeature], self.features.get("roleplay")
+            )
             tool_registry = ToolRegistry(
                 graph_memory=self.graph_memory,
-                limbic_engine=self.limbic_engine,
-                digital_pharmacy=self.digital_pharmacy,
+                limbic_engine=roleplay_feature.limbic_engine
+                if roleplay_feature
+                else None,
+                digital_pharmacy=roleplay_feature.digital_pharmacy
+                if roleplay_feature
+                else None,
                 current_user_id=user_id,
-                current_persona_id=persona.persona_id,
-                llm_provider=self.provider,  # Pass provider for tools like image generation
+                current_persona_id=persona.persona_id if persona else None,
+                llm_provider=self.provider,
             )
 
         # If vision description is provided, prepend it to the message
@@ -451,7 +456,7 @@ class AgentCore:
         # Save user message to memory (with vision description if present)
         self._save_message_to_memory(
             user_id=user_id,
-            persona_id=persona.persona_id,
+            persona_id=persona.persona_id if persona else None,
             role="user",
             content=full_message,
             visibility=memory_visibility,
@@ -482,7 +487,7 @@ class AgentCore:
         def save_message(role: str, content: str) -> None:
             self._save_message_to_memory(
                 user_id=user_id,
-                persona_id=persona.persona_id,
+                persona_id=persona.persona_id if persona else None,
                 role=role,
                 content=content,
                 visibility=memory_visibility,
@@ -547,8 +552,7 @@ class AgentCore:
         )
 
         return {
-            "total_memories": len(all_memories),
-            "global_memories": global_count,
-            "isolated_memories": isolated_count,
-            "active_persona": self.memory_matrix.get_active_persona(user_id),
+            "total": len(all_memories),
+            "global": global_count,
+            "isolated": isolated_count,
         }
