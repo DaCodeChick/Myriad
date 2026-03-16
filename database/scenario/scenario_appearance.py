@@ -112,26 +112,34 @@ class ScenarioAppearanceGenerator:
             return combined.strip()
 
     def load_or_generate_appearance(
-        self, scenario_name: str, scenario_folder: Path
+        self,
+        scenario_name: str,
+        scenario_folder: Path,
+        fallback_appearance: Optional[str] = None,
     ) -> Optional[str]:
         """
         Load cached appearance or generate new one if cache is stale.
 
+        Falls back to manually-defined appearance from JSON if no images exist
+        or vision generation fails.
+
         Args:
             scenario_name: Name of the scenario
             scenario_folder: Path to the scenario folder
+            fallback_appearance: Manual appearance from metadata.json to use as fallback
 
         Returns:
-            Appearance description, or None if no images or generation failed
+            Appearance description, or fallback, or None if not available
         """
         if not scenario_folder.exists():
-            return None
+            return fallback_appearance
 
         # Find all image files in the scenario folder
         image_files = self.get_image_files(scenario_folder)
 
         if not image_files:
-            return None  # No images, no appearance
+            # No images, use fallback appearance from JSON
+            return fallback_appearance
 
         # Calculate hash of all images to detect changes
         current_hash = self.calculate_images_hash(image_files)
@@ -147,7 +155,8 @@ class ScenarioAppearanceGenerator:
 
         # Cache is stale or missing, need to generate new appearance
         if not self.vision_service:
-            return None  # Can't generate without vision service
+            # Can't generate without vision service, use fallback
+            return fallback_appearance
 
         # Generate new appearance description
         appearance = self.generate_from_images(image_files)
@@ -155,5 +164,7 @@ class ScenarioAppearanceGenerator:
         if appearance and self.cache:
             # Store in database
             self.cache.store_cached_appearance(scenario_name, appearance, current_hash)
+            return appearance
 
-        return appearance
+        # Vision generation failed, use fallback
+        return fallback_appearance

@@ -135,10 +135,11 @@ class ScenarioEngine:
 
             scenario = Scenario.from_dict(data)
             # Load cached appearance from database (with image processing)
+            # Falls back to scenario.appearance if no images or vision generation fails
             scenario_folder = self._get_scenario_folder_path(name)
             scenario.cached_appearance = (
                 self.appearance_generator.load_or_generate_appearance(
-                    name, scenario_folder
+                    name, scenario_folder, scenario.appearance
                 )
             )
             return scenario
@@ -261,9 +262,10 @@ class ScenarioEngine:
 
                 scenario = Scenario.from_dict(data)
                 # Load cached appearance from database (with image processing)
+                # Falls back to scenario.appearance if no images or vision generation fails
                 scenario.cached_appearance = (
                     self.appearance_generator.load_or_generate_appearance(
-                        scenario.name, scenario_folder
+                        scenario.name, scenario_folder, scenario.appearance
                     )
                 )
                 scenarios.append(scenario)

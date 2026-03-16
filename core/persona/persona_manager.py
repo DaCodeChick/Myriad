@@ -131,7 +131,10 @@ class PersonaLoader:
             persona = PersonaCartridge.from_dict(data)
 
             # Load cached appearance from database (if available)
-            cached_appearance = self._load_cached_appearance(persona_id, persona_folder)
+            # Falls back to persona.appearance if no images or vision generation fails
+            cached_appearance = self._load_cached_appearance(
+                persona_id, persona_folder, persona.appearance
+            )
             persona.cached_appearance = cached_appearance
 
             # Cache it
@@ -156,23 +159,31 @@ class PersonaLoader:
         return self.load_persona(persona_id)
 
     def _load_cached_appearance(
-        self, persona_id: str, persona_folder: Path
+        self,
+        persona_id: str,
+        persona_folder: Path,
+        fallback_appearance: Optional[str] = None,
     ) -> Optional[str]:
         """
         Load cached appearance from database or generate if needed.
 
+        Falls back to manually-defined appearance from JSON if no images exist
+        or vision generation fails.
+
         Args:
             persona_id: The persona ID
             persona_folder: Path to the persona's folder
+            fallback_appearance: Manual appearance from metadata.json to use as fallback
 
         Returns:
-            Cached appearance description, or None if not available
+            Cached appearance description, or fallback, or None if not available
         """
         # Find all image files in the persona folder
         image_files = self.appearance_generator.get_image_files(persona_folder)
 
         if not image_files:
-            return None  # No images, no appearance
+            # No images, use fallback appearance from JSON
+            return fallback_appearance
 
         # Calculate hash of all images to detect changes
         current_hash = self.appearance_generator.calculate_images_hash(image_files)
@@ -194,8 +205,10 @@ class PersonaLoader:
             self.persona_cache.store_cached_appearance(
                 persona_id, appearance, current_hash
             )
+            return appearance
 
-        return appearance
+        # Vision generation failed, use fallback
+        return fallback_appearance
 
     def list_available_personas(self) -> List[str]:
         """

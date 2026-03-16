@@ -15,15 +15,21 @@ class Scenario:
     name: str
     description: str
     parent_name: Optional[str] = None
-    cached_appearance: Optional[str] = None  # Loaded from DB, not JSON
+    appearance: Optional[str] = None  # Manual fallback appearance from JSON
+    cached_appearance: Optional[str] = None  # Vision-generated, loaded from database
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert scenario to dictionary format (for JSON serialization, excludes cached_appearance)."""
-        return {
+        """Convert scenario to dictionary format (for JSON serialization)."""
+        result = {
             "name": self.name,
             "description": self.description,
-            "parent_name": self.parent_name,
         }
+        if self.parent_name:
+            result["parent_name"] = self.parent_name
+        if self.appearance:
+            result["appearance"] = self.appearance
+        # Note: cached_appearance is NOT included (stored in database only)
+        return result
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Scenario":
@@ -32,5 +38,6 @@ class Scenario:
             name=data["name"],
             description=data["description"],
             parent_name=data.get("parent_name"),
+            appearance=data.get("appearance"),
             cached_appearance=None,  # Will be loaded from DB
         )

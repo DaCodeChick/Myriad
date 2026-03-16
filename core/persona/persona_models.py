@@ -69,7 +69,8 @@ class PersonaCartridge:
     background: Optional[str] = None
     limbic_baseline: Optional[Dict[str, float]] = None
     relationships: Optional[List[PersonaRelationship]] = None
-    cached_appearance: Optional[str] = None  # Loaded from database, not metadata.json
+    appearance: Optional[str] = None  # Manual fallback appearance from metadata.json
+    cached_appearance: Optional[str] = None  # Vision-generated, loaded from database
     is_narrator: bool = False  # Dungeon Master/Narrator personas (no physical body)
 
     @classmethod
@@ -91,6 +92,7 @@ class PersonaCartridge:
             max_tokens=data.get("max_tokens", 1000),
             rules_of_engagement=data.get("rules_of_engagement"),
             background=data.get("background"),
+            appearance=data.get("appearance"),
             cached_appearance=data.get("cached_appearance"),
             limbic_baseline=data.get("limbic_baseline"),
             relationships=relationships,
@@ -98,7 +100,7 @@ class PersonaCartridge:
         )
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert persona to dictionary format (for metadata.json, excludes cached_appearance)."""
+        """Convert persona to dictionary format (for metadata.json)."""
         result = {
             "persona_id": self.persona_id,
             "name": self.name,
@@ -111,7 +113,9 @@ class PersonaCartridge:
             result["rules_of_engagement"] = self.rules_of_engagement
         if self.background:
             result["background"] = self.background
-        # Note: cached_appearance is NOT included (stored in database)
+        if self.appearance:
+            result["appearance"] = self.appearance
+        # Note: cached_appearance is NOT included (stored in database only)
         if self.limbic_baseline:
             result["limbic_baseline"] = self.limbic_baseline
         if self.relationships:
