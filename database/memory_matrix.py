@@ -82,9 +82,24 @@ class MemoryMatrix:
             CREATE TABLE IF NOT EXISTS user_state (
                 user_id TEXT PRIMARY KEY,
                 active_persona TEXT,
+                active_persona_ids TEXT,
                 last_interaction_time TEXT
             )
         """)
+
+        # MIGRATION: Add active_persona_ids column if it doesn't exist (for existing databases)
+        cursor.execute("PRAGMA table_info(user_state)")
+        columns = [col[1] for col in cursor.fetchall()]
+        if "active_persona_ids" not in columns:
+            print("⚠ Migrating user_state table: Adding active_persona_ids column...")
+            cursor.execute("ALTER TABLE user_state ADD COLUMN active_persona_ids TEXT")
+            # Migrate old active_persona values to new active_persona_ids JSON array
+            cursor.execute("""
+                UPDATE user_state 
+                SET active_persona_ids = json_array(active_persona) 
+                WHERE active_persona IS NOT NULL AND active_persona != ''
+            """)
+            print("✓ Migration complete")
 
         # Memory Table - conversation history with visibility scoping and life scoping
         cursor.execute("""
