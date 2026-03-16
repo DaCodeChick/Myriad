@@ -6,7 +6,7 @@ Provider implementation for OpenAI API and OpenAI-compatible endpoints
 """
 
 from typing import List, Dict, Optional, Any
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 from core.providers.base import LLMProvider
 
@@ -34,7 +34,7 @@ class OpenAIProvider(LLMProvider):
             base_url: API endpoint (e.g., "https://api.openai.com/v1" or "http://localhost:5001/v1")
             model: Model identifier
         """
-        self.client = OpenAI(api_key=api_key, base_url=base_url)
+        self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
         self._model_name = model
         self._base_url = base_url
 
@@ -60,7 +60,7 @@ class OpenAIProvider(LLMProvider):
             Generated response string, or None on error
         """
         try:
-            response = self.client.chat.completions.create(
+            response = await self.client.chat.completions.create(
                 model=self._model_name,
                 messages=messages,  # type: ignore
                 temperature=temperature,
