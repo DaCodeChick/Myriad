@@ -10,9 +10,9 @@ import os
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
-from core.persona.persona_models import PersonaCartridge
-from core.persona.persona_cache import PersonaCache
-from core.persona.appearance_generator import AppearanceGenerator
+from core.features.roleplay.persona.persona_models import PersonaCartridge
+from core.features.roleplay.persona.persona_cache import PersonaCache
+from core.features.roleplay.persona.appearance_generator import AppearanceGenerator
 
 
 class PersonaLoader:
