@@ -61,7 +61,7 @@ async def test_gemini_basic():
 
     except ImportError as e:
         print(f"\n❌ Import error: {e}")
-        print("Make sure to install: pip install google-generativeai")
+        print("Make sure to install: pip install google-genai")
     except Exception as e:
         print(f"\n❌ Error: {e}")
 
