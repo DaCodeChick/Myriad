@@ -27,7 +27,7 @@ mkdir -p logs
 trap "kill 0" SIGINT
 
 echo "🧠 Booting Text Brain on Port $TEXT_PORT (Max GPU / 8K Context)..."
-koboldcpp "$TEXT_MODEL" $HW_FLAG --gpulayers $GPU_LAYERS --contextsize 8192 --port $TEXT_PORT > logs/text.log 2>&1 &
+koboldcpp "$TEXT_MODEL" $HW_FLAG --gpulayers $GPU_LAYERS --contextsize 8192 --port $TEXT_PORT > /dev/null 2>&1 &
 
 #echo "👁️ Booting Vision Eyes on Port $VISION_PORT (Partial GPU / 2K Context)..."
 # Using 15 layers and 2048 context to save VRAM for the main text model
