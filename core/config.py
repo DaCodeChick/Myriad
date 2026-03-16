@@ -46,21 +46,42 @@ class DiscordConfig:
 class LLMConfig:
     """LLM API configuration."""
 
-    api_key: str
+    provider: str = "local"  # "local" or "gemini"
+    api_key: str = ""
     base_url: str = "https://api.openai.com/v1"
     model: str = "gpt-4"
+    gemini_api_key: Optional[str] = None
+    gemini_model: str = "gemini-1.5-pro"
 
     @classmethod
     def from_env(cls) -> "LLMConfig":
         """Load LLM configuration from environment variables."""
-        api_key = os.getenv("LLM_API_KEY")
-        if not api_key:
-            raise ValueError("LLM_API_KEY not found in environment")
+        provider = os.getenv("LLM_PROVIDER", "local").lower()
+
+        # For backward compatibility, LLM_API_KEY is still required for local provider
+        api_key = os.getenv("LLM_API_KEY", "")
+
+        # Gemini-specific configuration
+        gemini_api_key = os.getenv("GEMINI_API_KEY")
+        gemini_model = os.getenv("GEMINI_MODEL", "gemini-1.5-pro")
+
+        # Validate provider-specific requirements
+        if provider == "local" and not api_key:
+            raise ValueError(
+                "LLM_API_KEY not found in environment (required for local provider)"
+            )
+        elif provider == "gemini" and not gemini_api_key:
+            raise ValueError(
+                "GEMINI_API_KEY not found in environment (required for gemini provider)"
+            )
 
         return cls(
+            provider=provider,
             api_key=api_key,
             base_url=os.getenv("LLM_BASE_URL", "https://api.openai.com/v1"),
             model=os.getenv("LLM_MODEL", "gpt-4"),
+            gemini_api_key=gemini_api_key,
+            gemini_model=gemini_model,
         )
 
 

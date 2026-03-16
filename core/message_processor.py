@@ -8,13 +8,14 @@ This module manages the complete message processing cycle including:
 - Metacognition extraction
 
 Extracted from AgentCore as part of RDSSC Phase 3.
+Refactored to use modular provider system for LLM backends.
 """
 
 import re
-from typing import List, Dict, Optional
-from openai import OpenAI
+from typing import List, Dict, Optional, TYPE_CHECKING
 
 from core.persona import PersonaCartridge
+from core.providers.base import LLMProvider
 from core.tool_registry import ToolRegistry, parse_tool_call, format_tool_response
 from core.logger import get_logger
 from database.limbic_engine import LimbicEngine
@@ -22,6 +23,10 @@ from database.metacognition_engine import MetacognitionEngine
 from database.mode_manager import ModeManager
 from database.user_preferences import UserPreferences
 from core.cadence_degrader import CadenceDegrader
+
+if TYPE_CHECKING:
+    from database.user_masks import UserMaskManager
+    from database.session_notes import SessionNotesManager
 
 
 class MessageProcessor:
@@ -38,8 +43,7 @@ class MessageProcessor:
 
     def __init__(
         self,
-        client: OpenAI,
-        model: str,
+        provider: LLMProvider,
         max_tool_iterations: int = 5,
         limbic_engine: Optional[LimbicEngine] = None,
         metacognition_engine: Optional[MetacognitionEngine] = None,
@@ -53,8 +57,7 @@ class MessageProcessor:
         Initialize the message processor.
 
         Args:
-            client: OpenAI-compatible API client
-            model: Model name to use
+            provider: LLM provider instance (OpenAI, Gemini, etc.)
             max_tool_iterations: Maximum tool call iterations per message
             limbic_engine: Optional limbic system for emotional processing
             metacognition_engine: Optional metacognition system for thought tracking
@@ -64,8 +67,7 @@ class MessageProcessor:
             user_preferences_manager: Optional user preferences manager for degradation profiles
             session_notes: Optional session notes manager for TTL tracking
         """
-        self.client = client
-        self.model = model
+        self.provider = provider
         self.max_tool_iterations = max_tool_iterations
         self.limbic_engine = limbic_engine
         self.metacognition_engine = metacognition_engine
@@ -187,16 +189,22 @@ class MessageProcessor:
 
         while tool_iterations < self.max_tool_iterations:
             try:
-                # Call LLM API
-                response = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=messages,
-                    temperature=persona.temperature,
-                    max_tokens=persona.max_tokens,
-                )
+                # Call LLM API via provider (async)
+                import asyncio
 
-                # Extract response text
-                assistant_message = response.choices[0].message.content
+                try:
+                    loop = asyncio.get_event_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+
+                assistant_message = loop.run_until_complete(
+                    self.provider.generate(
+                        messages=messages,
+                        temperature=persona.temperature,
+                        max_tokens=persona.max_tokens,
+                    )
+                )
 
                 if not assistant_message:
                     return None

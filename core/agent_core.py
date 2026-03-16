@@ -4,7 +4,7 @@ AgentCore - The platform-agnostic intelligence engine for Project Myriad.
 This module is the central brain of the system. It:
 1. Orchestrates persona management via PersonaManager
 2. Handles memory injection via the Automated Discretion Engine
-3. Communicates with the LLM API
+3. Communicates with the LLM API via modular provider system
 4. Processes messages and generates responses
 5. Executes tool calls (function calling)
 
@@ -16,12 +16,13 @@ REFACTORED (RDSSC):
 - Phase 1: Extracted message processing pipeline to MessageProcessor
 - Phase 3: Simplified constructor to use MyriadConfig
 - Phase 4: Extracted persona management to PersonaManager
+- Phase 5: Refactored to use modular provider system
 """
 
 from typing import List, Dict, Any, Optional
-from openai import OpenAI
 
 from core.config import MyriadConfig
+from core.providers import ProviderFactory
 from core.context import ConversationContextBuilder
 from core.message_processor import MessageProcessor
 from core.persona_manager import PersonaManager
@@ -103,9 +104,11 @@ class AgentCore:
             else self.DEFAULT_UNIVERSAL_RULES
         )
 
-        # LLM Client
-        self.client = OpenAI(api_key=config.llm.api_key, base_url=config.llm.base_url)
-        self.model = config.llm.model
+        # Initialize LLM Provider (modular provider system)
+        print(f"\n🧠 Initializing LLM Provider: {config.llm.provider}")
+        self.provider = ProviderFactory.create_provider(config.llm)
+        print(f"   Model: {self.provider.model_name}")
+        print(f"   Provider: {self.provider.provider_name}\n")
 
         # Core Systems
         self.memory_matrix = MemoryMatrix(
@@ -199,8 +202,7 @@ class AgentCore:
 
         # Message Processor
         self.message_processor = MessageProcessor(
-            client=self.client,
-            model=self.model,
+            provider=self.provider,
             max_tool_iterations=config.tools.max_iterations,
             limbic_engine=self.limbic_engine,
             metacognition_engine=self.metacognition_engine,
