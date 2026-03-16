@@ -71,6 +71,7 @@ class VisionConfig:
     api_key: str = "not-needed"
     base_url: Optional[str] = None
     model: str = "vision-model"
+    enabled: bool = True  # Master toggle for vision processing
 
     @classmethod
     def from_env(cls) -> "VisionConfig":
@@ -79,12 +80,13 @@ class VisionConfig:
             api_key=os.getenv("VISION_API_KEY", "not-needed"),
             base_url=os.getenv("VISION_BASE_URL"),
             model=os.getenv("VISION_MODEL", "vision-model"),
+            enabled=os.getenv("VISION_ENABLED", "true").lower() == "true",
         )
 
     @property
-    def enabled(self) -> bool:
-        """Check if vision is enabled (has base_url configured)."""
-        return self.base_url is not None
+    def is_available(self) -> bool:
+        """Check if vision is both enabled and configured (has base_url)."""
+        return self.enabled and self.base_url is not None
 
 
 @dataclass
@@ -243,7 +245,7 @@ class MyriadConfig:
         return (
             f"MyriadConfig(\n"
             f"  llm={self.llm.model} @ {self.llm.base_url}\n"
-            f"  vision={'enabled' if self.vision.enabled else 'disabled'}\n"
+            f"  vision={'enabled' if self.vision.is_available else 'disabled'}\n"
             f"  memory=short_term({self.memory.short_term_limit}), semantic({self.memory.semantic_recall_limit})\n"
             f"  bot_whitelist={whitelist_count} bot(s)\n"
             f")"

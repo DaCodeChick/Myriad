@@ -116,10 +116,10 @@ class MyriadLogger:
         timestamp = self._format_timestamp()
         timestamp_file = self._format_timestamp_file()
 
-        # Console output
+        # Console output - narrative format
         if self.brain_console_enabled:
             print(
-                f"{self.COLOR_TIMESTAMP}[{timestamp}]{self.COLOR_RESET} {self.COLOR_THOUGHT}{persona_name} thinks about {thought}{self.COLOR_RESET}"
+                f"{self.COLOR_TIMESTAMP}[{timestamp}]{self.COLOR_RESET} {self.COLOR_THOUGHT}{persona_name} is thinking... {thought}{self.COLOR_RESET}"
             )
 
         # File output
@@ -174,7 +174,7 @@ class MyriadLogger:
         # Console output
         if self.brain_console_enabled:
             print(
-                f"{self.COLOR_TIMESTAMP}[{timestamp}]{self.COLOR_RESET} {self.COLOR_AI}[Brain Response - {persona_name}]:{self.COLOR_RESET} {preview}"
+                f"{self.COLOR_TIMESTAMP}[{timestamp}]{self.COLOR_RESET} {self.COLOR_AI}[{persona_name}]:{self.COLOR_RESET} {preview}"
             )
 
         # File output (full response, not truncated)

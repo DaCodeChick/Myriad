@@ -491,8 +491,9 @@ class AgentCore:
         # Save final assistant response to memory
         save_message("assistant", final_response)
 
-        # Log AI response
-        logger.log_ai_message(persona.persona_id, final_response)
+        # Note: AI response already logged by message_processor via log_brain_response()
+        # Keeping this would create duplicate console output
+        # logger.log_ai_message(persona.persona_id, final_response)
 
         return final_response
 

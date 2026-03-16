@@ -31,7 +31,7 @@ def run_discord_adapter() -> None:
 
     # Initialize VisionBridge if configured
     vision_bridge = None
-    if config.vision.enabled:
+    if config.vision.is_available:
         try:
             vision_bridge = VisionBridge(
                 vision_api_key=config.vision.api_key,
@@ -43,11 +43,14 @@ def run_discord_adapter() -> None:
             print(f"⚠ Vision Bridge initialization failed: {e}")
             print("  Continuing without vision support...")
     else:
-        print("ℹ Vision Bridge not configured (set VISION_BASE_URL to enable)")
+        if not config.vision.enabled:
+            print("ℹ Vision disabled via VISION_ENABLED=false")
+        else:
+            print("ℹ Vision Bridge not configured (set VISION_BASE_URL to enable)")
 
     # Initialize VisionCacheService if configured (needed for persona appearance caching)
     vision_cache_service = None
-    if config.vision.enabled:
+    if config.vision.is_available:
         try:
             vision_cache_service = VisionCacheService(
                 vision_api_key=config.vision.api_key,
@@ -59,7 +62,12 @@ def run_discord_adapter() -> None:
             print(f"⚠ Vision Cache Service initialization failed: {e}")
             print("  Continuing without vision cache support...")
     else:
-        print("ℹ Vision Cache Service not configured (set VISION_BASE_URL to enable)")
+        if not config.vision.enabled:
+            print("ℹ Vision Cache Service disabled via VISION_ENABLED=false")
+        else:
+            print(
+                "ℹ Vision Cache Service not configured (set VISION_BASE_URL to enable)"
+            )
 
     # Initialize AgentCore (platform-agnostic) with vision service for persona appearances
     agent_core = AgentCore(config=config, vision_service=vision_cache_service)
