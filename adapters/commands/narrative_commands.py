@@ -217,9 +217,9 @@ def register_narrative_commands(bot: "MyriadDiscordBot") -> None:
                 )
 
             # Get the last assistant message from memory
-            recent_messages = bot.agent_core.memory_matrix.get_recent_messages(
+            recent_messages = bot.agent_core.memory_matrix.get_context_memories(
                 user_id=user_id,
-                persona_id=persona.persona_id,
+                current_persona=persona.persona_id,
                 limit=10,
                 life_id=life_id or "",
             )
