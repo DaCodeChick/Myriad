@@ -15,6 +15,11 @@ if TYPE_CHECKING:
     from adapters.discord_adapter import MyriadDiscordBot
 
 
+def _get_roleplay_feature(bot):
+    """Get roleplay feature from bot, or None if not enabled."""
+    return bot.agent_core.features.get("roleplay")
+
+
 def register_mode_commands(bot: "MyriadDiscordBot") -> None:
     """
     Register all mode-related slash commands.
@@ -48,7 +53,7 @@ def register_mode_commands(bot: "MyriadDiscordBot") -> None:
         mode_enum = BehaviorMode(mode.lower())
 
         # Set the mode
-        success = bot.agent_core.mode_manager.set_active_mode(user_id, mode_enum)
+        success = _get_roleplay_feature(bot).mode_manager.set_active_mode(user_id, mode_enum)
 
         if success:
             # Build mode-specific response
@@ -116,8 +121,8 @@ def register_mode_commands(bot: "MyriadDiscordBot") -> None:
     async def mode_status(interaction: discord.Interaction):
         """Show the user's current active behavioral mode."""
         user_id = str(interaction.user.id)
-        active_mode = bot.agent_core.mode_manager.get_active_mode(user_id)
-        mode_override = bot.agent_core.mode_manager.get_mode_override(user_id)
+        active_mode = _get_roleplay_feature(bot).mode_manager.get_active_mode(user_id)
+        mode_override = _get_roleplay_feature(bot).mode_manager.get_mode_override(user_id)
 
         # Build status message
         status_emoji = {

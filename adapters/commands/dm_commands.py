@@ -11,6 +11,12 @@ from typing import TYPE_CHECKING
 
 from adapters.commands.base import ResponseFormatter
 
+
+def _get_roleplay_feature(bot):
+    """Get roleplay feature from bot, or None if not enabled."""
+    return bot.agent_core.features.get("roleplay")
+
+
 if TYPE_CHECKING:
     from adapters.discord_adapter import MyriadDiscordBot
 
@@ -62,7 +68,7 @@ def register_dm_commands(bot: "MyriadDiscordBot") -> None:
             # Get or create active life (if user has lives enabled)
             life_id = None
             if user_preferences.get("lives_enabled", True):
-                life_id = bot.agent_core.lives_engine.ensure_default_life(
+                life_id = _get_roleplay_feature(bot).lives_engine.ensure_default_life(
                     user_id, persona.persona_id
                 )
 

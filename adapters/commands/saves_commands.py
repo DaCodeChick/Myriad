@@ -10,6 +10,12 @@ from discord import app_commands
 from adapters.commands.base import ResponseFormatter
 
 
+def _get_roleplay_feature(bot):
+    """Get roleplay feature from bot, or None if not enabled."""
+    return bot.agent_core.features.get("roleplay")
+
+
+
 class BranchOrForgetView(discord.ui.View):
     """Save state load dialog with BRANCH/FORGET choice."""
 
@@ -69,7 +75,7 @@ def register_saves_commands(bot) -> None:
     Args:
         bot: MyriadDiscordBot instance
     """
-    if not bot.agent_core.save_states_engine:
+    if not _get_roleplay_feature(bot).save_states_engine:
         return  # Save states system not enabled
 
     memory_group = app_commands.Group(
@@ -96,7 +102,7 @@ def register_saves_commands(bot) -> None:
             return
 
         # Get active life
-        active_life = bot.agent_core.lives_engine.get_active_life(
+        active_life = _get_roleplay_feature(bot).lives_engine.get_active_life(
             user_id=user_id, persona_id=persona.persona_id
         )
 
@@ -109,7 +115,7 @@ def register_saves_commands(bot) -> None:
         life_id = active_life["life_id"]
 
         # Get latest message ID as the checkpoint
-        checkpoint_message_id = bot.agent_core.save_states_engine.get_latest_message_id(
+        checkpoint_message_id = _get_roleplay_feature(bot).save_states_engine.get_latest_message_id(
             life_id=life_id
         )
 
@@ -120,7 +126,7 @@ def register_saves_commands(bot) -> None:
             return
 
         try:
-            save_id = bot.agent_core.save_states_engine.create_save_state(
+            save_id = _get_roleplay_feature(bot).save_states_engine.create_save_state(
                 life_id=life_id,
                 name=name,
                 description=description,
@@ -153,7 +159,7 @@ def register_saves_commands(bot) -> None:
             return
 
         # Get active life
-        active_life = bot.agent_core.lives_engine.get_active_life(
+        active_life = _get_roleplay_feature(bot).lives_engine.get_active_life(
             user_id=user_id, persona_id=persona.persona_id
         )
 
@@ -167,7 +173,7 @@ def register_saves_commands(bot) -> None:
 
         # Get save state
         try:
-            save_state = bot.agent_core.save_states_engine.get_save_state(
+            save_state = _get_roleplay_feature(bot).save_states_engine.get_save_state(
                 life_id=life_id, name=name
             )
         except Exception as e:
@@ -179,7 +185,7 @@ def register_saves_commands(bot) -> None:
 
         # Count messages to be affected
         messages_count = (
-            bot.agent_core.save_states_engine.count_messages_after_checkpoint(
+            _get_roleplay_feature(bot).save_states_engine.count_messages_after_checkpoint(
                 life_id=life_id,
                 checkpoint_message_id=save_state["checkpoint_message_id"],
             )
@@ -202,7 +208,7 @@ def register_saves_commands(bot) -> None:
             # Save current timeline as a new branch
             try:
                 new_life_name = f"{active_life['name']} (branch)"
-                new_life_id = bot.agent_core.lives_engine.create_life(
+                new_life_id = _get_roleplay_feature(bot).lives_engine.create_life(
                     user_id=user_id,
                     persona_id=persona.persona_id,
                     name=new_life_name,
@@ -274,7 +280,7 @@ def register_saves_commands(bot) -> None:
             return
 
         # Get active life
-        active_life = bot.agent_core.lives_engine.get_active_life(
+        active_life = _get_roleplay_feature(bot).lives_engine.get_active_life(
             user_id=user_id, persona_id=persona.persona_id
         )
 
@@ -286,7 +292,7 @@ def register_saves_commands(bot) -> None:
 
         life_id = active_life["life_id"]
 
-        save_states = bot.agent_core.save_states_engine.list_save_states(
+        save_states = _get_roleplay_feature(bot).save_states_engine.list_save_states(
             life_id=life_id
         )
 
@@ -319,7 +325,7 @@ def register_saves_commands(bot) -> None:
             return
 
         # Get active life
-        active_life = bot.agent_core.lives_engine.get_active_life(
+        active_life = _get_roleplay_feature(bot).lives_engine.get_active_life(
             user_id=user_id, persona_id=persona.persona_id
         )
 
@@ -344,7 +350,7 @@ def register_saves_commands(bot) -> None:
 
         if view.value:
             try:
-                bot.agent_core.save_states_engine.delete_save_state(
+                _get_roleplay_feature(bot).save_states_engine.delete_save_state(
                     life_id=life_id, name=name
                 )
                 await interaction.edit_original_response(

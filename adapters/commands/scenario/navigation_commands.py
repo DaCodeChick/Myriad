@@ -10,6 +10,12 @@ from typing import TYPE_CHECKING
 
 from adapters.commands.base import ResponseFormatter
 
+
+def _get_roleplay_feature(bot):
+    """Get roleplay feature from bot, or None if not enabled."""
+    return bot.agent_core.features.get("roleplay")
+
+
 if TYPE_CHECKING:
     from adapters.discord_adapter import MyriadDiscordBot
 
@@ -29,11 +35,11 @@ def register_navigation_commands(
         user_id = str(interaction.user.id)
 
         try:
-            scenario = bot.agent_core.scenario_engine.get_scenario(name)
+            scenario = _get_roleplay_feature(bot).scenario_engine.get_scenario(name)
 
             if not scenario:
                 # List available scenarios
-                scenarios = bot.agent_core.scenario_engine.list_all_scenarios()
+                scenarios = _get_roleplay_feature(bot).scenario_engine.list_all_scenarios()
                 if scenarios:
                     scenario_list = ", ".join([f"'{s.name}'" for s in scenarios])
                     await interaction.response.send_message(
@@ -54,10 +60,10 @@ def register_navigation_commands(
                 return
 
             # Set as active scenario
-            bot.agent_core.scenario_engine.set_active_scenario(user_id, scenario.name)
+            _get_roleplay_feature(bot).scenario_engine.set_active_scenario(user_id, scenario.name)
 
             # Get the full hierarchy to show the user
-            hierarchy = bot.agent_core.scenario_engine.get_scenario_hierarchy(
+            hierarchy = _get_roleplay_feature(bot).scenario_engine.get_scenario_hierarchy(
                 scenario.name
             )
 
@@ -89,10 +95,10 @@ def register_navigation_commands(
 
         try:
             # Get current scenario before clearing
-            current = bot.agent_core.scenario_engine.get_active_scenario(user_id)
+            current = _get_roleplay_feature(bot).scenario_engine.get_active_scenario(user_id)
 
             # Clear the active scenario
-            bot.agent_core.scenario_engine.set_active_scenario(user_id, None)
+            _get_roleplay_feature(bot).scenario_engine.set_active_scenario(user_id, None)
 
             if current:
                 await interaction.response.send_message(
@@ -122,7 +128,7 @@ def register_navigation_commands(
         user_id = str(interaction.user.id)
 
         try:
-            active_scenario = bot.agent_core.scenario_engine.get_active_scenario(
+            active_scenario = _get_roleplay_feature(bot).scenario_engine.get_active_scenario(
                 user_id
             )
 
@@ -137,7 +143,7 @@ def register_navigation_commands(
                 return
 
             # Get the full hierarchy
-            hierarchy = bot.agent_core.scenario_engine.get_scenario_hierarchy(
+            hierarchy = _get_roleplay_feature(bot).scenario_engine.get_scenario_hierarchy(
                 active_scenario.name
             )
 
@@ -179,7 +185,7 @@ def register_navigation_commands(
     async def list_scenarios(interaction: discord.Interaction):
         """List all scenarios."""
         try:
-            scenarios = bot.agent_core.scenario_engine.list_all_scenarios()
+            scenarios = _get_roleplay_feature(bot).scenario_engine.list_all_scenarios()
 
             if not scenarios:
                 await interaction.response.send_message(
@@ -207,7 +213,7 @@ def register_navigation_commands(
                 response += "**Nested Scenarios (has parent):**\n"
                 for s in nested_scenarios:
                     # Get parent name
-                    parent = bot.agent_core.scenario_engine.get_scenario_by_id(
+                    parent = _get_roleplay_feature(bot).scenario_engine.get_scenario_by_id(
                         s.parent_id
                     )
                     parent_name = parent.name if parent else "Unknown"

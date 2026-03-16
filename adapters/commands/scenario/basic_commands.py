@@ -10,6 +10,12 @@ from typing import TYPE_CHECKING
 
 from adapters.commands.base import ResponseFormatter
 
+
+def _get_roleplay_feature(bot):
+    """Get roleplay feature from bot, or None if not enabled."""
+    return bot.agent_core.features.get("roleplay")
+
+
 if TYPE_CHECKING:
     from adapters.discord_adapter import MyriadDiscordBot
 
@@ -32,7 +38,7 @@ def register_basic_commands(
     ):
         """Create a new scenario."""
         try:
-            scenario = bot.agent_core.scenario_engine.create_scenario(
+            scenario = _get_roleplay_feature(bot).scenario_engine.create_scenario(
                 name=name, description=description
             )
 
@@ -63,7 +69,7 @@ def register_basic_commands(
     ):
         """Set a scenario's parent, creating hierarchical nesting."""
         try:
-            bot.agent_core.scenario_engine.set_parent(child_name, parent_name)
+            _get_roleplay_feature(bot).scenario_engine.set_parent(child_name, parent_name)
 
             await interaction.response.send_message(
                 ResponseFormatter.success(
@@ -90,7 +96,7 @@ def register_basic_commands(
     async def delete_scenario(interaction: discord.Interaction, name: str):
         """Delete a scenario."""
         try:
-            scenario = bot.agent_core.scenario_engine.get_scenario(name)
+            scenario = _get_roleplay_feature(bot).scenario_engine.get_scenario(name)
 
             if not scenario:
                 await interaction.response.send_message(
@@ -99,7 +105,7 @@ def register_basic_commands(
                 )
                 return
 
-            bot.agent_core.scenario_engine.delete_scenario(name)
+            _get_roleplay_feature(bot).scenario_engine.delete_scenario(name)
 
             await interaction.response.send_message(
                 ResponseFormatter.success(

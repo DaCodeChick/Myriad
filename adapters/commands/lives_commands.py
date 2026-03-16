@@ -10,6 +10,11 @@ from discord import app_commands
 from adapters.commands.base import ResponseFormatter
 
 
+def _get_roleplay_feature(bot):
+    """Get roleplay feature from bot, or None if not enabled."""
+    return bot.agent_core.features.get("roleplay")
+
+
 class ConfirmationView(discord.ui.View):
     """Generic confirmation dialog with Yes/No buttons."""
 
@@ -39,7 +44,8 @@ def register_lives_commands(bot) -> None:
     Args:
         bot: MyriadDiscordBot instance
     """
-    if not bot.agent_core.lives_engine:
+    roleplay = _get_roleplay_feature(bot)
+    if not roleplay or not roleplay.lives_engine:
         return  # Lives system not enabled
 
     life_group = app_commands.Group(
@@ -76,7 +82,7 @@ def register_lives_commands(bot) -> None:
 
         if view.value:
             try:
-                life_id = bot.agent_core.lives_engine.create_life(
+                life_id = _get_roleplay_feature(bot).lives_engine.create_life(
                     user_id=user_id,
                     persona_id=persona.persona_id,
                     name=name,
@@ -113,7 +119,7 @@ def register_lives_commands(bot) -> None:
             return
 
         try:
-            bot.agent_core.lives_engine.switch_life(
+            _get_roleplay_feature(bot).lives_engine.switch_life(
                 user_id=user_id, persona_id=persona.persona_id, life_name=name
             )
             await interaction.response.send_message(
@@ -139,7 +145,7 @@ def register_lives_commands(bot) -> None:
             )
             return
 
-        lives = bot.agent_core.lives_engine.list_lives(
+        lives = _get_roleplay_feature(bot).lives_engine.list_lives(
             user_id=user_id, persona_id=persona.persona_id
         )
 
@@ -185,7 +191,7 @@ def register_lives_commands(bot) -> None:
 
         if view.value:
             try:
-                bot.agent_core.lives_engine.delete_life(
+                _get_roleplay_feature(bot).lives_engine.delete_life(
                     user_id=user_id, persona_id=persona.persona_id, life_name=name
                 )
                 await interaction.edit_original_response(

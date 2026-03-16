@@ -13,6 +13,12 @@ from typing import TYPE_CHECKING
 
 from adapters.commands.base import ResponseFormatter
 
+
+def _get_roleplay_feature(bot):
+    """Get roleplay feature from bot, or None if not enabled."""
+    return bot.agent_core.features.get("roleplay")
+
+
 if TYPE_CHECKING:
     from adapters.discord_adapter import MyriadDiscordBot
 
@@ -40,8 +46,8 @@ def register_image_commands(
         """Add an image to a scenario folder and trigger appearance regeneration."""
         # Check if vision service is available
         if (
-            not hasattr(bot.agent_core.scenario_engine, "vision_service")
-            or bot.agent_core.scenario_engine.vision_service is None
+            not hasattr(_get_roleplay_feature(bot).scenario_engine, "vision_service")
+            or _get_roleplay_feature(bot).scenario_engine.vision_service is None
         ):
             await interaction.response.send_message(
                 ResponseFormatter.error(
@@ -53,9 +59,9 @@ def register_image_commands(
             return
 
         # Verify scenario exists
-        scenario = bot.agent_core.scenario_engine.get_scenario(name)
+        scenario = _get_roleplay_feature(bot).scenario_engine.get_scenario(name)
         if not scenario:
-            available = bot.agent_core.scenario_engine.list_all_scenarios()
+            available = _get_roleplay_feature(bot).scenario_engine.list_all_scenarios()
             scenario_names = [s.name for s in available]
             await interaction.response.send_message(
                 ResponseFormatter.error(
@@ -120,7 +126,7 @@ def register_image_commands(
                 f.write(image_bytes)
 
             # Force reload scenario to regenerate appearance cache
-            updated_scenario = bot.agent_core.scenario_engine.get_scenario(name)
+            updated_scenario = _get_roleplay_feature(bot).scenario_engine.get_scenario(name)
 
             if updated_scenario and updated_scenario.cached_appearance:
                 await interaction.followup.send(
@@ -160,9 +166,9 @@ def register_image_commands(
     ):
         """List all images in a scenario folder."""
         # Verify scenario exists
-        scenario = bot.agent_core.scenario_engine.get_scenario(name)
+        scenario = _get_roleplay_feature(bot).scenario_engine.get_scenario(name)
         if not scenario:
-            available = bot.agent_core.scenario_engine.list_all_scenarios()
+            available = _get_roleplay_feature(bot).scenario_engine.list_all_scenarios()
             scenario_names = [s.name for s in available]
             await interaction.response.send_message(
                 ResponseFormatter.error(
@@ -234,7 +240,7 @@ def register_image_commands(
     ):
         """Remove an image from a scenario folder and regenerate appearance."""
         # Verify scenario exists
-        scenario = bot.agent_core.scenario_engine.get_scenario(name)
+        scenario = _get_roleplay_feature(bot).scenario_engine.get_scenario(name)
         if not scenario:
             await interaction.response.send_message(
                 ResponseFormatter.error(f"Scenario '{name}' not found."),
@@ -261,7 +267,7 @@ def register_image_commands(
             os.remove(image_path)
 
             # Force reload to regenerate appearance cache by getting scenario again
-            bot.agent_core.scenario_engine.get_scenario(name)
+            _get_roleplay_feature(bot).scenario_engine.get_scenario(name)
 
             await interaction.response.send_message(
                 ResponseFormatter.success(
@@ -288,8 +294,8 @@ def register_image_commands(
         """Force regenerate the appearance cache from images."""
         # Check if vision service is available
         if (
-            not hasattr(bot.agent_core.scenario_engine, "vision_service")
-            or bot.agent_core.scenario_engine.vision_service is None
+            not hasattr(_get_roleplay_feature(bot).scenario_engine, "vision_service")
+            or _get_roleplay_feature(bot).scenario_engine.vision_service is None
         ):
             await interaction.response.send_message(
                 ResponseFormatter.error("Vision service is not configured."),
@@ -298,7 +304,7 @@ def register_image_commands(
             return
 
         # Verify scenario exists
-        scenario = bot.agent_core.scenario_engine.get_scenario(name)
+        scenario = _get_roleplay_feature(bot).scenario_engine.get_scenario(name)
         if not scenario:
             await interaction.response.send_message(
                 ResponseFormatter.error(f"Scenario '{name}' not found."),
@@ -330,8 +336,8 @@ def register_image_commands(
 
         try:
             # Clear cached appearance from database to force regeneration
-            if bot.agent_core.scenario_engine.db_path:
-                conn = sqlite3.connect(bot.agent_core.scenario_engine.db_path)
+            if _get_roleplay_feature(bot).scenario_engine.db_path:
+                conn = sqlite3.connect(_get_roleplay_feature(bot).scenario_engine.db_path)
                 cursor = conn.cursor()
                 cursor.execute(
                     "DELETE FROM scenario_appearances WHERE scenario_name = ?",
@@ -341,7 +347,7 @@ def register_image_commands(
                 conn.close()
 
             # Force reload scenario - this will trigger appearance generation
-            updated_scenario = bot.agent_core.scenario_engine.get_scenario(name)
+            updated_scenario = _get_roleplay_feature(bot).scenario_engine.get_scenario(name)
 
             if updated_scenario and updated_scenario.cached_appearance:
                 await interaction.followup.send(
