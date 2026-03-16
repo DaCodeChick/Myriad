@@ -259,7 +259,7 @@ def register_narrative_commands(bot: "MyriadDiscordBot") -> None:
 
             # Trigger a regeneration by calling process_message with empty message
             # but with the retcon context
-            response = await bot.agent_core.process_message(
+            response = bot.agent_core.process_message(
                 user_id=user_id,
                 message="[Apply retcon and regenerate last response]",
             )
