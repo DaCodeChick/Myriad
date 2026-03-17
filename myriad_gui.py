@@ -486,8 +486,9 @@ class ProcessControlWidget(QWidget):
             and self.brain_process.state() == QProcess.ProcessState.Running
         ):
             self.brain_process.terminate()
-            if not self.brain_process.waitForFinished(3000):
+            if not self.brain_process.waitForFinished(5000):
                 self.brain_process.kill()
+                self.brain_process.waitForFinished(1000)
 
     def brain_finished(self):
         """Handle brain process finished"""
@@ -567,8 +568,9 @@ class ProcessControlWidget(QWidget):
             and self.vision_process.state() == QProcess.ProcessState.Running
         ):
             self.vision_process.terminate()
-            if not self.vision_process.waitForFinished(3000):
+            if not self.vision_process.waitForFinished(5000):
                 self.vision_process.kill()
+                self.vision_process.waitForFinished(1000)
 
     def vision_finished(self):
         """Handle vision process finished"""
@@ -610,8 +612,9 @@ class ProcessControlWidget(QWidget):
             and self.myriad_process.state() == QProcess.ProcessState.Running
         ):
             self.myriad_process.terminate()
-            if not self.myriad_process.waitForFinished(3000):
+            if not self.myriad_process.waitForFinished(5000):
                 self.myriad_process.kill()
+                self.myriad_process.waitForFinished(1000)
 
     def myriad_finished(self):
         """Handle Myriad process finished"""
