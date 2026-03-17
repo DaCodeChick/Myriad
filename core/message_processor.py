@@ -9,10 +9,10 @@ This module manages the complete message processing cycle including:
 
 Extracted from AgentCore as part of RDSSC Phase 3.
 Refactored to use modular provider system for LLM backends.
+RDSSC Phase 4: Extracted async helpers to utils/async_utils.py
 """
 
 import re
-import asyncio
 from typing import List, Dict, Optional, TYPE_CHECKING, Tuple
 
 from core.features.roleplay.persona import PersonaCartridge
@@ -24,6 +24,7 @@ from core.features.roleplay.metacognition_engine import MetacognitionEngine
 from core.features.roleplay.mode_manager import ModeManager
 from database.user_preferences import UserPreferences
 from core.features.roleplay.cadence_degrader import CadenceDegrader
+from core.utils.async_utils import run_async_safe
 
 if TYPE_CHECKING:
     from core.features.roleplay.user_masks import UserMaskManager
@@ -211,47 +212,14 @@ class MessageProcessor:
         while tool_iterations < self.max_tool_iterations:
             try:
                 # Call LLM API via provider (async)
-                import asyncio
-                import concurrent.futures
-                from functools import partial
-
-                def run_async_in_thread(coro):
-                    """Run async coroutine in a new thread with its own event loop."""
-
-                    def run_in_new_loop():
-                        new_loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(new_loop)
-                        try:
-                            return new_loop.run_until_complete(coro)
-                        finally:
-                            new_loop.close()
-
-                    with concurrent.futures.ThreadPoolExecutor() as executor:
-                        future = executor.submit(run_in_new_loop)
-                        return future.result()
-
-                try:
-                    # Check if event loop is already running
-                    loop = asyncio.get_running_loop()
-                    # We're in an async context - run in separate thread
-                    assistant_message = run_async_in_thread(
-                        self.provider.generate(
-                            messages=messages,
-                            temperature=persona.temperature,
-                            max_tokens=persona.max_tokens,
-                            image_data=image_data if tool_iterations == 0 else None,
-                        )
+                assistant_message = run_async_safe(
+                    self.provider.generate(
+                        messages=messages,
+                        temperature=persona.temperature,
+                        max_tokens=persona.max_tokens,
+                        image_data=image_data if tool_iterations == 0 else None,
                     )
-                except RuntimeError:
-                    # No event loop running, safe to use asyncio.run()
-                    assistant_message = asyncio.run(
-                        self.provider.generate(
-                            messages=messages,
-                            temperature=persona.temperature,
-                            max_tokens=persona.max_tokens,
-                            image_data=image_data if tool_iterations == 0 else None,
-                        )
-                    )
+                )
 
                 if not assistant_message:
                     return None
@@ -285,22 +253,10 @@ class MessageProcessor:
                         if tool_name == "generate_image" and hasattr(
                             tool_registry, "execute_tool_async"
                         ):
-                            # Run async tool - use the same helper as LLM calls
-                            try:
-                                loop = asyncio.get_running_loop()
-                                # Event loop running, use new thread with new loop
-                                result = run_async_in_thread(
-                                    tool_registry.execute_tool_async(
-                                        tool_name, tool_args
-                                    )
-                                )
-                            except RuntimeError:
-                                # No event loop, safe to use asyncio.run()
-                                result = asyncio.run(
-                                    tool_registry.execute_tool_async(
-                                        tool_name, tool_args
-                                    )
-                                )
+                            # Run async tool using helper
+                            result = run_async_safe(
+                                tool_registry.execute_tool_async(tool_name, tool_args)
+                            )
                         else:
                             # Use sync execution for other tools
                             result = tool_registry.execute_tool(tool_name, tool_args)
