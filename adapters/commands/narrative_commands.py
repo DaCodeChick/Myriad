@@ -6,6 +6,7 @@ Provides commands for controlling narrative flow:
 - /retcon: Retroactively change something and regenerate AI's last response
 """
 
+import io
 import discord
 from discord import app_commands
 from typing import TYPE_CHECKING
@@ -265,10 +266,17 @@ def register_narrative_commands(bot: "MyriadDiscordBot") -> None:
 
             # Trigger a regeneration by calling process_message with empty message
             # but with the retcon context
-            response = bot.agent_core.process_message(
+            response, pending_images = bot.agent_core.process_message(
                 user_id=user_id,
                 message="[Apply retcon and regenerate last response]",
             )
+
+            if not response:
+                await interaction.followup.send(
+                    ResponseFormatter.error("Failed to generate retconned response."),
+                    ephemeral=True,
+                )
+                return
 
             # Send confirmation with preview of new response
             response_preview = (
@@ -286,6 +294,16 @@ def register_narrative_commands(bot: "MyriadDiscordBot") -> None:
 
             # Post the regenerated response to the channel
             await interaction.channel.send(response)
+
+            # Send any generated images
+            if pending_images:
+                for img_data, mime_type in pending_images:
+                    file_ext = mime_type.split("/")[-1]
+                    await interaction.channel.send(
+                        file=discord.File(
+                            fp=io.BytesIO(img_data), filename=f"generated.{file_ext}"
+                        )
+                    )
 
         except Exception as e:
             await interaction.followup.send(

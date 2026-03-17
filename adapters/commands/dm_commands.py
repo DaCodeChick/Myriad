@@ -5,6 +5,7 @@ Allows users to inject world events as a DM, with the active persona responding
 in first-person to prevent perspective bleed.
 """
 
+import io
 import discord
 from discord import app_commands
 from typing import TYPE_CHECKING
@@ -98,7 +99,7 @@ def register_dm_commands(bot: "MyriadDiscordBot") -> None:
 
             # Generate character's response to the DM prompt
             # The First-Person Anchor directive will be in the context
-            response = bot.agent_core.process_message(
+            response, pending_images = bot.agent_core.process_message(
                 user_id=user_id,
                 message="[Respond to the Dungeon Master's prompt above in character]",
                 memory_visibility="GLOBAL",
@@ -115,6 +116,16 @@ def register_dm_commands(bot: "MyriadDiscordBot") -> None:
 
             # Send the character's first-person response to the channel
             await interaction.followup.send(response)
+
+            # Send any generated images
+            if pending_images:
+                for img_data, mime_type in pending_images:
+                    file_ext = mime_type.split("/")[-1]
+                    await interaction.followup.send(
+                        file=discord.File(
+                            fp=io.BytesIO(img_data), filename=f"generated.{file_ext}"
+                        )
+                    )
 
         except Exception as e:
             await interaction.followup.send(
