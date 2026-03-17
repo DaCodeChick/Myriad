@@ -84,9 +84,11 @@ Myriad/
 ### 1. Install Dependencies
 
 ```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
+# Install uv (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install dependencies using uv
+uv pip install -r requirements.txt
 ```
 
 ### 2. Configure Environment
@@ -126,8 +128,10 @@ Or manually set `LLM_BASE_URL` to your local server (e.g., `http://localhost:123
 
 **With external API**:
 ```bash
-python main.py
+uv run python main.py
 ```
+
+**Note**: Always use `uv run` to ensure the bot runs in the correct virtual environment with all dependencies.
 
 ## Usage
 
