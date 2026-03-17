@@ -452,6 +452,12 @@ class ProcessControlWidget(QWidget):
 
         # Start koboldcpp
         self.brain_process = QProcess(self)
+
+        # Start process in its own session/process group to prevent killing GUI when stopping
+        params = QProcess.UnixProcessParameters()
+        params.flags = QProcess.UnixProcessFlag.CreateNewSession
+        self.brain_process.setUnixProcessParameters(params)
+
         self.brain_process.readyReadStandardOutput.connect(
             lambda: self.handle_brain_output()
         )
@@ -559,6 +565,12 @@ class ProcessControlWidget(QWidget):
         vision_port = vision_port_match.group(1)
 
         self.vision_process = QProcess(self)
+
+        # Start process in its own session/process group to prevent killing GUI when stopping
+        params = QProcess.UnixProcessParameters()
+        params.flags = QProcess.UnixProcessFlag.CreateNewSession
+        self.vision_process.setUnixProcessParameters(params)
+
         self.vision_process.readyReadStandardOutput.connect(
             lambda: self.handle_vision_output()
         )
@@ -643,6 +655,12 @@ class ProcessControlWidget(QWidget):
             return
 
         self.myriad_process = QProcess(self)
+
+        # Start process in its own session/process group to prevent killing GUI when stopping
+        params = QProcess.UnixProcessParameters()
+        params.flags = QProcess.UnixProcessFlag.CreateNewSession
+        self.myriad_process.setUnixProcessParameters(params)
+
         self.myriad_process.readyReadStandardOutput.connect(
             lambda: self.handle_myriad_output()
         )
