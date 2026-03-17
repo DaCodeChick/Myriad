@@ -438,7 +438,8 @@ class MessageProcessor:
         """
         Extract and process internal thoughts from response.
 
-        Extracts <thought>...</thought> tags, saves to database, and either:
+        Extracts <thought>...</thought> tags (or [thought]...[end thought] as fallback),
+        saves to database, and either:
         - Formats inline with emoji (if show_thoughts_inline=True in user_preferences)
         - Strips from response and prints to terminal (if show_thoughts_inline=False)
 
@@ -456,6 +457,22 @@ class MessageProcessor:
         """
         if not self.metacognition_engine:
             return response
+
+        # First, normalize any incorrect formats to the correct format
+        # Handle [thought]...[end thought] -> <thought>...</thought>
+        response = re.sub(
+            r"\[thought\](.*?)\[end thought\]",
+            r"<thought>\1</thought>",
+            response,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
+        # Handle [thought]...[/thought] -> <thought>...</thought>
+        response = re.sub(
+            r"\[thought\](.*?)\[/thought\]",
+            r"<thought>\1</thought>",
+            response,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
 
         # Extract ALL thought blocks using non-greedy regex (handles multi-line)
         thought_matches = re.finditer(r"<thought>(.*?)</thought>", response, re.DOTALL)
@@ -514,5 +531,10 @@ class MessageProcessor:
 
         # Clean up any orphaned tags (shouldn't happen, but safety check)
         response = response.replace("<thought>", "").replace("</thought>", "")
+        response = (
+            response.replace("[thought]", "")
+            .replace("[end thought]", "")
+            .replace("[/thought]", "")
+        )
 
         return response

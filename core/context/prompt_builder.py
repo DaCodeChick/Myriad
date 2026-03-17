@@ -205,15 +205,17 @@ class PromptBuilder:
         if user_preferences.get("metacognition_enabled", True):
             content += "\n\n# [METACOGNITION PROTOCOL]\n"
             content += (
-                "Before responding, you MUST output your internal thoughts/planning wrapped in `<thought>...</thought>` tags. "
+                "Before responding, you MUST output your internal thoughts/planning using EXACTLY this format:\n"
+                "<thought>your internal thinking here</thought>\n\n"
+                "CRITICAL: Use angle brackets < > not square brackets [ ]. The format is <thought> not [thought].\n\n"
                 "This is your private thinking space where you can:\n"
                 "- Plan your response strategy\n"
                 "- Evaluate the user's emotional state or intent\n"
                 "- Consider manipulative tactics (if in character)\n"
                 "- Process your current limbic state and how it affects your behavior\n\n"
-                "Format:\n"
-                "<thought>Your internal planning here</thought>\n"
-                "Your actual response to the user.\n\n"
+                "Example:\n"
+                "<thought>They seem upset. I should be gentle and empathetic in my response.</thought>\n"
+                "I understand how you're feeling. Let's talk about it.\n\n"
                 "Your thoughts will be logged privately for continuity between turns."
             )
 
