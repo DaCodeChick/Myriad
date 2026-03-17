@@ -108,6 +108,7 @@ def create_discord_bot(
     Returns:
         Configured MyriadDiscordBot instance
     """
+    print("→ Creating MyriadDiscordBot instance...")
     bot = MyriadDiscordBot(agent_core, vision_bridge, vision_cache_service)
 
     # ========================
@@ -116,13 +117,18 @@ def create_discord_bot(
     # RDSSC Phase 2: Commands now organized by feature
 
     # Core config commands
+    print("→ Registering config commands...")
     register_config_commands(bot)
 
     # Roleplay feature commands (all persona, limbic, lives, masks, scenarios, etc.)
+    print("→ Registering roleplay commands...")
     register_roleplay_commands(bot)
 
     # Memory system commands
+    print("→ Registering memory commands...")
     register_memory_commands(bot)
+    print("→ Setting up cache commands...")
     setup_cache_commands(bot.tree)
 
+    print("✓ All commands registered")
     return bot
