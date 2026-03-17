@@ -218,6 +218,7 @@ class LoggingConfig:
     brain_file_enabled: bool = False
     eyes_file_enabled: bool = False
     log_dir: str = "logs"
+    init_log_level: str = "INFO"  # DEBUG, INFO, WARNING, ERROR
 
     @classmethod
     def from_env(cls) -> "LoggingConfig":
@@ -236,6 +237,7 @@ class LoggingConfig:
             eyes_file_enabled=os.getenv("ENABLE_EYES_FILE_LOGGING", "false").lower()
             == "true",
             log_dir=os.getenv("LOG_DIR", "logs"),
+            init_log_level=os.getenv("INIT_LOG_LEVEL", "INFO").upper(),
         )
 
 

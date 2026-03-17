@@ -15,6 +15,7 @@ from core.agent_core import AgentCore
 from core.config import MyriadConfig
 from core.vision_bridge import VisionBridge
 from core.vision_cache_service import VisionCacheService
+from core.init_logger import init_log
 from adapters.discord import create_discord_bot
 
 
@@ -27,7 +28,11 @@ def run_discord_adapter() -> None:
 
     # Load configuration
     config = MyriadConfig.from_env()
-    print(f"Loaded configuration: {config}")
+
+    # Configure initialization logging level
+    init_log.set_level(config.logging.init_log_level)
+
+    print(f"Loaded configuration: {config}", flush=True)
 
     # Initialize VisionBridge if configured
     vision_bridge = None
@@ -38,15 +43,17 @@ def run_discord_adapter() -> None:
                 vision_base_url=config.vision.base_url,
                 vision_model=config.vision.model,
             )
-            print(f"✓ Vision Bridge enabled: {config.vision.base_url}")
+            init_log.info(f"✓ Vision Bridge enabled: {config.vision.base_url}")
         except Exception as e:
-            print(f"⚠ Vision Bridge initialization failed: {e}")
-            print("  Continuing without vision support...")
+            init_log.warning(f"⚠ Vision Bridge initialization failed: {e}")
+            init_log.warning("  Continuing without vision support...")
     else:
         if not config.vision.enabled:
-            print("ℹ Vision disabled via VISION_ENABLED=false")
+            init_log.info("ℹ Vision disabled via VISION_ENABLED=false")
         else:
-            print("ℹ Vision Bridge not configured (set VISION_BASE_URL to enable)")
+            init_log.info(
+                "ℹ Vision Bridge not configured (set VISION_BASE_URL to enable)"
+            )
 
     # Initialize VisionCacheService if configured (needed for persona appearance caching)
     vision_cache_service = None
@@ -57,30 +64,30 @@ def run_discord_adapter() -> None:
                 vision_base_url=config.vision.base_url,
                 vision_model=config.vision.model,
             )
-            print(f"✓ Vision Cache Service enabled: {config.vision.base_url}")
+            init_log.info(f"✓ Vision Cache Service enabled: {config.vision.base_url}")
         except Exception as e:
-            print(f"⚠ Vision Cache Service initialization failed: {e}")
-            print("  Continuing without vision cache support...")
+            init_log.warning(f"⚠ Vision Cache Service initialization failed: {e}")
+            init_log.warning("  Continuing without vision cache support...")
     else:
         if not config.vision.enabled:
-            print("ℹ Vision Cache Service disabled via VISION_ENABLED=false")
+            init_log.info("ℹ Vision Cache Service disabled via VISION_ENABLED=false")
         else:
-            print(
+            init_log.info(
                 "ℹ Vision Cache Service not configured (set VISION_BASE_URL to enable)"
             )
 
     # Initialize AgentCore (platform-agnostic) with vision service for persona appearances
-    print("→ Initializing AgentCore...", flush=True)
+    init_log.info("→ Initializing AgentCore...")
     agent_core = AgentCore(config=config, vision_service=vision_cache_service)
-    print("✓ AgentCore initialized", flush=True)
+    init_log.info("✓ AgentCore initialized")
 
     # Create Discord adapter
-    print("→ Creating Discord bot...", flush=True)
+    init_log.debug("→ Creating Discord bot...")
     bot = create_discord_bot(agent_core, vision_bridge, vision_cache_service)
-    print("✓ Discord bot created", flush=True)
+    init_log.debug("✓ Discord bot created")
 
     # Run bot
-    print("Starting Myriad Discord Adapter...", flush=True)
+    init_log.info("Starting Myriad Discord Adapter...")
     bot.run(config.discord_token)
 
 
