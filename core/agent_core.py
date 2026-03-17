@@ -178,7 +178,8 @@ class AgentCore:
 
     def _load_roleplay_feature(self, personas_dir: str, vision_service) -> None:
         """Load the roleplay feature with all its components."""
-        print("\n📦 Loading Features...")
+        print("\n📦 Loading Roleplay Feature...")
+        print("  → Creating RoleplayFeature instance...")
 
         # RDSSC Phase 1: Use roleplay-specific database
         roleplay = RoleplayFeature(
@@ -186,17 +187,21 @@ class AgentCore:
             db_path=self.config.database_paths.roleplay_db_path,
             personas_dir=personas_dir,
         )
+        print("  ✓ RoleplayFeature instance created")
 
         # Initialize with dependencies
+        print("  → Initializing RoleplayFeature with dependencies...")
         roleplay.initialize(
             memory_matrix=self.memory_matrix,
             vision_service=vision_service,
         )
+        print("  ✓ RoleplayFeature initialized")
 
         self.features["roleplay"] = roleplay
 
         # Convenience property for backward compatibility
         self.roleplay = roleplay
+        print("✓ Roleplay Feature loaded\n")
 
     def _init_context_builder(self) -> None:
         """Initialize the conversation context builder with available features."""
