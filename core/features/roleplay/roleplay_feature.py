@@ -79,60 +79,89 @@ class RoleplayFeature(BaseFeature):
         memory_matrix = dependencies.get("memory_matrix")
         vision_service = dependencies.get("vision_service")
 
-        print("🎭 Initializing Roleplay Feature...")
+        print("🎭 Initializing Roleplay Feature...", flush=True)
 
         # User State (Active Persona Tracking)
         # RDSSC Phase 3: Initialize user_state first, use instead of memory_matrix for persona tracking
+        print("   → Creating UserStateManager...", flush=True)
         self.user_state = UserStateManager(db_path=self.db_path)
+        print("   ✓ UserStateManager created", flush=True)
 
         # Persona System
+        print("   → Creating PersonaLoader...", flush=True)
         self.persona_loader = PersonaLoader(
             personas_dir=self.personas_dir,
             db_path=self.db_path,
             vision_service=vision_service,
         )
+        print("   ✓ PersonaLoader created", flush=True)
+
+        print("   → Creating PersonaManager...", flush=True)
         self.persona_manager = PersonaManager(
             persona_loader=self.persona_loader,
             user_state=self.user_state,
         )
+        print("   ✓ PersonaManager created", flush=True)
 
         # Limbic System (Emotional Neurochemistry)
+        print("   → Creating LimbicEngine...", flush=True)
         self.limbic_engine = LimbicEngine(db_path=self.db_path)
+        print("   ✓ LimbicEngine created", flush=True)
+
+        print("   → Creating DigitalPharmacy...", flush=True)
         self.digital_pharmacy = DigitalPharmacy(self.limbic_engine)
+        print("   ✓ DigitalPharmacy created", flush=True)
 
         # Cadence Degradation (Text Post-Processing)
+        print("   → Creating CadenceDegrader...", flush=True)
         self.cadence_degrader = CadenceDegrader()
+        print("   ✓ CadenceDegrader created", flush=True)
 
         # Metacognition (Internal Monologue)
+        print("   → Creating MetacognitionEngine...", flush=True)
         self.metacognition_engine = MetacognitionEngine(db_path=self.db_path)
+        print("   ✓ MetacognitionEngine created", flush=True)
 
         # Lives & Save States (Memory Persistence)
+        print("   → Creating LivesEngine...", flush=True)
         self.lives_engine = LivesEngine(db_path=self.db_path)
+        print("   ✓ LivesEngine created", flush=True)
+
+        print("   → Creating SaveStatesEngine...", flush=True)
         self.save_states_engine = SaveStatesEngine(db_path=self.db_path)
+        print("   ✓ SaveStatesEngine created", flush=True)
 
         # User Masks (User-Side Personas)
+        print("   → Creating UserMaskManager...", flush=True)
         self.user_mask_manager = UserMaskManager(
             db_path=self.db_path, persona_loader=self.persona_loader
         )
+        print("   ✓ UserMaskManager created", flush=True)
 
         # Scenario Engine (World Tree)
+        print("   → Creating ScenarioEngine...", flush=True)
         self.scenario_engine = ScenarioEngine(
             db_path=self.db_path,
             vision_service=vision_service,
         )
+        print("   ✓ ScenarioEngine created", flush=True)
 
         # Session Notes (Meta-Level Context)
+        print("   → Creating SessionNotesManager...", flush=True)
         self.session_notes = SessionNotesManager(db_path=self.db_path)
+        print("   ✓ SessionNotesManager created", flush=True)
 
         # Mode Manager (Behavioral Overrides - OOC, HENTAI, etc.)
+        print("   → Creating ModeManager...", flush=True)
         self.mode_manager = ModeManager(db_path=self.db_path)
+        print("   ✓ ModeManager created", flush=True)
 
-        print("   ✓ Persona system loaded")
-        print("   ✓ Limbic & pharmacy initialized")
-        print("   ✓ Metacognition enabled")
-        print("   ✓ Lives & save states ready")
-        print("   ✓ User masks & scenarios loaded")
-        print("   ✓ Mode manager initialized")
+        print("   ✓ Persona system loaded", flush=True)
+        print("   ✓ Limbic & pharmacy initialized", flush=True)
+        print("   ✓ Metacognition enabled", flush=True)
+        print("   ✓ Lives & save states ready", flush=True)
+        print("   ✓ User masks & scenarios loaded", flush=True)
+        print("   ✓ Mode manager initialized", flush=True)
 
     # ========================
     # PERSONA MANAGEMENT

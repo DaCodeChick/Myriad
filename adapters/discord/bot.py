@@ -72,20 +72,22 @@ class MyriadDiscordBot(commands.Bot):
 
     async def setup_hook(self):
         """Setup hook called when bot is ready."""
-        print("→ setup_hook() called")
+        print("→ setup_hook() called", flush=True)
         # Sync slash commands with timeout
         try:
-            print("Syncing slash commands to Discord...")
+            print("→ Syncing slash commands to Discord...", flush=True)
             await self.tree.sync()
-            print("✓ Slash commands synced!")
+            print("✓ Slash commands synced!", flush=True)
         except Exception as e:
-            print(f"⚠ Failed to sync slash commands: {e}")
-            print("  Bot will continue but commands may not be available")
+            print(f"⚠ Failed to sync slash commands: {e}", flush=True)
+            print("  Bot will continue but commands may not be available", flush=True)
+        print("✓ setup_hook() completed", flush=True)
 
     async def on_ready(self):
         """Called when bot successfully connects to Discord."""
-        print("→ on_ready() called")
+        print("→ on_ready() called", flush=True)
         await self.event_handlers.on_ready()
+        print("✓ on_ready() completed", flush=True)
 
     async def on_message(self, message: discord.Message):
         """Handle incoming messages."""
@@ -108,8 +110,9 @@ def create_discord_bot(
     Returns:
         Configured MyriadDiscordBot instance
     """
-    print("→ Creating MyriadDiscordBot instance...")
+    print("→ Creating MyriadDiscordBot instance...", flush=True)
     bot = MyriadDiscordBot(agent_core, vision_bridge, vision_cache_service)
+    print("✓ MyriadDiscordBot instance created", flush=True)
 
     # ========================
     # REGISTER COMMAND MODULES
@@ -117,18 +120,18 @@ def create_discord_bot(
     # RDSSC Phase 2: Commands now organized by feature
 
     # Core config commands
-    print("→ Registering config commands...")
+    print("→ Registering config commands...", flush=True)
     register_config_commands(bot)
 
     # Roleplay feature commands (all persona, limbic, lives, masks, scenarios, etc.)
-    print("→ Registering roleplay commands...")
+    print("→ Registering roleplay commands...", flush=True)
     register_roleplay_commands(bot)
 
     # Memory system commands
-    print("→ Registering memory commands...")
+    print("→ Registering memory commands...", flush=True)
     register_memory_commands(bot)
-    print("→ Setting up cache commands...")
+    print("→ Setting up cache commands...", flush=True)
     setup_cache_commands(bot.tree)
 
-    print("✓ All commands registered")
+    print("✓ All commands registered", flush=True)
     return bot

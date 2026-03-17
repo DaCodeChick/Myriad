@@ -70,17 +70,17 @@ def run_discord_adapter() -> None:
             )
 
     # Initialize AgentCore (platform-agnostic) with vision service for persona appearances
-    print("→ Initializing AgentCore...")
+    print("→ Initializing AgentCore...", flush=True)
     agent_core = AgentCore(config=config, vision_service=vision_cache_service)
-    print("✓ AgentCore initialized")
+    print("✓ AgentCore initialized", flush=True)
 
     # Create Discord adapter
-    print("→ Creating Discord bot...")
+    print("→ Creating Discord bot...", flush=True)
     bot = create_discord_bot(agent_core, vision_bridge, vision_cache_service)
-    print("✓ Discord bot created")
+    print("✓ Discord bot created", flush=True)
 
     # Run bot
-    print("Starting Myriad Discord Adapter...")
+    print("Starting Myriad Discord Adapter...", flush=True)
     bot.run(config.discord_token)
 
 
