@@ -12,6 +12,7 @@ from typing import List, Optional
 
 from core.features.roleplay.persona import PersonaLoader, PersonaCartridge
 from core.features.roleplay.user_state import UserStateManager
+from core.logger import get_logger
 
 
 class PersonaManager:
@@ -114,24 +115,23 @@ class PersonaManager:
         Returns:
             True if successful, False if persona doesn't exist
         """
-        print(
-            f"[DEBUG] PersonaManager.switch_persona called: user_id={user_id}, persona_id={persona_id}",
-            flush=True,
+        logger = get_logger()
+        logger.debug(
+            f"PersonaManager.switch_persona called: user_id={user_id}, persona_id={persona_id}"
         )
+
         # Verify persona exists
-        print(f"[DEBUG] Loading persona '{persona_id}'...", flush=True)
+        logger.debug(f"Loading persona '{persona_id}'...")
         persona = self.persona_loader.get_persona(persona_id)
-        print(
-            f"[DEBUG] Persona loaded: {persona.name if persona else None}", flush=True
-        )
+        logger.debug(f"Persona loaded: {persona.name if persona else None}")
         if not persona:
-            print(f"[DEBUG] Persona not found, returning False", flush=True)
+            logger.debug("Persona not found, returning False")
             return False
 
         # Update user state (sets single persona, clearing others)
-        print(f"[DEBUG] Setting active persona in user_state...", flush=True)
+        logger.debug("Setting active persona in user_state...")
         self.user_state.set_active_persona(user_id, persona_id)
-        print(f"[DEBUG] Active persona set, returning True", flush=True)
+        logger.debug("Active persona set, returning True")
         return True
 
     def list_personas(self) -> List[str]:

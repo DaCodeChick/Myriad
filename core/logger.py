@@ -50,6 +50,10 @@ class MyriadLogger:
         self.eyes_file_enabled = eyes_file_enabled
         self.log_dir = log_dir
 
+        # Debug mode uses same log level as initialization (INIT_LOG_LEVEL)
+        init_level = os.getenv("INIT_LOG_LEVEL", "INFO").upper()
+        self.debug_enabled = init_level == "DEBUG"
+
         # Create log directory if file logging is enabled
         if brain_file_enabled or eyes_file_enabled:
             Path(log_dir).mkdir(parents=True, exist_ok=True)
@@ -215,6 +219,16 @@ class MyriadLogger:
         if self.eyes_file_enabled:
             log_msg = f"[{timestamp_file}] [EYES RESPONSE: {persona_name}] {description_preview}"
             self._write_to_file(self.eyes_log_file, log_msg)
+
+    def debug(self, message: str) -> None:
+        """
+        Log a debug message (only if INIT_LOG_LEVEL=DEBUG).
+
+        Args:
+            message: Debug message to print
+        """
+        if self.debug_enabled:
+            print(f"[DEBUG] {message}", flush=True)
 
 
 # Global logger instance (will be initialized with config)

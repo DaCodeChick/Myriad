@@ -11,6 +11,7 @@ from discord import app_commands
 from typing import TYPE_CHECKING
 
 from adapters.commands.base import ResponseFormatter
+from core.logger import get_logger
 
 if TYPE_CHECKING:
     from adapters.discord_adapter import MyriadDiscordBot
@@ -94,38 +95,35 @@ def register_ensemble_commands(
     @app_commands.describe(persona_id="The ID of the persona to switch to")
     async def swap_persona(interaction: discord.Interaction, persona_id: str):
         """Switch the user's active persona."""
-        print(
-            f"[DEBUG] /persona swap called: persona_id={persona_id}, user={interaction.user.id}",
-            flush=True,
+        logger = get_logger()
+        logger.debug(
+            f"/persona swap called: persona_id={persona_id}, user={interaction.user.id}"
         )
+
         try:
             # Defer immediately to prevent timeout
-            print(f"[DEBUG] Deferring interaction...", flush=True)
+            logger.debug("Deferring interaction...")
             await interaction.response.defer(ephemeral=True)
-            print(f"[DEBUG] Interaction deferred", flush=True)
+            logger.debug("Interaction deferred")
         except discord.errors.NotFound:
             # Interaction expired before we could defer (Discord API latency)
             # This is a transient error - user should try again
-            print(f"[DEBUG] Interaction expired (NotFound)", flush=True)
+            logger.debug("Interaction expired (NotFound)")
             return
 
         user_id = str(interaction.user.id)
-        print(
-            f"[DEBUG] Calling switch_persona for user_id={user_id}, persona_id={persona_id}",
-            flush=True,
+        logger.debug(
+            f"Calling switch_persona for user_id={user_id}, persona_id={persona_id}"
         )
 
         try:
             # Attempt to switch persona
             success = bot.agent_core.switch_persona(user_id, persona_id)
-            print(f"[DEBUG] switch_persona returned: {success}", flush=True)
+            logger.debug(f"switch_persona returned: {success}")
 
             if success:
                 persona = bot.agent_core.get_active_persona(user_id)
-                print(
-                    f"[DEBUG] Got active persona: {persona.name if persona else None}",
-                    flush=True,
-                )
+                logger.debug(f"Got active persona: {persona.name if persona else None}")
                 if persona:  # Type guard to satisfy type checker
                     await interaction.followup.send(
                         ResponseFormatter.success(
@@ -133,9 +131,9 @@ def register_ensemble_commands(
                         ),
                         ephemeral=True,
                     )
-                    print(f"[DEBUG] Sent success message", flush=True)
+                    logger.debug("Sent success message")
             else:
-                print(f"[DEBUG] switch_persona failed, sending error", flush=True)
+                logger.debug("switch_persona failed, sending error")
                 available = bot.agent_core.list_personas()
                 await interaction.followup.send(
                     ResponseFormatter.error(
@@ -144,7 +142,7 @@ def register_ensemble_commands(
                     ),
                     ephemeral=True,
                 )
-                print(f"[DEBUG] Sent error message", flush=True)
+                logger.debug("Sent error message")
         except Exception as e:
             print(f"[ERROR] Exception in swap_persona: {e}", flush=True)
             import traceback
