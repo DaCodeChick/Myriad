@@ -68,15 +68,23 @@ class MyriadDiscordBot(commands.Bot):
             activity_tracker=self.activity_tracker,
             vision_processor=self.vision_processor,
         )
+        print("✓ Bot initialization complete")
 
     async def setup_hook(self):
         """Setup hook called when bot is ready."""
-        # Sync slash commands
-        await self.tree.sync()
-        print("Slash commands synced!")
+        print("→ setup_hook() called")
+        # Sync slash commands with timeout
+        try:
+            print("Syncing slash commands to Discord...")
+            await self.tree.sync()
+            print("✓ Slash commands synced!")
+        except Exception as e:
+            print(f"⚠ Failed to sync slash commands: {e}")
+            print("  Bot will continue but commands may not be available")
 
     async def on_ready(self):
         """Called when bot successfully connects to Discord."""
+        print("→ on_ready() called")
         await self.event_handlers.on_ready()
 
     async def on_message(self, message: discord.Message):
