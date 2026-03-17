@@ -370,14 +370,15 @@ class ProcessControlWidget(QWidget):
         self.myriad_toggle.clicked.connect(self.toggle_myriad)
         layout.addWidget(self.myriad_toggle)
 
-        # All Control (toggle)
-        self.all_toggle = QPushButton("▶️ All")
-        self.all_toggle.setCheckable(True)
-        self.all_toggle.setStyleSheet(
-            "QPushButton:checked { background-color: #2d5016; }"
-        )
-        self.all_toggle.clicked.connect(self.toggle_all)
-        layout.addWidget(self.all_toggle)
+        # Start All
+        start_all_btn = QPushButton("▶️ Start All")
+        start_all_btn.clicked.connect(self.start_all)
+        layout.addWidget(start_all_btn)
+
+        # Stop All
+        stop_all_btn = QPushButton("⏹️ Stop All")
+        stop_all_btn.clicked.connect(self.stop_all)
+        layout.addWidget(stop_all_btn)
 
         self.setLayout(layout)
 
@@ -401,13 +402,6 @@ class ProcessControlWidget(QWidget):
             self.start_myriad()
         else:
             self.stop_myriad()
-
-    def toggle_all(self, checked):
-        """Toggle all processes on/off"""
-        if checked:
-            self.start_all()
-        else:
-            self.stop_all()
 
     def start_brain(self):
         """Start the brain server (koboldcpp)"""
@@ -494,7 +488,6 @@ class ProcessControlWidget(QWidget):
         """Handle brain process finished"""
         self.brain_toggle.setText("▶️ Brain")
         self.brain_toggle.setChecked(False)
-        self.update_all_button_state()
 
     def start_vision(self):
         """Start the vision server (koboldcpp with vision)"""
@@ -576,7 +569,6 @@ class ProcessControlWidget(QWidget):
         """Handle vision process finished"""
         self.vision_toggle.setText("▶️ Vision")
         self.vision_toggle.setChecked(False)
-        self.update_all_button_state()
 
     def start_myriad(self):
         """Start the Myriad core process"""
@@ -620,20 +612,6 @@ class ProcessControlWidget(QWidget):
         """Handle Myriad process finished"""
         self.myriad_toggle.setText("▶️ Myriad")
         self.myriad_toggle.setChecked(False)
-        self.update_all_button_state()
-
-    def update_all_button_state(self):
-        """Update the All button state based on individual process states"""
-        # Check if all processes are stopped
-        all_stopped = (
-            not self.brain_toggle.isChecked()
-            and not self.vision_toggle.isChecked()
-            and not self.myriad_toggle.isChecked()
-        )
-
-        if all_stopped:
-            self.all_toggle.setText("▶️ All")
-            self.all_toggle.setChecked(False)
 
     def start_all(self):
         """Start all processes"""
@@ -641,18 +619,12 @@ class ProcessControlWidget(QWidget):
         # Wait a bit before starting vision and myriad
         QTimer.singleShot(2000, self.start_vision)
         QTimer.singleShot(15000, self.start_myriad)
-        # Update all toggle button
-        self.all_toggle.setText("⏹️ All")
-        self.all_toggle.setChecked(True)
 
     def stop_all(self):
         """Stop all processes"""
         self.stop_myriad()
         self.stop_vision()
         self.stop_brain()
-        # Update all toggle button
-        self.all_toggle.setText("▶️ All")
-        self.all_toggle.setChecked(False)
 
     def handle_brain_output(self):
         """Handle brain process stdout"""
