@@ -71,7 +71,10 @@ class OpenAIProvider(LLMProvider):
             return content if content else None
 
         except Exception as e:
-            print(f"❌ OpenAI API error: {e}")
+            import traceback
+
+            print(f"❌ OpenAI API error: {type(e).__name__}: {e}")
+            print(f"Full traceback:\n{traceback.format_exc()}")
             return None
 
     @property
