@@ -16,6 +16,11 @@ if TYPE_CHECKING:
     from adapters.discord_adapter import MyriadDiscordBot
 
 
+def _get_roleplay_feature(bot):
+    """Get roleplay feature from bot, or None if not enabled."""
+    return bot.agent_core.features.get("roleplay")
+
+
 def register_config_commands(
     persona_group: app_commands.Group, bot: "MyriadDiscordBot"
 ) -> None:
@@ -40,7 +45,7 @@ def register_config_commands(
     ):
         """Toggle narrator mode for a persona."""
         # Verify persona exists
-        persona = bot.agent_core.persona_loader.get_persona(persona_id)
+        persona = _get_roleplay_feature(bot).persona_loader.get_persona(persona_id)
         if not persona:
             available = bot.agent_core.list_personas()
             await interaction.response.send_message(
@@ -57,13 +62,13 @@ def register_config_commands(
             persona.is_narrator = is_narrator
 
             # Save back to metadata.json
-            success = bot.agent_core.persona_loader.update_persona(
+            success = _get_roleplay_feature(bot).persona_loader.update_persona(
                 persona_id, persona.to_dict()
             )
 
             if success:
                 # Reload the persona to clear cache
-                bot.agent_core.persona_loader.reload_persona(persona_id)
+                _get_roleplay_feature(bot).persona_loader.reload_persona(persona_id)
 
                 status = "ENABLED" if is_narrator else "DISABLED"
                 mode_description = (

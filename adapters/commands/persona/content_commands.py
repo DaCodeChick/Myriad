@@ -19,6 +19,11 @@ if TYPE_CHECKING:
     from adapters.discord_adapter import MyriadDiscordBot
 
 
+def _get_roleplay_feature(bot):
+    """Get roleplay feature from bot, or None if not enabled."""
+    return bot.agent_core.features.get("roleplay")
+
+
 def register_content_commands(
     persona_group: app_commands.Group, bot: "MyriadDiscordBot"
 ) -> None:
@@ -45,7 +50,7 @@ def register_content_commands(
     ):
         """Set or update the background field for an existing persona."""
         # Verify persona exists
-        persona = bot.agent_core.persona_loader.get_persona(persona_id)
+        persona = _get_roleplay_feature(bot).persona_loader.get_persona(persona_id)
         if not persona:
             available = bot.agent_core.list_personas()
             await interaction.response.send_message(
@@ -58,13 +63,13 @@ def register_content_commands(
             return
 
         # Update the background
-        success = bot.agent_core.persona_loader.update_persona_background(
+        success = _get_roleplay_feature(bot).persona_loader.update_persona_background(
             persona_id, background
         )
 
         if success:
             # Reload the persona to clear cache
-            bot.agent_core.persona_loader.reload_persona(persona_id)
+            _get_roleplay_feature(bot).persona_loader.reload_persona(persona_id)
 
             bg_preview = background[:100]
             if len(background) > 100:
@@ -95,7 +100,7 @@ def register_content_commands(
         interaction: discord.Interaction, persona_id: str
     ):
         """View the complete background for a persona."""
-        persona = bot.agent_core.persona_loader.get_persona(persona_id)
+        persona = _get_roleplay_feature(bot).persona_loader.get_persona(persona_id)
         if not persona:
             available = bot.agent_core.list_personas()
             await interaction.response.send_message(
@@ -145,7 +150,7 @@ def register_content_commands(
         interaction: discord.Interaction, persona_id: str
     ):
         """Clear the background field from a persona."""
-        persona = bot.agent_core.persona_loader.get_persona(persona_id)
+        persona = _get_roleplay_feature(bot).persona_loader.get_persona(persona_id)
         if not persona:
             available = bot.agent_core.list_personas()
             await interaction.response.send_message(
@@ -167,12 +172,12 @@ def register_content_commands(
             return
 
         # Update with empty background (None)
-        success = bot.agent_core.persona_loader.update_persona_background(
+        success = _get_roleplay_feature(bot).persona_loader.update_persona_background(
             persona_id, None
         )
 
         if success:
-            bot.agent_core.persona_loader.reload_persona(persona_id)
+            _get_roleplay_feature(bot).persona_loader.reload_persona(persona_id)
             await interaction.response.send_message(
                 ResponseFormatter.success(
                     f"Cleared background for **{persona.name}** (`{persona_id}`)"
@@ -217,7 +222,7 @@ def register_content_commands(
             return
 
         # Verify persona exists
-        persona = bot.agent_core.persona_loader.get_persona(persona_id)
+        persona = _get_roleplay_feature(bot).persona_loader.get_persona(persona_id)
         if not persona:
             available = bot.agent_core.list_personas()
             await interaction.response.send_message(
@@ -283,10 +288,12 @@ def register_content_commands(
                 f.write(image_bytes)
 
             # Force reload persona to regenerate appearance cache
-            bot.agent_core.persona_loader.reload_persona(persona_id)
+            _get_roleplay_feature(bot).persona_loader.reload_persona(persona_id)
 
             # Get updated persona with new cached appearance
-            updated_persona = bot.agent_core.persona_loader.get_persona(persona_id)
+            updated_persona = _get_roleplay_feature(bot).persona_loader.get_persona(
+                persona_id
+            )
 
             if updated_persona and updated_persona.cached_appearance:
                 await interaction.followup.send(
@@ -326,7 +333,7 @@ def register_content_commands(
     ):
         """List all images in a persona folder."""
         # Verify persona exists
-        persona = bot.agent_core.persona_loader.get_persona(persona_id)
+        persona = _get_roleplay_feature(bot).persona_loader.get_persona(persona_id)
         if not persona:
             available = bot.agent_core.list_personas()
             await interaction.response.send_message(
@@ -397,7 +404,7 @@ def register_content_commands(
     ):
         """Remove an image from a persona folder and regenerate appearance."""
         # Verify persona exists
-        persona = bot.agent_core.persona_loader.get_persona(persona_id)
+        persona = _get_roleplay_feature(bot).persona_loader.get_persona(persona_id)
         if not persona:
             await interaction.response.send_message(
                 ResponseFormatter.error(f"Persona '{persona_id}' not found."),
@@ -424,7 +431,7 @@ def register_content_commands(
             os.remove(image_path)
 
             # Force reload to regenerate appearance cache
-            bot.agent_core.persona_loader.reload_persona(persona_id)
+            _get_roleplay_feature(bot).persona_loader.reload_persona(persona_id)
 
             await interaction.response.send_message(
                 ResponseFormatter.success(
@@ -458,7 +465,7 @@ def register_content_commands(
             return
 
         # Verify persona exists
-        persona = bot.agent_core.persona_loader.get_persona(persona_id)
+        persona = _get_roleplay_feature(bot).persona_loader.get_persona(persona_id)
         if not persona:
             await interaction.response.send_message(
                 ResponseFormatter.error(f"Persona '{persona_id}' not found."),
@@ -490,8 +497,10 @@ def register_content_commands(
 
         try:
             # Clear cached appearance from database to force regeneration
-            if bot.agent_core.persona_loader.db_path:
-                conn = sqlite3.connect(bot.agent_core.persona_loader.db_path)
+            if _get_roleplay_feature(bot).persona_loader.db_path:
+                conn = sqlite3.connect(
+                    _get_roleplay_feature(bot).persona_loader.db_path
+                )
                 cursor = conn.cursor()
                 cursor.execute(
                     "DELETE FROM persona_appearances WHERE persona_id = ?",
@@ -501,10 +510,12 @@ def register_content_commands(
                 conn.close()
 
             # Force reload persona - this will trigger appearance generation
-            bot.agent_core.persona_loader.reload_persona(persona_id)
+            _get_roleplay_feature(bot).persona_loader.reload_persona(persona_id)
 
             # Get updated persona
-            updated_persona = bot.agent_core.persona_loader.get_persona(persona_id)
+            updated_persona = _get_roleplay_feature(bot).persona_loader.get_persona(
+                persona_id
+            )
 
             if updated_persona and updated_persona.cached_appearance:
                 await interaction.followup.send(

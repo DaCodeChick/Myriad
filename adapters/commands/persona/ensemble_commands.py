@@ -16,6 +16,11 @@ if TYPE_CHECKING:
     from adapters.discord_adapter import MyriadDiscordBot
 
 
+def _get_roleplay_feature(bot):
+    """Get roleplay feature from bot, or None if not enabled."""
+    return bot.agent_core.features.get("roleplay")
+
+
 def register_ensemble_commands(
     persona_group: app_commands.Group, bot: "MyriadDiscordBot"
 ) -> None:
@@ -36,8 +41,17 @@ def register_ensemble_commands(
         """Load a persona into the ensemble."""
         user_id = str(interaction.user.id)
 
+        # Check if roleplay feature is enabled
+        roleplay = _get_roleplay_feature(bot)
+        if not roleplay or not roleplay.persona_loader:
+            await interaction.response.send_message(
+                ResponseFormatter.error("Roleplay feature is not enabled."),
+                ephemeral=True,
+            )
+            return
+
         # Verify persona exists
-        persona = bot.agent_core.persona_loader.get_persona(persona_id)
+        persona = roleplay.persona_loader.get_persona(persona_id)
         if not persona:
             available = bot.agent_core.list_personas()
             await interaction.response.send_message(

@@ -72,13 +72,18 @@ class EventHandlers:
         """Initialize the autonomy engine with shared resources from AgentCore."""
         try:
             roleplay = self.agent_core.features.get("roleplay")
+            if not roleplay:
+                print("⚠ Autonomy Engine requires roleplay feature to be enabled")
+                self.autonomy_enabled = False
+                return
+
             limbic_engine = roleplay.limbic_engine if roleplay else None
 
             self.autonomy_engine = AutonomyEngine(
                 llm_client=self.agent_core.provider,
                 activity_tracker=self.activity_tracker,
                 user_state=self.agent_core.memory_matrix,
-                persona_loader=self.agent_core.persona_loader,
+                persona_loader=roleplay.persona_loader,
                 user_preferences=self.agent_core.user_preferences,
                 limbic_engine=limbic_engine,
             )
