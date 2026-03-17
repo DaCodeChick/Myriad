@@ -813,19 +813,30 @@ class MyriadControlPanel(QMainWindow):
 
     def closeEvent(self, event):
         """Handle window close event"""
-        reply = QMessageBox.question(
-            self,
-            "Confirm Exit",
-            "Stop all running processes and exit?",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+        # Check if any processes are running
+        any_running = (
+            self.process_control.brain_toggle.isChecked()
+            or self.process_control.vision_toggle.isChecked()
+            or self.process_control.myriad_toggle.isChecked()
         )
 
-        if reply == QMessageBox.Yes:
-            self.process_control.stop_all()
-            event.accept()
+        if any_running:
+            reply = QMessageBox.question(
+                self,
+                "Confirm Exit",
+                "Stop all running processes and exit?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+
+            if reply == QMessageBox.Yes:
+                self.process_control.stop_all()
+                event.accept()
+            else:
+                event.ignore()
         else:
-            event.ignore()
+            # No processes running, just exit
+            event.accept()
 
 
 def main():
