@@ -24,6 +24,7 @@ from core.features.roleplay.metacognition_engine import MetacognitionEngine
 from core.features.roleplay.lives_engine import LivesEngine
 from core.features.roleplay.save_states_engine import SaveStatesEngine
 from core.features.roleplay.user_masks import UserMaskManager
+from core.features.roleplay.user_state import UserStateManager
 from core.features.roleplay.scenario import ScenarioEngine
 from core.features.roleplay.session_notes import SessionNotesManager
 from core.features.roleplay.mode_manager import ModeManager
@@ -54,6 +55,7 @@ class RoleplayFeature(BaseFeature):
         # These will be initialized in initialize()
         self.persona_loader = None
         self.persona_manager = None
+        self.user_state = None
         self.limbic_engine = None
         self.digital_pharmacy = None
         self.cadence_degrader = None
@@ -79,6 +81,10 @@ class RoleplayFeature(BaseFeature):
 
         print("🎭 Initializing Roleplay Feature...")
 
+        # User State (Active Persona Tracking)
+        # RDSSC Phase 3: Initialize user_state first, use instead of memory_matrix for persona tracking
+        self.user_state = UserStateManager(db_path=self.db_path)
+
         # Persona System
         self.persona_loader = PersonaLoader(
             personas_dir=self.personas_dir,
@@ -87,7 +93,7 @@ class RoleplayFeature(BaseFeature):
         )
         self.persona_manager = PersonaManager(
             persona_loader=self.persona_loader,
-            memory_matrix=memory_matrix,
+            user_state=self.user_state,
         )
 
         # Limbic System (Emotional Neurochemistry)
