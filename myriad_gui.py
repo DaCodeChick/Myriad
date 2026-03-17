@@ -482,35 +482,47 @@ class ProcessControlWidget(QWidget):
 
     def stop_brain(self):
         """Stop the brain server"""
-        if (
-            self.brain_process
-            and self.brain_process.state() == QProcess.ProcessState.Running
-        ):
-            # Get PID and kill entire process group
-            pid = self.brain_process.processId()
-            try:
-                # Kill the process group to catch child processes
-                os.killpg(os.getpgid(pid), signal.SIGTERM)
-            except (ProcessLookupError, PermissionError, OSError) as e:
-                print(
-                    f"[GUI] Warning: Could not send SIGTERM to brain process: {e}",
-                    flush=True,
-                )
+        try:
+            if (
+                self.brain_process
+                and self.brain_process.state() == QProcess.ProcessState.Running
+            ):
+                # Get PID and kill entire process group
+                pid = self.brain_process.processId()
+                if pid > 0:  # Valid PID
+                    try:
+                        # Kill the process group to catch child processes
+                        pgid = os.getpgid(pid)
+                        os.killpg(pgid, signal.SIGTERM)
+                    except (ProcessLookupError, PermissionError, OSError) as e:
+                        print(
+                            f"[GUI] Warning: Could not send SIGTERM to brain process: {e}",
+                            flush=True,
+                        )
 
-            if not self.brain_process.waitForFinished(5000):
-                try:
-                    os.killpg(os.getpgid(pid), signal.SIGKILL)
-                except (ProcessLookupError, PermissionError, OSError) as e:
-                    print(
-                        f"[GUI] Warning: Could not send SIGKILL to brain process: {e}",
-                        flush=True,
-                    )
-                self.brain_process.waitForFinished(1000)
+                    if not self.brain_process.waitForFinished(5000):
+                        try:
+                            pgid = os.getpgid(pid)
+                            os.killpg(pgid, signal.SIGKILL)
+                        except (ProcessLookupError, PermissionError, OSError) as e:
+                            print(
+                                f"[GUI] Warning: Could not send SIGKILL to brain process: {e}",
+                                flush=True,
+                            )
+                        self.brain_process.waitForFinished(1000)
+        except Exception as e:
+            print(f"[GUI] Error in stop_brain: {e}", flush=True)
+            import traceback
+
+            traceback.print_exc()
 
     def brain_finished(self):
         """Handle brain process finished"""
-        self.brain_toggle.setText("▶️ Brain")
-        self.brain_toggle.setChecked(False)
+        try:
+            self.brain_toggle.setText("▶️ Brain")
+            self.brain_toggle.setChecked(False)
+        except Exception as e:
+            print(f"[GUI] Error in brain_finished: {e}", flush=True)
 
     def start_vision(self):
         """Start the vision server (koboldcpp with vision)"""
@@ -579,35 +591,47 @@ class ProcessControlWidget(QWidget):
 
     def stop_vision(self):
         """Stop the vision server"""
-        if (
-            self.vision_process
-            and self.vision_process.state() == QProcess.ProcessState.Running
-        ):
-            # Get PID and kill entire process group
-            pid = self.vision_process.processId()
-            try:
-                # Kill the process group to catch child processes
-                os.killpg(os.getpgid(pid), signal.SIGTERM)
-            except (ProcessLookupError, PermissionError, OSError) as e:
-                print(
-                    f"[GUI] Warning: Could not send SIGTERM to vision process: {e}",
-                    flush=True,
-                )
+        try:
+            if (
+                self.vision_process
+                and self.vision_process.state() == QProcess.ProcessState.Running
+            ):
+                # Get PID and kill entire process group
+                pid = self.vision_process.processId()
+                if pid > 0:  # Valid PID
+                    try:
+                        # Kill the process group to catch child processes
+                        pgid = os.getpgid(pid)
+                        os.killpg(pgid, signal.SIGTERM)
+                    except (ProcessLookupError, PermissionError, OSError) as e:
+                        print(
+                            f"[GUI] Warning: Could not send SIGTERM to vision process: {e}",
+                            flush=True,
+                        )
 
-            if not self.vision_process.waitForFinished(5000):
-                try:
-                    os.killpg(os.getpgid(pid), signal.SIGKILL)
-                except (ProcessLookupError, PermissionError, OSError) as e:
-                    print(
-                        f"[GUI] Warning: Could not send SIGKILL to vision process: {e}",
-                        flush=True,
-                    )
-                self.vision_process.waitForFinished(1000)
+                    if not self.vision_process.waitForFinished(5000):
+                        try:
+                            pgid = os.getpgid(pid)
+                            os.killpg(pgid, signal.SIGKILL)
+                        except (ProcessLookupError, PermissionError, OSError) as e:
+                            print(
+                                f"[GUI] Warning: Could not send SIGKILL to vision process: {e}",
+                                flush=True,
+                            )
+                        self.vision_process.waitForFinished(1000)
+        except Exception as e:
+            print(f"[GUI] Error in stop_vision: {e}", flush=True)
+            import traceback
+
+            traceback.print_exc()
 
     def vision_finished(self):
         """Handle vision process finished"""
-        self.vision_toggle.setText("▶️ Vision")
-        self.vision_toggle.setChecked(False)
+        try:
+            self.vision_toggle.setText("▶️ Vision")
+            self.vision_toggle.setChecked(False)
+        except Exception as e:
+            print(f"[GUI] Error in vision_finished: {e}", flush=True)
 
     def start_myriad(self):
         """Start the Myriad core process"""
@@ -638,35 +662,47 @@ class ProcessControlWidget(QWidget):
 
     def stop_myriad(self):
         """Stop the Myriad core process"""
-        if (
-            self.myriad_process
-            and self.myriad_process.state() == QProcess.ProcessState.Running
-        ):
-            # Get PID and kill entire process group
-            pid = self.myriad_process.processId()
-            try:
-                # Kill the process group to catch child processes
-                os.killpg(os.getpgid(pid), signal.SIGTERM)
-            except (ProcessLookupError, PermissionError, OSError) as e:
-                print(
-                    f"[GUI] Warning: Could not send SIGTERM to myriad process: {e}",
-                    flush=True,
-                )
+        try:
+            if (
+                self.myriad_process
+                and self.myriad_process.state() == QProcess.ProcessState.Running
+            ):
+                # Get PID and kill entire process group
+                pid = self.myriad_process.processId()
+                if pid > 0:  # Valid PID
+                    try:
+                        # Kill the process group to catch child processes
+                        pgid = os.getpgid(pid)
+                        os.killpg(pgid, signal.SIGTERM)
+                    except (ProcessLookupError, PermissionError, OSError) as e:
+                        print(
+                            f"[GUI] Warning: Could not send SIGTERM to myriad process: {e}",
+                            flush=True,
+                        )
 
-            if not self.myriad_process.waitForFinished(5000):
-                try:
-                    os.killpg(os.getpgid(pid), signal.SIGKILL)
-                except (ProcessLookupError, PermissionError, OSError) as e:
-                    print(
-                        f"[GUI] Warning: Could not send SIGKILL to myriad process: {e}",
-                        flush=True,
-                    )
-                self.myriad_process.waitForFinished(1000)
+                    if not self.myriad_process.waitForFinished(5000):
+                        try:
+                            pgid = os.getpgid(pid)
+                            os.killpg(pgid, signal.SIGKILL)
+                        except (ProcessLookupError, PermissionError, OSError) as e:
+                            print(
+                                f"[GUI] Warning: Could not send SIGKILL to myriad process: {e}",
+                                flush=True,
+                            )
+                        self.myriad_process.waitForFinished(1000)
+        except Exception as e:
+            print(f"[GUI] Error in stop_myriad: {e}", flush=True)
+            import traceback
+
+            traceback.print_exc()
 
     def myriad_finished(self):
         """Handle Myriad process finished"""
-        self.myriad_toggle.setText("▶️ Myriad")
-        self.myriad_toggle.setChecked(False)
+        try:
+            self.myriad_toggle.setText("▶️ Myriad")
+            self.myriad_toggle.setChecked(False)
+        except Exception as e:
+            print(f"[GUI] Error in myriad_finished: {e}", flush=True)
 
     def start_all(self):
         """Start all processes"""
