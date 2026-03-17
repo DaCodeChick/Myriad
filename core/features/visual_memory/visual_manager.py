@@ -25,7 +25,7 @@ class VisualManager:
 
     def __init__(
         self,
-        db_path: str = "data/visual_profiles.db",
+        db_path: str = "data/visual_memory.db",  # RDSSC Phase 1: Use dedicated visual DB
         gemini_api_key: Optional[str] = None,
     ):
         """

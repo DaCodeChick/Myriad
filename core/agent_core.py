@@ -67,7 +67,7 @@ class AgentCore:
     def __init__(
         self,
         config: MyriadConfig,
-        db_path: str = "data/myriad_state.db",
+        db_path: str = "data/myriad_state.db",  # DEPRECATED - kept for backward compatibility
         personas_dir: str = "personas",
         vision_service=None,
         enable_roleplay: bool = True,  # Enable roleplay feature by default
@@ -77,14 +77,17 @@ class AgentCore:
 
         Args:
             config: Complete Myriad configuration object
-            db_path: Path to SQLite database
+            db_path: DEPRECATED - use config.database_paths instead
             personas_dir: Directory containing persona JSON files (for roleplay feature)
             vision_service: Optional VisionCacheService for appearance generation
             enable_roleplay: Enable the roleplay feature (personas, limbic, lives, etc.)
         """
         # Store configuration
         self.config = config
-        self.db_path = db_path
+
+        # RDSSC Phase 1: Use feature-specific database paths from config
+        # db_path is deprecated but kept for backward compatibility
+        self.db_path = db_path  # Legacy - still used by some components
 
         # Initialize global logger
         initialize_logger(
@@ -112,11 +115,14 @@ class AgentCore:
         # CORE INFRASTRUCTURE (always loaded)
         # ====================
 
-        # Memory & User State
+        # Memory & User State (use memory_db_path)
         self.memory_matrix = MemoryMatrix(
-            db_path=db_path, vector_memory_enabled=config.memory.vector_memory_enabled
+            db_path=config.database_paths.memory_db_path,
+            vector_memory_enabled=config.memory.vector_memory_enabled,
         )
-        self.user_preferences = UserPreferences(db_path=db_path)
+        self.user_preferences = UserPreferences(
+            db_path=config.database_paths.memory_db_path
+        )
 
         # Knowledge Graph Memory (Always loaded)
         self.graph_memory = GraphMemory(db_path=config.database_paths.graph_db_path)
@@ -174,9 +180,10 @@ class AgentCore:
         """Load the roleplay feature with all its components."""
         print("\n📦 Loading Features...")
 
+        # RDSSC Phase 1: Use roleplay-specific database
         roleplay = RoleplayFeature(
             config=self.config,  # Pass full config for now
-            db_path=self.db_path,
+            db_path=self.config.database_paths.roleplay_db_path,
             personas_dir=personas_dir,
         )
 

@@ -2,6 +2,8 @@
 Discord bot implementation for Project Myriad.
 
 Main MyriadDiscordBot class that bridges Discord to the platform-agnostic AgentCore.
+
+RDSSC Phase 2: Updated imports to use feature-organized command packages.
 """
 
 from typing import Optional
@@ -15,19 +17,12 @@ from core.vision_cache_service import VisionCacheService
 from core.features.roleplay.activity_tracker import ActivityTracker
 from adapters.discord.event_handlers import EventHandlers
 from adapters.discord.vision_processor import VisionProcessor
+
+# Command imports - reorganized by feature
 from adapters.commands.config_commands import register_config_commands
-from adapters.commands.degradation_commands import register_degradation_commands
-from adapters.commands.dm_commands import register_dm_commands
-from adapters.commands.lives_commands import register_lives_commands
-from adapters.commands.mask_commands import register_mask_commands
-from adapters.commands.memory_commands import register_memory_commands
-from adapters.commands.mode_commands import register_mode_commands
-from adapters.commands.narrative_commands import register_narrative_commands
-from adapters.commands.note_commands import register_note_commands
-from adapters.commands.persona import register_persona_commands
-from adapters.commands.saves_commands import register_saves_commands
-from adapters.commands.scenario import register_scenario_commands
-from adapters.commands.search_cache_commands import (
+from adapters.commands.roleplay import register_roleplay_commands
+from adapters.commands.memory.memory_commands import register_memory_commands
+from adapters.commands.memory.search_cache_commands import (
     setup_commands as setup_cache_commands,
 )
 
@@ -110,22 +105,16 @@ def create_discord_bot(
     # ========================
     # REGISTER COMMAND MODULES
     # ========================
+    # RDSSC Phase 2: Commands now organized by feature
 
-    # Persona management commands (swap, personas, whoami)
-    register_persona_commands(bot)
-    register_mask_commands(bot)
-    register_scenario_commands(bot)
-    register_memory_commands(bot)
-    register_lives_commands(bot)
-    register_saves_commands(bot)
+    # Core config commands
     register_config_commands(bot)
-    register_mode_commands(bot)
-    register_dm_commands(bot)  # Dungeon Master world event injection
-    register_narrative_commands(bot)  # Narrative control (narrate, improvise, retcon)
-    register_note_commands(bot)  # Silent meta-level context injection
-    register_degradation_commands(bot, bot.tree)  # Text degradation customization
 
-    # Search cache management commands
+    # Roleplay feature commands (all persona, limbic, lives, masks, scenarios, etc.)
+    register_roleplay_commands(bot)
+
+    # Memory system commands
+    register_memory_commands(bot)
     setup_cache_commands(bot.tree)
 
     return bot

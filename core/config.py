@@ -153,19 +153,37 @@ class ToolsConfig:
 
 @dataclass
 class DatabasePaths:
-    """Database file paths configuration."""
+    """Database file paths configuration.
 
-    main_db_path: str = "data/myriad.db"
+    RDSSC Phase 1: Consolidate databases by feature.
+    - roleplay_db_path: All roleplay feature tables (limbic, metacognition, lives, etc.)
+    - memory_db_path: Memory system tables (memories, user_preferences)
+    - graph_db_path: Knowledge graph tables (entities, relationships)
+    - visual_db_path: Visual memory tables (visual_profiles)
+    - chroma_db_path: Vector embeddings (ChromaDB)
+    """
+
+    roleplay_db_path: str = "data/roleplay.db"
+    memory_db_path: str = "data/memory.db"
     graph_db_path: str = "data/knowledge_graph.db"
+    visual_db_path: str = "data/visual_memory.db"
     chroma_db_path: str = "data/chroma_db"
+
+    # Deprecated - for backward compatibility during migration
+    main_db_path: str = "data/memory.db"
 
     @classmethod
     def from_env(cls) -> "DatabasePaths":
         """Load database paths from environment variables."""
         return cls(
-            main_db_path=os.getenv("MAIN_DB_PATH", "data/myriad.db"),
+            roleplay_db_path=os.getenv("ROLEPLAY_DB_PATH", "data/roleplay.db"),
+            memory_db_path=os.getenv("MEMORY_DB_PATH", "data/memory.db"),
             graph_db_path=os.getenv("GRAPH_DB_PATH", "data/knowledge_graph.db"),
+            visual_db_path=os.getenv("VISUAL_DB_PATH", "data/visual_memory.db"),
             chroma_db_path=os.getenv("CHROMA_DB_PATH", "data/chroma_db"),
+            main_db_path=os.getenv(
+                "MAIN_DB_PATH", os.getenv("MEMORY_DB_PATH", "data/memory.db")
+            ),
         )
 
 

@@ -34,16 +34,24 @@ class UserStateManager:
         return conn
 
     def _ensure_schema(self) -> None:
-        """Ensure user_state table exists."""
+        """Ensure user_state table exists with compatible schema.
+
+        RDSSC Phase 1: Use same schema as user_masks.py to avoid conflicts.
+        Both modules share the same table, so we need compatible schemas.
+        """
         conn = self._get_connection()
         cursor = conn.cursor()
 
+        # Use the same schema as user_masks.py (ensemble-compatible)
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS user_state (
                 user_id TEXT PRIMARY KEY,
                 active_persona TEXT,
-                last_interaction_time TEXT
+                last_interaction_time TEXT,
+                active_persona_ids TEXT,
+                active_mask_ids TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
         """
         )
