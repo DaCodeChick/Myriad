@@ -16,6 +16,11 @@ if TYPE_CHECKING:
     from adapters.discord_adapter import MyriadDiscordBot
 
 
+def _get_roleplay_feature(bot):
+    """Get roleplay feature from bot, or None if not enabled."""
+    return bot.agent_core.features.get("roleplay")
+
+
 def register_mask_commands(bot: "MyriadDiscordBot") -> None:
     """
     Register all mask-related slash commands.
@@ -40,13 +45,26 @@ def register_mask_commands(bot: "MyriadDiscordBot") -> None:
         """Activate a user persona (adds to ensemble)."""
         user_id = str(interaction.user.id)
 
+        # Check if roleplay feature is enabled
+        roleplay = _get_roleplay_feature(bot)
+        if (
+            not roleplay
+            or not roleplay.persona_loader
+            or not roleplay.user_mask_manager
+        ):
+            await interaction.response.send_message(
+                ResponseFormatter.error("Roleplay feature is not enabled."),
+                ephemeral=True,
+            )
+            return
+
         try:
             # Try to load the persona
-            persona = bot.agent_core.persona_loader.load_persona(persona_id)
+            persona = roleplay.persona_loader.load_persona(persona_id)
 
             if not persona:
                 # List available personas (show first 10)
-                all_personas = bot.agent_core.persona_loader.list_available_personas()
+                all_personas = roleplay.persona_loader.list_available_personas()
 
                 if all_personas:
                     persona_list = ", ".join([f"'{p}'" for p in all_personas[:10]])
@@ -74,15 +92,11 @@ def register_mask_commands(bot: "MyriadDiscordBot") -> None:
                 return
 
             # Add to ensemble (append mode)
-            success = bot.agent_core.user_mask_manager.add_active_mask(
-                user_id, persona_id
-            )
+            success = roleplay.user_mask_manager.add_active_mask(user_id, persona_id)
 
             if success:
                 # Get all active masks
-                active_masks = bot.agent_core.user_mask_manager.get_active_masks(
-                    user_id
-                )
+                active_masks = roleplay.user_mask_manager.get_active_masks(user_id)
                 ensemble_status = (
                     f"\n\n**User Ensemble Active** ({len(active_masks)} masks worn)"
                     if len(active_masks) > 1
@@ -121,16 +135,23 @@ def register_mask_commands(bot: "MyriadDiscordBot") -> None:
         """Deactivate a specific mask or all masks."""
         user_id = str(interaction.user.id)
 
+        # Check if roleplay feature is enabled
+        roleplay = _get_roleplay_feature(bot)
+        if not roleplay or not roleplay.user_mask_manager:
+            await interaction.response.send_message(
+                ResponseFormatter.error("Roleplay feature is not enabled."),
+                ephemeral=True,
+            )
+            return
+
         try:
             # If no persona_id specified, remove all masks (legacy behavior)
             if not persona_id or persona_id.strip() == "":
-                active_masks = bot.agent_core.user_mask_manager.get_active_masks(
-                    user_id
-                )
+                active_masks = roleplay.user_mask_manager.get_active_masks(user_id)
                 count = len(active_masks)
 
                 # Clear all masks
-                bot.agent_core.user_mask_manager.clear_active_masks(user_id)
+                roleplay.user_mask_manager.clear_active_masks(user_id)
 
                 if count > 0:
                     await interaction.response.send_message(
@@ -148,14 +169,10 @@ def register_mask_commands(bot: "MyriadDiscordBot") -> None:
                 return
 
             # Remove specific mask
-            success = bot.agent_core.user_mask_manager.remove_active_mask(
-                user_id, persona_id
-            )
+            success = roleplay.user_mask_manager.remove_active_mask(user_id, persona_id)
 
             if success:
-                active_masks = bot.agent_core.user_mask_manager.get_active_masks(
-                    user_id
-                )
+                active_masks = roleplay.user_mask_manager.get_active_masks(user_id)
                 remaining_status = (
                     f"\n\n**{len(active_masks)} mask(s) still worn**"
                     if active_masks
@@ -189,12 +206,21 @@ def register_mask_commands(bot: "MyriadDiscordBot") -> None:
         """Clear all active masks."""
         user_id = str(interaction.user.id)
 
+        # Check if roleplay feature is enabled
+        roleplay = _get_roleplay_feature(bot)
+        if not roleplay or not roleplay.user_mask_manager:
+            await interaction.response.send_message(
+                ResponseFormatter.error("Roleplay feature is not enabled."),
+                ephemeral=True,
+            )
+            return
+
         try:
             # Get count before clearing
-            active_masks = bot.agent_core.user_mask_manager.get_active_masks(user_id)
+            active_masks = roleplay.user_mask_manager.get_active_masks(user_id)
             count = len(active_masks)
 
-            bot.agent_core.user_mask_manager.clear_active_masks(user_id)
+            roleplay.user_mask_manager.clear_active_masks(user_id)
 
             if count > 0:
                 await interaction.response.send_message(
@@ -223,8 +249,17 @@ def register_mask_commands(bot: "MyriadDiscordBot") -> None:
         """List all active masks in the user ensemble."""
         user_id = str(interaction.user.id)
 
+        # Check if roleplay feature is enabled
+        roleplay = _get_roleplay_feature(bot)
+        if not roleplay or not roleplay.user_mask_manager:
+            await interaction.response.send_message(
+                ResponseFormatter.error("Roleplay feature is not enabled."),
+                ephemeral=True,
+            )
+            return
+
         try:
-            active_masks = bot.agent_core.user_mask_manager.get_active_masks(user_id)
+            active_masks = roleplay.user_mask_manager.get_active_masks(user_id)
 
             if not active_masks:
                 await interaction.response.send_message(
@@ -277,12 +312,26 @@ def register_mask_commands(bot: "MyriadDiscordBot") -> None:
     )
     async def list_masks(interaction: discord.Interaction):
         """List all available personas that can be worn."""
+        user_id = str(interaction.user.id)
+
+        # Check if roleplay feature is enabled
+        roleplay = _get_roleplay_feature(bot)
+        if (
+            not roleplay
+            or not roleplay.persona_loader
+            or not roleplay.user_mask_manager
+        ):
+            await interaction.response.send_message(
+                ResponseFormatter.error("Roleplay feature is not enabled."),
+                ephemeral=True,
+            )
+            return
+
         try:
-            user_id = str(interaction.user.id)
-            active_mask = bot.agent_core.user_mask_manager.get_active_mask(user_id)
+            active_mask = roleplay.user_mask_manager.get_active_mask(user_id)
 
             # Get all personas
-            all_personas = bot.agent_core.persona_loader.list_available_personas()
+            all_personas = roleplay.persona_loader.list_available_personas()
 
             if not all_personas:
                 await interaction.response.send_message(
@@ -296,7 +345,7 @@ def register_mask_commands(bot: "MyriadDiscordBot") -> None:
             # Load and display personas (limit to first 15 for brevity)
             persona_list = []
             for persona_id in sorted(all_personas[:15]):
-                persona = bot.agent_core.persona_loader.load_persona(persona_id)
+                persona = roleplay.persona_loader.load_persona(persona_id)
                 if persona:
                     active_indicator = (
                         " 🎭 **(WEARING)**"
@@ -336,8 +385,17 @@ def register_mask_commands(bot: "MyriadDiscordBot") -> None:
         """Show the currently active mask(s)."""
         user_id = str(interaction.user.id)
 
+        # Check if roleplay feature is enabled
+        roleplay = _get_roleplay_feature(bot)
+        if not roleplay or not roleplay.user_mask_manager:
+            await interaction.response.send_message(
+                ResponseFormatter.error("Roleplay feature is not enabled."),
+                ephemeral=True,
+            )
+            return
+
         try:
-            active_masks = bot.agent_core.user_mask_manager.get_active_masks(user_id)
+            active_masks = roleplay.user_mask_manager.get_active_masks(user_id)
 
             if not active_masks:
                 await interaction.response.send_message(
