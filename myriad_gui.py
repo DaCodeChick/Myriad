@@ -331,8 +331,9 @@ class EnvConfigWidget(QWidget):
 class ProcessControlWidget(QWidget):
     """Widget for controlling brain and vision processes"""
 
-    def __init__(self):
+    def __init__(self, parent_window=None):
         super().__init__()
+        self.parent_window = parent_window
         self.brain_process: Optional[QProcess] = None
         self.vision_process: Optional[QProcess] = None
         self.myriad_process: Optional[QProcess] = None
@@ -626,43 +627,43 @@ class ProcessControlWidget(QWidget):
         """Handle brain process stdout"""
         if self.brain_process:
             data = self.brain_process.readAllStandardOutput().data().decode()
-            if hasattr(self.parent(), "append_log"):
-                self.parent().append_log(f"[BRAIN] {data}")
+            if self.parent_window:
+                self.parent_window.append_log(f"[BRAIN] {data}")
 
     def handle_brain_error(self):
         """Handle brain process stderr"""
         if self.brain_process:
             data = self.brain_process.readAllStandardError().data().decode()
-            if hasattr(self.parent(), "append_log"):
-                self.parent().append_log(f"[BRAIN ERROR] {data}")
+            if self.parent_window:
+                self.parent_window.append_log(f"[BRAIN ERROR] {data}")
 
     def handle_vision_output(self):
         """Handle vision process stdout"""
         if self.vision_process:
             data = self.vision_process.readAllStandardOutput().data().decode()
-            if hasattr(self.parent(), "append_log"):
-                self.parent().append_log(f"[VISION] {data}")
+            if self.parent_window:
+                self.parent_window.append_log(f"[VISION] {data}")
 
     def handle_vision_error(self):
         """Handle vision process stderr"""
         if self.vision_process:
             data = self.vision_process.readAllStandardError().data().decode()
-            if hasattr(self.parent(), "append_log"):
-                self.parent().append_log(f"[VISION ERROR] {data}")
+            if self.parent_window:
+                self.parent_window.append_log(f"[VISION ERROR] {data}")
 
     def handle_myriad_output(self):
         """Handle Myriad process stdout"""
         if self.myriad_process:
             data = self.myriad_process.readAllStandardOutput().data().decode()
-            if hasattr(self.parent(), "append_log"):
-                self.parent().append_log(f"[MYRIAD] {data}")
+            if self.parent_window:
+                self.parent_window.append_log(f"[MYRIAD] {data}")
 
     def handle_myriad_error(self):
         """Handle Myriad process stderr"""
         if self.myriad_process:
             data = self.myriad_process.readAllStandardError().data().decode()
-            if hasattr(self.parent(), "append_log"):
-                self.parent().append_log(f"[MYRIAD ERROR] {data}")
+            if self.parent_window:
+                self.parent_window.append_log(f"[MYRIAD ERROR] {data}")
 
 
 class LogViewerWidget(QWidget):
@@ -735,17 +736,26 @@ class MyriadControlPanel(QMainWindow):
         # Left side: Process control at top (fixed), config scrollable below
         left_widget = QWidget()
         left_layout = QVBoxLayout()
-        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setContentsMargins(5, 5, 5, 5)
+        left_layout.setSpacing(5)
         left_widget.setLayout(left_layout)
 
-        # Process Control (compact, always visible at top)
-        process_group = QGroupBox("⚙️ Process Control")
-        process_layout = QVBoxLayout()
-        self.process_control = ProcessControlWidget()
-        process_layout.addWidget(self.process_control)
-        process_group.setLayout(process_layout)
-        process_group.setMaximumHeight(100)
+        # Process Control (compact bar at very top)
+        process_group = QGroupBox("Process Control")
+        process_group_layout = QVBoxLayout()
+        process_group_layout.setContentsMargins(5, 5, 5, 5)
+        self.process_control = ProcessControlWidget(self)
+        process_group_layout.addWidget(self.process_control)
+        process_group.setLayout(process_group_layout)
         left_layout.addWidget(process_group)
+
+        # Separator line
+        from PySide6.QtWidgets import QFrame
+
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setFrameShadow(QFrame.Shadow.Sunken)
+        left_layout.addWidget(line)
 
         # Configuration (scrollable)
         from PySide6.QtWidgets import QScrollArea
@@ -768,9 +778,6 @@ class MyriadControlPanel(QMainWindow):
         splitter.setSizes([500, 700])
 
         main_layout.addWidget(splitter)
-
-        # Connect process control to log viewer
-        self.process_control.setParent(self)
 
     def append_log(self, text: str):
         """Append text to log viewer (called by ProcessControlWidget)"""
