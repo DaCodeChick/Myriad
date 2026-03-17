@@ -114,13 +114,24 @@ class PersonaManager:
         Returns:
             True if successful, False if persona doesn't exist
         """
+        print(
+            f"[DEBUG] PersonaManager.switch_persona called: user_id={user_id}, persona_id={persona_id}",
+            flush=True,
+        )
         # Verify persona exists
+        print(f"[DEBUG] Loading persona '{persona_id}'...", flush=True)
         persona = self.persona_loader.get_persona(persona_id)
+        print(
+            f"[DEBUG] Persona loaded: {persona.name if persona else None}", flush=True
+        )
         if not persona:
+            print(f"[DEBUG] Persona not found, returning False", flush=True)
             return False
 
         # Update user state (sets single persona, clearing others)
+        print(f"[DEBUG] Setting active persona in user_state...", flush=True)
         self.user_state.set_active_persona(user_id, persona_id)
+        print(f"[DEBUG] Active persona set, returning True", flush=True)
         return True
 
     def list_personas(self) -> List[str]:

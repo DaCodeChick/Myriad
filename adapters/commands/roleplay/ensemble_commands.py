@@ -94,37 +94,72 @@ def register_ensemble_commands(
     @app_commands.describe(persona_id="The ID of the persona to switch to")
     async def swap_persona(interaction: discord.Interaction, persona_id: str):
         """Switch the user's active persona."""
+        print(
+            f"[DEBUG] /persona swap called: persona_id={persona_id}, user={interaction.user.id}",
+            flush=True,
+        )
         try:
             # Defer immediately to prevent timeout
+            print(f"[DEBUG] Deferring interaction...", flush=True)
             await interaction.response.defer(ephemeral=True)
+            print(f"[DEBUG] Interaction deferred", flush=True)
         except discord.errors.NotFound:
             # Interaction expired before we could defer (Discord API latency)
             # This is a transient error - user should try again
+            print(f"[DEBUG] Interaction expired (NotFound)", flush=True)
             return
 
         user_id = str(interaction.user.id)
+        print(
+            f"[DEBUG] Calling switch_persona for user_id={user_id}, persona_id={persona_id}",
+            flush=True,
+        )
 
-        # Attempt to switch persona
-        success = bot.agent_core.switch_persona(user_id, persona_id)
+        try:
+            # Attempt to switch persona
+            success = bot.agent_core.switch_persona(user_id, persona_id)
+            print(f"[DEBUG] switch_persona returned: {success}", flush=True)
 
-        if success:
-            persona = bot.agent_core.get_active_persona(user_id)
-            if persona:  # Type guard to satisfy type checker
+            if success:
+                persona = bot.agent_core.get_active_persona(user_id)
+                print(
+                    f"[DEBUG] Got active persona: {persona.name if persona else None}",
+                    flush=True,
+                )
+                if persona:  # Type guard to satisfy type checker
+                    await interaction.followup.send(
+                        ResponseFormatter.success(
+                            f"Switched to persona: **{persona.name}** (`{persona_id}`)"
+                        ),
+                        ephemeral=True,
+                    )
+                    print(f"[DEBUG] Sent success message", flush=True)
+            else:
+                print(f"[DEBUG] switch_persona failed, sending error", flush=True)
+                available = bot.agent_core.list_personas()
                 await interaction.followup.send(
-                    ResponseFormatter.success(
-                        f"Switched to persona: **{persona.name}** (`{persona_id}`)"
+                    ResponseFormatter.error(
+                        f"Persona '{persona_id}' not found.\n"
+                        f"Available personas: {', '.join(available[:10])}"
                     ),
                     ephemeral=True,
                 )
-        else:
-            available = bot.agent_core.list_personas()
-            await interaction.followup.send(
-                ResponseFormatter.error(
-                    f"Persona '{persona_id}' not found.\n"
-                    f"Available personas: {', '.join(available[:10])}"
-                ),
-                ephemeral=True,
-            )
+                print(f"[DEBUG] Sent error message", flush=True)
+        except Exception as e:
+            print(f"[ERROR] Exception in swap_persona: {e}", flush=True)
+            import traceback
+
+            traceback.print_exc()
+            try:
+                await interaction.followup.send(
+                    ResponseFormatter.error(f"Error switching persona: {str(e)}"),
+                    ephemeral=True,
+                )
+            except Exception as followup_error:
+                print(
+                    f"[ERROR] Failed to send error message: {followup_error}",
+                    flush=True,
+                )
 
     @persona_group.command(
         name="unload",

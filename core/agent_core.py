@@ -326,10 +326,17 @@ class AgentCore:
 
     def switch_persona(self, user_id: str, persona_id: str) -> bool:
         """Switch to single persona (requires roleplay feature)."""
+        print(
+            f"[DEBUG] AgentCore.switch_persona called: user_id={user_id}, persona_id={persona_id}",
+            flush=True,
+        )
         if "roleplay" not in self.features:
             raise RuntimeError("Roleplay feature not loaded - cannot use personas")
         roleplay_feature = cast(RoleplayFeature, self.features["roleplay"])
-        return roleplay_feature.switch_persona(user_id, persona_id)
+        print(f"[DEBUG] Calling roleplay_feature.switch_persona...", flush=True)
+        result = roleplay_feature.switch_persona(user_id, persona_id)
+        print(f"[DEBUG] roleplay_feature.switch_persona returned: {result}", flush=True)
+        return result
 
     def list_personas(self) -> List[str]:
         """List available personas (requires roleplay feature)."""
