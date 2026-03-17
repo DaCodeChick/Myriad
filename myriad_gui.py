@@ -168,6 +168,11 @@ class EnvConfigWidget(QWidget):
         self.eyes_file_logging = QCheckBox()
         logging_layout.addRow("Eyes File Logging:", self.eyes_file_logging)
 
+        self.init_log_level = QComboBox()
+        self.init_log_level.addItems(["DEBUG", "INFO", "WARNING", "ERROR"])
+        self.init_log_level.setCurrentText("INFO")
+        logging_layout.addRow("Initialization Log Level:", self.init_log_level)
+
         logging_group.setLayout(logging_layout)
         layout.addWidget(logging_group)
 
@@ -253,6 +258,7 @@ class EnvConfigWidget(QWidget):
         self.eyes_file_logging.setChecked(
             config.get("ENABLE_EYES_FILE_LOGGING", "false").lower() == "true"
         )
+        self.init_log_level.setCurrentText(config.get("INIT_LOG_LEVEL", "INFO").upper())
 
     def save_config(self):
         """Save configuration to .env file"""
@@ -299,6 +305,7 @@ class EnvConfigWidget(QWidget):
             "ENABLE_EYES_FILE_LOGGING": "true"
             if self.eyes_file_logging.isChecked()
             else "false",
+            "INIT_LOG_LEVEL": self.init_log_level.currentText(),
         }
 
         # Process original lines, updating values
