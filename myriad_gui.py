@@ -491,14 +491,20 @@ class ProcessControlWidget(QWidget):
             try:
                 # Kill the process group to catch child processes
                 os.killpg(os.getpgid(pid), signal.SIGTERM)
-            except (ProcessLookupError, PermissionError):
-                pass
+            except (ProcessLookupError, PermissionError, OSError) as e:
+                print(
+                    f"[GUI] Warning: Could not send SIGTERM to brain process: {e}",
+                    flush=True,
+                )
 
             if not self.brain_process.waitForFinished(5000):
                 try:
                     os.killpg(os.getpgid(pid), signal.SIGKILL)
-                except (ProcessLookupError, PermissionError):
-                    pass
+                except (ProcessLookupError, PermissionError, OSError) as e:
+                    print(
+                        f"[GUI] Warning: Could not send SIGKILL to brain process: {e}",
+                        flush=True,
+                    )
                 self.brain_process.waitForFinished(1000)
 
     def brain_finished(self):
@@ -582,14 +588,20 @@ class ProcessControlWidget(QWidget):
             try:
                 # Kill the process group to catch child processes
                 os.killpg(os.getpgid(pid), signal.SIGTERM)
-            except (ProcessLookupError, PermissionError):
-                pass
+            except (ProcessLookupError, PermissionError, OSError) as e:
+                print(
+                    f"[GUI] Warning: Could not send SIGTERM to vision process: {e}",
+                    flush=True,
+                )
 
             if not self.vision_process.waitForFinished(5000):
                 try:
                     os.killpg(os.getpgid(pid), signal.SIGKILL)
-                except (ProcessLookupError, PermissionError):
-                    pass
+                except (ProcessLookupError, PermissionError, OSError) as e:
+                    print(
+                        f"[GUI] Warning: Could not send SIGKILL to vision process: {e}",
+                        flush=True,
+                    )
                 self.vision_process.waitForFinished(1000)
 
     def vision_finished(self):
@@ -635,14 +647,20 @@ class ProcessControlWidget(QWidget):
             try:
                 # Kill the process group to catch child processes
                 os.killpg(os.getpgid(pid), signal.SIGTERM)
-            except (ProcessLookupError, PermissionError):
-                pass
+            except (ProcessLookupError, PermissionError, OSError) as e:
+                print(
+                    f"[GUI] Warning: Could not send SIGTERM to myriad process: {e}",
+                    flush=True,
+                )
 
             if not self.myriad_process.waitForFinished(5000):
                 try:
                     os.killpg(os.getpgid(pid), signal.SIGKILL)
-                except (ProcessLookupError, PermissionError):
-                    pass
+                except (ProcessLookupError, PermissionError, OSError) as e:
+                    print(
+                        f"[GUI] Warning: Could not send SIGKILL to myriad process: {e}",
+                        flush=True,
+                    )
                 self.myriad_process.waitForFinished(1000)
 
     def myriad_finished(self):
