@@ -479,9 +479,19 @@ class ProcessControlWidget(QWidget):
             self.brain_process
             and self.brain_process.state() == QProcess.ProcessState.Running
         ):
-            self.brain_process.terminate()
+            # Get PID and kill entire process group
+            pid = self.brain_process.processId()
+            try:
+                # Kill the process group to catch child processes
+                os.killpg(os.getpgid(pid), signal.SIGTERM)
+            except (ProcessLookupError, PermissionError):
+                pass
+
             if not self.brain_process.waitForFinished(5000):
-                self.brain_process.kill()
+                try:
+                    os.killpg(os.getpgid(pid), signal.SIGKILL)
+                except (ProcessLookupError, PermissionError):
+                    pass
                 self.brain_process.waitForFinished(1000)
 
     def brain_finished(self):
@@ -560,9 +570,19 @@ class ProcessControlWidget(QWidget):
             self.vision_process
             and self.vision_process.state() == QProcess.ProcessState.Running
         ):
-            self.vision_process.terminate()
+            # Get PID and kill entire process group
+            pid = self.vision_process.processId()
+            try:
+                # Kill the process group to catch child processes
+                os.killpg(os.getpgid(pid), signal.SIGTERM)
+            except (ProcessLookupError, PermissionError):
+                pass
+
             if not self.vision_process.waitForFinished(5000):
-                self.vision_process.kill()
+                try:
+                    os.killpg(os.getpgid(pid), signal.SIGKILL)
+                except (ProcessLookupError, PermissionError):
+                    pass
                 self.vision_process.waitForFinished(1000)
 
     def vision_finished(self):
@@ -603,9 +623,19 @@ class ProcessControlWidget(QWidget):
             self.myriad_process
             and self.myriad_process.state() == QProcess.ProcessState.Running
         ):
-            self.myriad_process.terminate()
+            # Get PID and kill entire process group
+            pid = self.myriad_process.processId()
+            try:
+                # Kill the process group to catch child processes
+                os.killpg(os.getpgid(pid), signal.SIGTERM)
+            except (ProcessLookupError, PermissionError):
+                pass
+
             if not self.myriad_process.waitForFinished(5000):
-                self.myriad_process.kill()
+                try:
+                    os.killpg(os.getpgid(pid), signal.SIGKILL)
+                except (ProcessLookupError, PermissionError):
+                    pass
                 self.myriad_process.waitForFinished(1000)
 
     def myriad_finished(self):
