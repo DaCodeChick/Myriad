@@ -13,6 +13,7 @@ Part of Project Myriad's meta-control toolkit.
 
 import discord
 import json
+import asyncio
 from discord import app_commands
 from typing import TYPE_CHECKING, Optional
 
@@ -254,16 +255,18 @@ RESPOND IN JSON FORMAT ONLY:
         },
     ]
 
-    # Call LLM
-    response = bot.agent_core.client.chat.completions.create(
-        model=bot.agent_core.model,
+    # Call LLM using provider pattern
+    response = await bot.agent_core.provider.generate(
         messages=messages,
         temperature=0.2,  # Low temperature for consistent classification
         max_tokens=200,
     )
 
+    if not response:
+        raise ValueError("LLM returned empty response")
+
     # Extract and parse JSON
-    response_text = response.choices[0].message.content.strip()
+    response_text = response.strip()
 
     # Try to extract JSON from markdown code blocks if present
     if "```json" in response_text:
