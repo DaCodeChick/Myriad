@@ -777,29 +777,25 @@ class MyriadControlPanel(QMainWindow):
         # Create horizontal splitter for main content
         splitter = QSplitter(Qt.Horizontal)
 
-        # Left side: Tabs for config and control
+        # Left side: Process control at top, config in scrollable area below
         left_widget = QWidget()
         left_layout = QVBoxLayout()
         left_widget.setLayout(left_layout)
 
-        tabs = QTabWidget()
-
-        # Process Control tab
+        # Process Control (always visible at top)
         self.process_control = ProcessControlWidget()
-        tabs.addTab(self.process_control, "⚙️ Process Control")
+        left_layout.addWidget(self.process_control)
 
-        # Configuration tab
+        # Configuration (scrollable below)
+        config_group = QGroupBox("⚙️ Configuration")
+        config_group_layout = QVBoxLayout()
+
         env_path = Path(__file__).parent / ".env"
         self.config_widget = EnvConfigWidget(str(env_path))
+        config_group_layout.addWidget(self.config_widget)
+        config_group.setLayout(config_group_layout)
 
-        config_scroll = QWidget()
-        config_scroll_layout = QVBoxLayout()
-        config_scroll_layout.addWidget(self.config_widget)
-        config_scroll.setLayout(config_scroll_layout)
-
-        tabs.addTab(config_scroll, "🔧 Configuration")
-
-        left_layout.addWidget(tabs)
+        left_layout.addWidget(config_group)
 
         # Right side: Log viewer
         self.log_viewer = LogViewerWidget()
