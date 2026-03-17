@@ -340,100 +340,67 @@ class ProcessControlWidget(QWidget):
 
     def init_ui(self):
         """Initialize the process control UI"""
-        layout = QVBoxLayout()
+        layout = QHBoxLayout()
 
         # Brain Server Control
-        brain_group = QGroupBox("🧠 Brain Server (Text LLM)")
-        brain_layout = QVBoxLayout()
-
-        brain_status_layout = QHBoxLayout()
-        self.brain_status_label = QLabel("Status: Stopped")
-        self.brain_status_label.setStyleSheet("color: red; font-weight: bold;")
-        brain_status_layout.addWidget(self.brain_status_label)
-        brain_status_layout.addStretch()
-        brain_layout.addLayout(brain_status_layout)
-
-        brain_btn_layout = QHBoxLayout()
-        self.brain_start_btn = QPushButton("▶️ Start Brain")
-        self.brain_start_btn.clicked.connect(self.start_brain)
-        brain_btn_layout.addWidget(self.brain_start_btn)
-
-        self.brain_stop_btn = QPushButton("⏹️ Stop Brain")
-        self.brain_stop_btn.clicked.connect(self.stop_brain)
-        self.brain_stop_btn.setEnabled(False)
-        brain_btn_layout.addWidget(self.brain_stop_btn)
-
-        brain_layout.addLayout(brain_btn_layout)
-        brain_group.setLayout(brain_layout)
-        layout.addWidget(brain_group)
+        self.brain_toggle = QPushButton("▶️ Brain")
+        self.brain_toggle.setCheckable(True)
+        self.brain_toggle.setStyleSheet(
+            "QPushButton:checked { background-color: #2d5016; }"
+        )
+        self.brain_toggle.clicked.connect(self.toggle_brain)
+        layout.addWidget(self.brain_toggle)
 
         # Vision Server Control
-        vision_group = QGroupBox("👁️ Vision Server (Vision LLM)")
-        vision_layout = QVBoxLayout()
-
-        vision_status_layout = QHBoxLayout()
-        self.vision_status_label = QLabel("Status: Stopped")
-        self.vision_status_label.setStyleSheet("color: red; font-weight: bold;")
-        vision_status_layout.addWidget(self.vision_status_label)
-        vision_status_layout.addStretch()
-        vision_layout.addLayout(vision_status_layout)
-
-        vision_btn_layout = QHBoxLayout()
-        self.vision_start_btn = QPushButton("▶️ Start Vision")
-        self.vision_start_btn.clicked.connect(self.start_vision)
-        vision_btn_layout.addWidget(self.vision_start_btn)
-
-        self.vision_stop_btn = QPushButton("⏹️ Stop Vision")
-        self.vision_stop_btn.clicked.connect(self.stop_vision)
-        self.vision_stop_btn.setEnabled(False)
-        vision_btn_layout.addWidget(self.vision_stop_btn)
-
-        vision_layout.addLayout(vision_btn_layout)
-        vision_group.setLayout(vision_layout)
-        layout.addWidget(vision_group)
+        self.vision_toggle = QPushButton("▶️ Vision")
+        self.vision_toggle.setCheckable(True)
+        self.vision_toggle.setStyleSheet(
+            "QPushButton:checked { background-color: #2d5016; }"
+        )
+        self.vision_toggle.clicked.connect(self.toggle_vision)
+        layout.addWidget(self.vision_toggle)
 
         # Myriad Core Control
-        myriad_group = QGroupBox("🤖 Myriad Core (Discord Bot)")
-        myriad_layout = QVBoxLayout()
+        self.myriad_toggle = QPushButton("▶️ Myriad")
+        self.myriad_toggle.setCheckable(True)
+        self.myriad_toggle.setStyleSheet(
+            "QPushButton:checked { background-color: #2d5016; }"
+        )
+        self.myriad_toggle.clicked.connect(self.toggle_myriad)
+        layout.addWidget(self.myriad_toggle)
 
-        myriad_status_layout = QHBoxLayout()
-        self.myriad_status_label = QLabel("Status: Stopped")
-        self.myriad_status_label.setStyleSheet("color: red; font-weight: bold;")
-        myriad_status_layout.addWidget(self.myriad_status_label)
-        myriad_status_layout.addStretch()
-        myriad_layout.addLayout(myriad_status_layout)
-
-        myriad_btn_layout = QHBoxLayout()
-        self.myriad_start_btn = QPushButton("▶️ Start Myriad")
-        self.myriad_start_btn.clicked.connect(self.start_myriad)
-        myriad_btn_layout.addWidget(self.myriad_start_btn)
-
-        self.myriad_stop_btn = QPushButton("⏹️ Stop Myriad")
-        self.myriad_stop_btn.clicked.connect(self.stop_myriad)
-        self.myriad_stop_btn.setEnabled(False)
-        myriad_btn_layout.addWidget(self.myriad_stop_btn)
-
-        myriad_layout.addLayout(myriad_btn_layout)
-        myriad_group.setLayout(myriad_layout)
-        layout.addWidget(myriad_group)
-
-        # Quick Actions
-        quick_group = QGroupBox("⚡ Quick Actions")
-        quick_layout = QHBoxLayout()
-
-        start_all_btn = QPushButton("▶️ Start All")
+        # Start All
+        start_all_btn = QPushButton("▶️ All")
         start_all_btn.clicked.connect(self.start_all)
-        quick_layout.addWidget(start_all_btn)
+        layout.addWidget(start_all_btn)
 
-        stop_all_btn = QPushButton("⏹️ Stop All")
+        # Stop All
+        stop_all_btn = QPushButton("⏹️ All")
         stop_all_btn.clicked.connect(self.stop_all)
-        quick_layout.addWidget(stop_all_btn)
+        layout.addWidget(stop_all_btn)
 
-        quick_group.setLayout(quick_layout)
-        layout.addWidget(quick_group)
-
-        layout.addStretch()
         self.setLayout(layout)
+
+    def toggle_brain(self, checked):
+        """Toggle brain server on/off"""
+        if checked:
+            self.start_brain()
+        else:
+            self.stop_brain()
+
+    def toggle_vision(self, checked):
+        """Toggle vision server on/off"""
+        if checked:
+            self.start_vision()
+        else:
+            self.stop_vision()
+
+    def toggle_myriad(self, checked):
+        """Toggle Myriad core on/off"""
+        if checked:
+            self.start_myriad()
+        else:
+            self.stop_myriad()
 
     def start_brain(self):
         """Start the brain server (koboldcpp)"""
@@ -500,10 +467,8 @@ class ProcessControlWidget(QWidget):
         self.brain_process.start(cmd[0], cmd[1:])
 
         if self.brain_process.waitForStarted():
-            self.brain_status_label.setText("Status: Running")
-            self.brain_status_label.setStyleSheet("color: green; font-weight: bold;")
-            self.brain_start_btn.setEnabled(False)
-            self.brain_stop_btn.setEnabled(True)
+            self.brain_toggle.setText("⏹️ Brain")
+            self.brain_toggle.setChecked(True)
         else:
             QMessageBox.critical(self, "Error", "Failed to start brain server")
 
@@ -519,10 +484,8 @@ class ProcessControlWidget(QWidget):
 
     def brain_finished(self):
         """Handle brain process finished"""
-        self.brain_status_label.setText("Status: Stopped")
-        self.brain_status_label.setStyleSheet("color: red; font-weight: bold;")
-        self.brain_start_btn.setEnabled(True)
-        self.brain_stop_btn.setEnabled(False)
+        self.brain_toggle.setText("▶️ Brain")
+        self.brain_toggle.setChecked(False)
 
     def start_vision(self):
         """Start the vision server (koboldcpp with vision)"""
@@ -584,10 +547,8 @@ class ProcessControlWidget(QWidget):
         self.vision_process.start(cmd[0], cmd[1:])
 
         if self.vision_process.waitForStarted():
-            self.vision_status_label.setText("Status: Running")
-            self.vision_status_label.setStyleSheet("color: green; font-weight: bold;")
-            self.vision_start_btn.setEnabled(False)
-            self.vision_stop_btn.setEnabled(True)
+            self.vision_toggle.setText("⏹️ Vision")
+            self.vision_toggle.setChecked(True)
         else:
             QMessageBox.critical(self, "Error", "Failed to start vision server")
 
@@ -603,10 +564,8 @@ class ProcessControlWidget(QWidget):
 
     def vision_finished(self):
         """Handle vision process finished"""
-        self.vision_status_label.setText("Status: Stopped")
-        self.vision_status_label.setStyleSheet("color: red; font-weight: bold;")
-        self.vision_start_btn.setEnabled(True)
-        self.vision_stop_btn.setEnabled(False)
+        self.vision_toggle.setText("▶️ Vision")
+        self.vision_toggle.setChecked(False)
 
     def start_myriad(self):
         """Start the Myriad core process"""
@@ -630,10 +589,8 @@ class ProcessControlWidget(QWidget):
         self.myriad_process.start("uv", ["run", "python", "main.py"])
 
         if self.myriad_process.waitForStarted():
-            self.myriad_status_label.setText("Status: Running")
-            self.myriad_status_label.setStyleSheet("color: green; font-weight: bold;")
-            self.myriad_start_btn.setEnabled(False)
-            self.myriad_stop_btn.setEnabled(True)
+            self.myriad_toggle.setText("⏹️ Myriad")
+            self.myriad_toggle.setChecked(True)
         else:
             QMessageBox.critical(self, "Error", "Failed to start Myriad")
 
@@ -649,10 +606,8 @@ class ProcessControlWidget(QWidget):
 
     def myriad_finished(self):
         """Handle Myriad process finished"""
-        self.myriad_status_label.setText("Status: Stopped")
-        self.myriad_status_label.setStyleSheet("color: red; font-weight: bold;")
-        self.myriad_start_btn.setEnabled(True)
-        self.myriad_stop_btn.setEnabled(False)
+        self.myriad_toggle.setText("▶️ Myriad")
+        self.myriad_toggle.setChecked(False)
 
     def start_all(self):
         """Start all processes"""
@@ -777,25 +732,33 @@ class MyriadControlPanel(QMainWindow):
         # Create horizontal splitter for main content
         splitter = QSplitter(Qt.Horizontal)
 
-        # Left side: Process control at top, config in scrollable area below
+        # Left side: Process control at top (fixed), config scrollable below
         left_widget = QWidget()
         left_layout = QVBoxLayout()
+        left_layout.setContentsMargins(0, 0, 0, 0)
         left_widget.setLayout(left_layout)
 
-        # Process Control (always visible at top)
+        # Process Control (compact, always visible at top)
+        process_group = QGroupBox("⚙️ Process Control")
+        process_layout = QVBoxLayout()
         self.process_control = ProcessControlWidget()
-        left_layout.addWidget(self.process_control)
+        process_layout.addWidget(self.process_control)
+        process_group.setLayout(process_layout)
+        process_group.setMaximumHeight(100)
+        left_layout.addWidget(process_group)
 
-        # Configuration (scrollable below)
-        config_group = QGroupBox("⚙️ Configuration")
-        config_group_layout = QVBoxLayout()
+        # Configuration (scrollable)
+        from PySide6.QtWidgets import QScrollArea
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
         env_path = Path(__file__).parent / ".env"
         self.config_widget = EnvConfigWidget(str(env_path))
-        config_group_layout.addWidget(self.config_widget)
-        config_group.setLayout(config_group_layout)
+        scroll.setWidget(self.config_widget)
 
-        left_layout.addWidget(config_group)
+        left_layout.addWidget(scroll)
 
         # Right side: Log viewer
         self.log_viewer = LogViewerWidget()
