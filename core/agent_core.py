@@ -27,6 +27,7 @@ from core.providers import ProviderFactory
 from core.context import ConversationContextBuilder
 from core.message_processor import MessageProcessor
 from core.logger import initialize_logger, get_logger
+from core.init_logger import init_log
 from database.memory_matrix import MemoryMatrix
 from database.graph_memory import GraphMemory
 from database.user_preferences import UserPreferences
@@ -116,23 +117,23 @@ class AgentCore:
         # ====================
 
         # Memory & User State (use memory_db_path)
-        print("→ Creating MemoryMatrix...", flush=True)
+        init_log.debug("→ Creating MemoryMatrix...")
         self.memory_matrix = MemoryMatrix(
             db_path=config.database_paths.memory_db_path,
             vector_memory_enabled=config.memory.vector_memory_enabled,
         )
-        print("✓ MemoryMatrix created", flush=True)
+        init_log.debug("✓ MemoryMatrix created")
 
-        print("→ Creating UserPreferences...", flush=True)
+        init_log.debug("→ Creating UserPreferences...")
         self.user_preferences = UserPreferences(
             db_path=config.database_paths.memory_db_path
         )
-        print("✓ UserPreferences created", flush=True)
+        init_log.debug("✓ UserPreferences created")
 
         # Knowledge Graph Memory (Always loaded)
-        print("→ Creating GraphMemory...", flush=True)
+        init_log.debug("→ Creating GraphMemory...")
         self.graph_memory = GraphMemory(db_path=config.database_paths.graph_db_path)
-        print("✓ GraphMemory created", flush=True)
+        init_log.debug("✓ GraphMemory created")
 
         # ====================
         # FEATURE SYSTEM (modular components)
@@ -141,32 +142,31 @@ class AgentCore:
         self.features: Dict[str, BaseFeature] = {}
 
         # Load Roleplay Feature (if enabled)
-        print(f"→ enable_roleplay={enable_roleplay}", flush=True)
+        init_log.debug(f"→ enable_roleplay={enable_roleplay}")
         if enable_roleplay:
-            print("→ Calling _load_roleplay_feature...", flush=True)
+            init_log.debug("→ Calling _load_roleplay_feature...")
             self._load_roleplay_feature(personas_dir, vision_service)
-            print("✓ _load_roleplay_feature returned", flush=True)
+            init_log.debug("✓ _load_roleplay_feature returned")
 
         # Base Tool Registry (without roleplay-specific components)
         # Features can add their own tools via get_tools()
-        print("→ Getting roleplay feature from features dict...", flush=True)
+        init_log.debug("→ Getting roleplay feature from features dict...")
         roleplay_feature = cast(
             Optional[RoleplayFeature], self.features.get("roleplay")
         )
-        print(f"✓ roleplay_feature={roleplay_feature is not None}", flush=True)
+        init_log.debug(f"✓ roleplay_feature={roleplay_feature is not None}")
 
         # Collect feature tools (e.g., roleplay tools)
         feature_tools = []
         if roleplay_feature:
-            print("→ Importing ROLEPLAY_TOOLS...", flush=True)
+            init_log.debug("→ Importing ROLEPLAY_TOOLS...")
             from core.features.roleplay.tools import ROLEPLAY_TOOLS
 
             feature_tools.extend(ROLEPLAY_TOOLS)
-            print(f"✓ Loaded {len(ROLEPLAY_TOOLS)} roleplay tools", flush=True)
+            init_log.debug(f"✓ Loaded {len(ROLEPLAY_TOOLS)} roleplay tools")
 
-        print(
-            f"→ Creating ToolRegistry (tools.enabled={config.tools.enabled})...",
-            flush=True,
+        init_log.debug(
+            f"→ Creating ToolRegistry (tools.enabled={config.tools.enabled})..."
         )
         self.base_tool_registry = (
             ToolRegistry(
@@ -183,9 +183,8 @@ class AgentCore:
             if config.tools.enabled
             else None
         )
-        print(
-            f"✓ ToolRegistry created (enabled={self.base_tool_registry is not None})",
-            flush=True,
+        init_log.debug(
+            f"✓ ToolRegistry created (enabled={self.base_tool_registry is not None})"
         )
 
         # ====================
@@ -193,21 +192,21 @@ class AgentCore:
         # ====================
 
         # Conversation Context Builder
-        print("→ Calling _init_context_builder...", flush=True)
+        init_log.debug("→ Calling _init_context_builder...")
         self._init_context_builder()
-        print("✓ _init_context_builder returned", flush=True)
+        init_log.debug("✓ _init_context_builder returned")
 
         # Message Processor
-        print("→ Calling _init_message_processor...", flush=True)
+        init_log.debug("→ Calling _init_message_processor...")
         self._init_message_processor()
-        print("✓ _init_message_processor returned", flush=True)
+        init_log.debug("✓ _init_message_processor returned")
 
-        print("✓ AgentCore fully initialized!", flush=True)
+        init_log.info("✓ AgentCore fully initialized!")
 
     def _load_roleplay_feature(self, personas_dir: str, vision_service) -> None:
         """Load the roleplay feature with all its components."""
-        print("\n📦 Loading Roleplay Feature...", flush=True)
-        print("  → Creating RoleplayFeature instance...", flush=True)
+        init_log.info("\n📦 Loading Roleplay Feature...")
+        init_log.debug("  → Creating RoleplayFeature instance...")
 
         # RDSSC Phase 1: Use roleplay-specific database
         roleplay = RoleplayFeature(
@@ -215,21 +214,21 @@ class AgentCore:
             db_path=self.config.database_paths.roleplay_db_path,
             personas_dir=personas_dir,
         )
-        print("  ✓ RoleplayFeature instance created", flush=True)
+        init_log.debug("  ✓ RoleplayFeature instance created")
 
         # Initialize with dependencies
-        print("  → Initializing RoleplayFeature with dependencies...", flush=True)
+        init_log.debug("  → Initializing RoleplayFeature with dependencies...")
         roleplay.initialize(
             memory_matrix=self.memory_matrix,
             vision_service=vision_service,
         )
-        print("  ✓ RoleplayFeature initialized", flush=True)
+        init_log.debug("  ✓ RoleplayFeature initialized")
 
         self.features["roleplay"] = roleplay
 
         # Convenience property for backward compatibility
         self.roleplay = roleplay
-        print("✓ Roleplay Feature loaded\n")
+        init_log.info("✓ Roleplay Feature loaded\n")
 
     def _init_context_builder(self) -> None:
         """Initialize the conversation context builder with available features."""

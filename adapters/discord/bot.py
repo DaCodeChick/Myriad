@@ -14,6 +14,7 @@ from discord.ext import commands
 from core.agent_core import AgentCore
 from core.vision_bridge import VisionBridge
 from core.vision_cache_service import VisionCacheService
+from core.init_logger import init_log
 from core.features.roleplay.activity_tracker import ActivityTracker
 from adapters.discord.event_handlers import EventHandlers
 from adapters.discord.vision_processor import VisionProcessor
@@ -72,22 +73,22 @@ class MyriadDiscordBot(commands.Bot):
 
     async def setup_hook(self):
         """Setup hook called when bot is ready."""
-        print("→ setup_hook() called", flush=True)
+        init_log.debug("→ setup_hook() called")
         # Sync slash commands with timeout
         try:
-            print("→ Syncing slash commands to Discord...", flush=True)
+            init_log.info("→ Syncing slash commands to Discord...")
             await self.tree.sync()
-            print("✓ Slash commands synced!", flush=True)
+            init_log.info("✓ Slash commands synced!")
         except Exception as e:
-            print(f"⚠ Failed to sync slash commands: {e}", flush=True)
-            print("  Bot will continue but commands may not be available", flush=True)
-        print("✓ setup_hook() completed", flush=True)
+            init_log.warning(f"⚠ Failed to sync slash commands: {e}")
+            init_log.warning("  Bot will continue but commands may not be available")
+        init_log.debug("✓ setup_hook() completed")
 
     async def on_ready(self):
         """Called when bot successfully connects to Discord."""
-        print("→ on_ready() called", flush=True)
+        init_log.debug("→ on_ready() called")
         await self.event_handlers.on_ready()
-        print("✓ on_ready() completed", flush=True)
+        init_log.debug("✓ on_ready() completed")
 
     async def on_message(self, message: discord.Message):
         """Handle incoming messages."""
@@ -110,9 +111,9 @@ def create_discord_bot(
     Returns:
         Configured MyriadDiscordBot instance
     """
-    print("→ Creating MyriadDiscordBot instance...", flush=True)
+    init_log.debug("→ Creating MyriadDiscordBot instance...")
     bot = MyriadDiscordBot(agent_core, vision_bridge, vision_cache_service)
-    print("✓ MyriadDiscordBot instance created", flush=True)
+    init_log.debug("✓ MyriadDiscordBot instance created")
 
     # ========================
     # REGISTER COMMAND MODULES
@@ -120,18 +121,18 @@ def create_discord_bot(
     # RDSSC Phase 2: Commands now organized by feature
 
     # Core config commands
-    print("→ Registering config commands...", flush=True)
+    init_log.debug("→ Registering config commands...")
     register_config_commands(bot)
 
     # Roleplay feature commands (all persona, limbic, lives, masks, scenarios, etc.)
-    print("→ Registering roleplay commands...", flush=True)
+    init_log.debug("→ Registering roleplay commands...")
     register_roleplay_commands(bot)
 
     # Memory system commands
-    print("→ Registering memory commands...", flush=True)
+    init_log.debug("→ Registering memory commands...")
     register_memory_commands(bot)
-    print("→ Setting up cache commands...", flush=True)
+    init_log.debug("→ Setting up cache commands...")
     setup_cache_commands(bot.tree)
 
-    print("✓ All commands registered", flush=True)
+    init_log.debug("✓ All commands registered")
     return bot

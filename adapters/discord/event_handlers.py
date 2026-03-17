@@ -12,6 +12,7 @@ import discord
 from discord.ext import tasks
 
 from core.agent_core import AgentCore
+from core.init_logger import init_log
 from core.features.roleplay.autonomy_engine import AutonomyEngine
 from core.features.roleplay.activity_tracker import ActivityTracker
 from adapters.discord.utils import chunk_message
@@ -49,19 +50,23 @@ class EventHandlers:
 
     async def on_ready(self):
         """Called when bot successfully connects to Discord."""
-        print(f"✓ Myriad Discord Adapter online")
-        print(f"✓ Connected as: {self.bot.user}")
-        print(f"✓ Bot ID: {self.bot.user.id}")
-        print(f"✓ Available personas: {', '.join(self.agent_core.list_personas())}")
+        init_log.info(f"✓ Myriad Discord Adapter online")
+        init_log.info(f"✓ Connected as: {self.bot.user}")
+        init_log.info(f"✓ Bot ID: {self.bot.user.id}")
+        init_log.info(
+            f"✓ Available personas: {', '.join(self.agent_core.list_personas())}"
+        )
 
         # Log whitelisted bots
         whitelisted_bots = self.agent_core.config.discord.whitelisted_bot_ids
         if whitelisted_bots:
-            print(
+            init_log.info(
                 f"✓ Whitelisted bot IDs: {', '.join(str(id) for id in whitelisted_bots)}"
             )
         else:
-            print("ℹ No whitelisted bots configured (ignoring all bot messages)")
+            init_log.info(
+                "ℹ No whitelisted bots configured (ignoring all bot messages)"
+            )
 
         # Initialize and start autonomy engine if enabled
         if self.autonomy_enabled:

@@ -15,6 +15,7 @@ This feature module includes:
 
 from typing import Any, Dict, Optional, List
 from core.features.base_feature import BaseFeature
+from core.init_logger import init_log
 from core.features.roleplay.persona import PersonaLoader, PersonaCartridge
 from core.features.roleplay.persona_manager import PersonaManager
 from core.features.roleplay.limbic_engine import LimbicEngine
@@ -79,89 +80,89 @@ class RoleplayFeature(BaseFeature):
         memory_matrix = dependencies.get("memory_matrix")
         vision_service = dependencies.get("vision_service")
 
-        print("🎭 Initializing Roleplay Feature...", flush=True)
+        init_log.info("🎭 Initializing Roleplay Feature...")
 
         # User State (Active Persona Tracking)
         # RDSSC Phase 3: Initialize user_state first, use instead of memory_matrix for persona tracking
-        print("   → Creating UserStateManager...", flush=True)
+        init_log.debug("   → Creating UserStateManager...")
         self.user_state = UserStateManager(db_path=self.db_path)
-        print("   ✓ UserStateManager created", flush=True)
+        init_log.debug("   ✓ UserStateManager created")
 
         # Persona System
-        print("   → Creating PersonaLoader...", flush=True)
+        init_log.debug("   → Creating PersonaLoader...")
         self.persona_loader = PersonaLoader(
             personas_dir=self.personas_dir,
             db_path=self.db_path,
             vision_service=vision_service,
         )
-        print("   ✓ PersonaLoader created", flush=True)
+        init_log.debug("   ✓ PersonaLoader created")
 
-        print("   → Creating PersonaManager...", flush=True)
+        init_log.debug("   → Creating PersonaManager...")
         self.persona_manager = PersonaManager(
             persona_loader=self.persona_loader,
             user_state=self.user_state,
         )
-        print("   ✓ PersonaManager created", flush=True)
+        init_log.debug("   ✓ PersonaManager created")
 
         # Limbic System (Emotional Neurochemistry)
-        print("   → Creating LimbicEngine...", flush=True)
+        init_log.debug("   → Creating LimbicEngine...")
         self.limbic_engine = LimbicEngine(db_path=self.db_path)
-        print("   ✓ LimbicEngine created", flush=True)
+        init_log.debug("   ✓ LimbicEngine created")
 
-        print("   → Creating DigitalPharmacy...", flush=True)
+        init_log.debug("   → Creating DigitalPharmacy...")
         self.digital_pharmacy = DigitalPharmacy(self.limbic_engine)
-        print("   ✓ DigitalPharmacy created", flush=True)
+        init_log.debug("   ✓ DigitalPharmacy created")
 
         # Cadence Degradation (Text Post-Processing)
-        print("   → Creating CadenceDegrader...", flush=True)
+        init_log.debug("   → Creating CadenceDegrader...")
         self.cadence_degrader = CadenceDegrader()
-        print("   ✓ CadenceDegrader created", flush=True)
+        init_log.debug("   ✓ CadenceDegrader created")
 
         # Metacognition (Internal Monologue)
-        print("   → Creating MetacognitionEngine...", flush=True)
+        init_log.debug("   → Creating MetacognitionEngine...")
         self.metacognition_engine = MetacognitionEngine(db_path=self.db_path)
-        print("   ✓ MetacognitionEngine created", flush=True)
+        init_log.debug("   ✓ MetacognitionEngine created")
 
         # Lives & Save States (Memory Persistence)
-        print("   → Creating LivesEngine...", flush=True)
+        init_log.debug("   → Creating LivesEngine...")
         self.lives_engine = LivesEngine(db_path=self.db_path)
-        print("   ✓ LivesEngine created", flush=True)
+        init_log.debug("   ✓ LivesEngine created")
 
-        print("   → Creating SaveStatesEngine...", flush=True)
+        init_log.debug("   → Creating SaveStatesEngine...")
         self.save_states_engine = SaveStatesEngine(db_path=self.db_path)
-        print("   ✓ SaveStatesEngine created", flush=True)
+        init_log.debug("   ✓ SaveStatesEngine created")
 
         # User Masks (User-Side Personas)
-        print("   → Creating UserMaskManager...", flush=True)
+        init_log.debug("   → Creating UserMaskManager...")
         self.user_mask_manager = UserMaskManager(
             db_path=self.db_path, persona_loader=self.persona_loader
         )
-        print("   ✓ UserMaskManager created", flush=True)
+        init_log.debug("   ✓ UserMaskManager created")
 
         # Scenario Engine (World Tree)
-        print("   → Creating ScenarioEngine...", flush=True)
+        init_log.debug("   → Creating ScenarioEngine...")
         self.scenario_engine = ScenarioEngine(
             db_path=self.db_path,
             vision_service=vision_service,
         )
-        print("   ✓ ScenarioEngine created", flush=True)
+        init_log.debug("   ✓ ScenarioEngine created")
 
         # Session Notes (Meta-Level Context)
-        print("   → Creating SessionNotesManager...", flush=True)
+        init_log.debug("   → Creating SessionNotesManager...")
         self.session_notes = SessionNotesManager(db_path=self.db_path)
-        print("   ✓ SessionNotesManager created", flush=True)
+        init_log.debug("   ✓ SessionNotesManager created")
 
         # Mode Manager (Behavioral Overrides - OOC, HENTAI, etc.)
-        print("   → Creating ModeManager...", flush=True)
+        init_log.debug("   → Creating ModeManager...")
         self.mode_manager = ModeManager(db_path=self.db_path)
-        print("   ✓ ModeManager created", flush=True)
+        init_log.debug("   ✓ ModeManager created")
 
-        print("   ✓ Persona system loaded", flush=True)
-        print("   ✓ Limbic & pharmacy initialized", flush=True)
-        print("   ✓ Metacognition enabled", flush=True)
-        print("   ✓ Lives & save states ready", flush=True)
-        print("   ✓ User masks & scenarios loaded", flush=True)
-        print("   ✓ Mode manager initialized", flush=True)
+        init_log.info("   ✓ Persona system loaded")
+        init_log.info("   ✓ Limbic & pharmacy initialized")
+        init_log.info("   ✓ Metacognition enabled")
+        init_log.info("   ✓ Lives & save states ready")
+        init_log.info("   ✓ User masks & scenarios loaded")
+        init_log.info("   ✓ Mode manager initialized")
 
     # ========================
     # PERSONA MANAGEMENT
