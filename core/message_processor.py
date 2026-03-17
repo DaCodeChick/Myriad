@@ -212,25 +212,36 @@ class MessageProcessor:
             try:
                 # Call LLM API via provider (async)
                 import asyncio
+                import concurrent.futures
+                from functools import partial
+
+                def run_async_in_thread(coro):
+                    """Run async coroutine in a new thread with its own event loop."""
+
+                    def run_in_new_loop():
+                        new_loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(new_loop)
+                        try:
+                            return new_loop.run_until_complete(coro)
+                        finally:
+                            new_loop.close()
+
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(run_in_new_loop)
+                        return future.result()
 
                 try:
                     # Check if event loop is already running
                     loop = asyncio.get_running_loop()
-                    # If we get here, we're in an async context already
-                    # Use asyncio.create_task or similar
-                    import concurrent.futures
-
-                    with concurrent.futures.ThreadPoolExecutor() as executor:
-                        future = executor.submit(
-                            asyncio.run,
-                            self.provider.generate(
-                                messages=messages,
-                                temperature=persona.temperature,
-                                max_tokens=persona.max_tokens,
-                                image_data=image_data if tool_iterations == 0 else None,
-                            ),
+                    # We're in an async context - run in separate thread
+                    assistant_message = run_async_in_thread(
+                        self.provider.generate(
+                            messages=messages,
+                            temperature=persona.temperature,
+                            max_tokens=persona.max_tokens,
+                            image_data=image_data if tool_iterations == 0 else None,
                         )
-                        assistant_message = future.result()
+                    )
                 except RuntimeError:
                     # No event loop running, safe to use asyncio.run()
                     assistant_message = asyncio.run(
@@ -274,22 +285,15 @@ class MessageProcessor:
                         if tool_name == "generate_image" and hasattr(
                             tool_registry, "execute_tool_async"
                         ):
-                            # Run async tool - handle event loop properly
+                            # Run async tool - use the same helper as LLM calls
                             try:
                                 loop = asyncio.get_running_loop()
-                                # Event loop running, use ThreadPoolExecutor
-                                import concurrent.futures
-
-                                with (
-                                    concurrent.futures.ThreadPoolExecutor() as executor
-                                ):
-                                    future = executor.submit(
-                                        asyncio.run,
-                                        tool_registry.execute_tool_async(
-                                            tool_name, tool_args
-                                        ),
+                                # Event loop running, use new thread with new loop
+                                result = run_async_in_thread(
+                                    tool_registry.execute_tool_async(
+                                        tool_name, tool_args
                                     )
-                                    result = future.result()
+                                )
                             except RuntimeError:
                                 # No event loop, safe to use asyncio.run()
                                 result = asyncio.run(
