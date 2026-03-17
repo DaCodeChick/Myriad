@@ -7,6 +7,7 @@ Provider implementation for OpenAI API and OpenAI-compatible endpoints
 
 from typing import List, Dict, Optional, Any
 from openai import AsyncOpenAI
+import httpx
 
 from core.providers.base import LLMProvider
 
@@ -34,7 +35,20 @@ class OpenAIProvider(LLMProvider):
             base_url: API endpoint (e.g., "https://api.openai.com/v1" or "http://localhost:5001/v1")
             model: Model identifier
         """
-        self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        # Configure HTTP client for local servers (disable SSL verification for localhost)
+        # This prevents SSL errors when connecting to local LLM servers
+        http_client = None
+        if "localhost" in base_url or "127.0.0.1" in base_url:
+            http_client = httpx.AsyncClient(
+                verify=False,  # Disable SSL verification for local servers
+                timeout=httpx.Timeout(
+                    60.0, connect=10.0
+                ),  # Generous timeout for local models
+            )
+
+        self.client = AsyncOpenAI(
+            api_key=api_key, base_url=base_url, http_client=http_client
+        )
         self._model_name = model
         self._base_url = base_url
 
