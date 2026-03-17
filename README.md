@@ -133,6 +133,26 @@ uv run python main.py
 
 **Note**: Always use `uv run` to ensure the bot runs in the correct virtual environment with all dependencies.
 
+## GUI Control Panel
+
+Myriad includes a graphical control panel for easy management and monitoring:
+
+```bash
+./run_gui.sh
+```
+
+**Features:**
+- **Process Control**: Start/stop brain, vision, and Myriad core with buttons
+- **Configuration Editor**: Edit `.env` settings with a user-friendly interface
+- **Unified Logs**: Real-time log output from all components in one view
+- **Quick Actions**: Start/stop all services with one click
+
+**Tabs:**
+- **Process Control**: Manage koboldcpp servers and Myriad core
+- **Configuration**: Edit all `.env` variables with validation
+
+The GUI provides real-time status indicators and auto-scrolling logs, making it easy to monitor system health and troubleshoot issues.
+
 ## Usage
 
 ### Discord Commands
