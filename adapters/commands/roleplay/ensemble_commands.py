@@ -88,6 +88,45 @@ def register_ensemble_commands(
             )
 
     @persona_group.command(
+        name="swap",
+        description="Switch to a single persona (clears ensemble and loads one persona)",
+    )
+    @app_commands.describe(persona_id="The ID of the persona to switch to")
+    async def swap_persona(interaction: discord.Interaction, persona_id: str):
+        """Switch the user's active persona."""
+        try:
+            # Defer immediately to prevent timeout
+            await interaction.response.defer(ephemeral=True)
+        except discord.errors.NotFound:
+            # Interaction expired before we could defer (Discord API latency)
+            # This is a transient error - user should try again
+            return
+
+        user_id = str(interaction.user.id)
+
+        # Attempt to switch persona
+        success = bot.agent_core.switch_persona(user_id, persona_id)
+
+        if success:
+            persona = bot.agent_core.get_active_persona(user_id)
+            if persona:  # Type guard to satisfy type checker
+                await interaction.followup.send(
+                    ResponseFormatter.success(
+                        f"Switched to persona: **{persona.name}** (`{persona_id}`)"
+                    ),
+                    ephemeral=True,
+                )
+        else:
+            available = bot.agent_core.list_personas()
+            await interaction.followup.send(
+                ResponseFormatter.error(
+                    f"Persona '{persona_id}' not found.\n"
+                    f"Available personas: {', '.join(available[:10])}"
+                ),
+                ephemeral=True,
+            )
+
+    @persona_group.command(
         name="unload",
         description="Unload a specific persona from the ensemble",
     )
