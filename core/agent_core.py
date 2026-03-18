@@ -544,6 +544,7 @@ class AgentCore:
 
         # Build conversation context with memory injection
         # NOTE: INHALE phase happens inside context builder (limbic state injection)
+        # NOTE: The user's message is already in the context because we saved it to memory above
         messages = self._build_conversation_context(
             user_id=user_id,
             persona=persona,
@@ -551,9 +552,6 @@ class AgentCore:
             life_id=life_id,
             ensemble_personas=personas if is_ensemble else None,
         )
-
-        # Add current message
-        messages.append({"role": "user", "content": full_message})
 
         # Get user preferences for processing
         user_preferences = self.user_preferences.get_preferences(user_id)
