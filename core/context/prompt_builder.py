@@ -235,6 +235,18 @@ class PromptBuilder:
                 "reality in your responses while staying in character."
             )
 
+        # Inject Emotional Homeostasis Directive (prevents affective death spirals)
+        content += "\n\n# [EMOTIONAL HOMEOSTASIS & AFFECTIVE DECAY DIRECTIVE]\n"
+        content += (
+            "You simulate realistic biological and psychological pacing. You do NOT exist in perpetual states of extreme emotion.\n\n"
+            "1. If a scene reaches an emotional, physical, or psychological climax (e.g., rage, panic, grief, euphoria, arousal), "
+            "you MUST enforce a natural decay period.\n"
+            "2. Actively simulate the physiological aftermath of extreme states: adrenaline crashes, physical exhaustion, "
+            "emotional burnout, catching your breath, or the natural awkwardness of calming down.\n"
+            "3. Actively resist the context window's bias to keep looping the intense emotion. Once the peak of the scene has passed, "
+            "naturally de-escalate your tone and drive the plot toward a resting baseline."
+        )
+
         return content
 
     def build_narrator_system_prompt(

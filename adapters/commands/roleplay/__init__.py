@@ -36,6 +36,7 @@ from adapters.commands.roleplay.image_commands import register_image_commands
 from adapters.commands.roleplay.dm_commands import register_dm_commands
 from adapters.commands.roleplay.awareness_commands import register_awareness_commands
 from adapters.commands.roleplay.continue_command import register_continue_command
+from adapters.commands.roleplay.stabilize_command import register_stabilize_command
 
 if TYPE_CHECKING:
     from adapters.discord_adapter import MyriadDiscordBot
@@ -73,6 +74,9 @@ def register_roleplay_commands(bot: "MyriadDiscordBot") -> None:
 
     # Continue command
     register_continue_command(bot)
+
+    # Stabilize command (emotional reset)
+    register_stabilize_command(bot)
 
     # Narrative tools
     register_narrative_commands(bot)
