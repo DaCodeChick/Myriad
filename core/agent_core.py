@@ -348,6 +348,14 @@ class AgentCore:
         roleplay_feature = cast(RoleplayFeature, self.features["roleplay"])
         return roleplay_feature.list_personas()
 
+    @property
+    def session_notes(self):
+        """Get session notes manager (requires roleplay feature)."""
+        if "roleplay" not in self.features:
+            raise RuntimeError("Roleplay feature not loaded - cannot use session notes")
+        roleplay_feature = cast(RoleplayFeature, self.features["roleplay"])
+        return roleplay_feature.session_notes
+
     # ========================
     # MEMORY MANAGEMENT
     # ========================
