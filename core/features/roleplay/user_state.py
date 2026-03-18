@@ -84,22 +84,28 @@ class UserStateManager:
 
     def set_active_persona(self, user_id: str, persona: str) -> None:
         """
-        Set the active persona for a user.
+        Set the active persona for a user (clears all others - single persona mode).
 
         Args:
             user_id: User identifier
-            persona: Persona name to activate
+            persona: Persona ID to activate
         """
         conn = self._get_connection()
         cursor = conn.cursor()
 
+        # Update both legacy field and new ensemble field (as single-item array)
+        persona_ids_json = json.dumps([persona])
+
         cursor.execute(
             """
-            INSERT INTO user_state (user_id, active_persona, last_interaction_time)
-            VALUES (?, ?, ?)
-            ON CONFLICT(user_id) DO UPDATE SET active_persona = excluded.active_persona
+            INSERT INTO user_state (user_id, active_persona, active_persona_ids, last_interaction_time)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET 
+                active_persona = excluded.active_persona,
+                active_persona_ids = excluded.active_persona_ids,
+                last_interaction_time = excluded.last_interaction_time
         """,
-            (user_id, persona, datetime.now().isoformat()),
+            (user_id, persona, persona_ids_json, datetime.now().isoformat()),
         )
 
         conn.commit()
