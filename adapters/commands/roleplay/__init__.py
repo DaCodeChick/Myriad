@@ -34,6 +34,7 @@ from adapters.commands.roleplay.basic_commands import (
 from adapters.commands.roleplay.navigation_commands import register_navigation_commands
 from adapters.commands.roleplay.image_commands import register_image_commands
 from adapters.commands.roleplay.dm_commands import register_dm_commands
+from adapters.commands.roleplay.awareness_commands import register_awareness_commands
 
 if TYPE_CHECKING:
     from adapters.discord_adapter import MyriadDiscordBot
@@ -65,6 +66,9 @@ def register_roleplay_commands(bot: "MyriadDiscordBot") -> None:
     # Masks & Modes
     register_mask_commands(bot)
     register_mode_commands(bot)
+
+    # AI Awareness
+    register_awareness_commands(bot)
 
     # Narrative tools
     register_narrative_commands(bot)

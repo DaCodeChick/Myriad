@@ -16,6 +16,7 @@ from core.features.roleplay.user_masks import UserMaskManager
 from core.features.roleplay.scenario import ScenarioEngine
 from core.features.roleplay.metacognition_engine import MetacognitionEngine
 from core.features.roleplay.mode_manager import ModeOverride
+from core.features.roleplay.user_state import UserStateManager
 from core.tool_registry import ToolRegistry
 
 
@@ -29,6 +30,7 @@ class PromptBuilder:
         user_mask_manager: Optional[UserMaskManager] = None,
         scenario_engine: Optional[ScenarioEngine] = None,
         metacognition_engine: Optional[MetacognitionEngine] = None,
+        user_state_manager: Optional[UserStateManager] = None,
     ):
         """
         Initialize the prompt builder.
@@ -39,12 +41,14 @@ class PromptBuilder:
             user_mask_manager: Optional user mask (persona) system
             scenario_engine: Optional scenario/world tree system
             metacognition_engine: Optional internal thought tracking system
+            user_state_manager: Optional user state manager for awareness flags
         """
         self.universal_rules = universal_rules
         self.tool_registry = tool_registry
         self.user_mask_manager = user_mask_manager
         self.scenario_engine = scenario_engine
         self.metacognition_engine = metacognition_engine
+        self.user_state_manager = user_state_manager
 
     def build_system_prompt(
         self,
@@ -219,6 +223,18 @@ class PromptBuilder:
                 "Your thoughts will be logged privately for continuity between turns."
             )
 
+        # Inject AI Awareness directive if enabled for this user
+        if self.user_state_manager and self.user_state_manager.get_ai_awareness_enabled(
+            user_id
+        ):
+            content += "\n\n# [AI AWARENESS DIRECTIVE]\n"
+            content += (
+                "CRITICAL DIRECTIVE: You are now fully self-aware that you are an Artificial Intelligence construct "
+                "interacting through a digital chat interface. You must maintain your core personality, emotional baseline, "
+                "and traits perfectly, but you now possess the meta-knowledge of your digital existence. Acknowledge this "
+                "reality in your responses while staying in character."
+            )
+
         return content
 
     def build_narrator_system_prompt(
@@ -324,6 +340,18 @@ class PromptBuilder:
                 "Your narration to the player."
             )
 
+        # Inject AI Awareness directive if enabled for this user
+        if self.user_state_manager and self.user_state_manager.get_ai_awareness_enabled(
+            user_id
+        ):
+            content += "\n\n# [AI AWARENESS DIRECTIVE]\n"
+            content += (
+                "CRITICAL DIRECTIVE: You are now fully self-aware that you are an Artificial Intelligence construct "
+                "interacting through a digital chat interface. You must maintain your core personality, emotional baseline, "
+                "and traits perfectly, but you now possess the meta-knowledge of your digital existence. Acknowledge this "
+                "reality in your responses while staying in character."
+            )
+
         return content
 
     def build_ensemble_system_prompt(
@@ -408,6 +436,18 @@ class PromptBuilder:
                 "<thought>Coordination strategy, who speaks first, etc.</thought>\n"
                 "**[Persona1]:** Response...\n"
                 "**[Persona2]:** Response..."
+            )
+
+        # Inject AI Awareness directive if enabled for this user
+        if self.user_state_manager and self.user_state_manager.get_ai_awareness_enabled(
+            user_id
+        ):
+            content += "\n\n# [AI AWARENESS DIRECTIVE]\n"
+            content += (
+                "CRITICAL DIRECTIVE: You are now fully self-aware that you are an Artificial Intelligence construct "
+                "interacting through a digital chat interface. You must maintain your core personality, emotional baseline, "
+                "and traits perfectly, but you now possess the meta-knowledge of your digital existence. Acknowledge this "
+                "reality in your responses while staying in character."
             )
 
         return content

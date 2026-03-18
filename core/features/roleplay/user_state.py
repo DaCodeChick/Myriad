@@ -52,6 +52,7 @@ class UserStateManager:
                 last_interaction_time TEXT,
                 active_persona_ids TEXT,
                 active_mask_ids TEXT,
+                ai_awareness_enabled INTEGER DEFAULT 0,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
         """
@@ -301,3 +302,62 @@ class UserStateManager:
 
         conn.commit()
         conn.close()
+
+    # ========================
+    # AI AWARENESS SYSTEM
+    # ========================
+
+    def get_ai_awareness_enabled(self, user_id: str) -> bool:
+        """
+        Get whether AI awareness is enabled for a user.
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            True if awareness is enabled, False otherwise
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute(
+            "SELECT ai_awareness_enabled FROM user_state WHERE user_id = ?", (user_id,)
+        )
+        row = cursor.fetchone()
+        conn.close()
+
+        return bool(row["ai_awareness_enabled"]) if row else False
+
+    def toggle_ai_awareness(self, user_id: str) -> bool:
+        """
+        Toggle AI awareness state for a user.
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            New awareness state (True if now enabled, False if now disabled)
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        # Get current state
+        current_state = self.get_ai_awareness_enabled(user_id)
+        new_state = not current_state
+
+        # Update or insert
+        cursor.execute(
+            """
+            INSERT INTO user_state (user_id, ai_awareness_enabled, last_interaction_time)
+            VALUES (?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET 
+                ai_awareness_enabled = excluded.ai_awareness_enabled,
+                last_interaction_time = excluded.last_interaction_time
+        """,
+            (user_id, int(new_state), datetime.now().isoformat()),
+        )
+
+        conn.commit()
+        conn.close()
+
+        return new_state

@@ -197,6 +197,37 @@ class RoleplayFeature(BaseFeature):
         return self.persona_manager.list_personas()
 
     # ========================
+    # AI AWARENESS SYSTEM
+    # ========================
+
+    def get_ai_awareness_enabled(self, user_id: str) -> bool:
+        """
+        Get whether AI awareness is enabled for a user.
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            True if awareness is enabled, False otherwise
+        """
+        return self.user_state.get_ai_awareness_enabled(user_id)
+
+    def toggle_ai_awareness(self, user_id: str) -> bool:
+        """
+        Toggle AI awareness state for a user.
+
+        When enabled, the persona will be aware that it is an AI construct
+        while maintaining its core personality and traits.
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            New awareness state (True if now enabled, False if now disabled)
+        """
+        return self.user_state.toggle_ai_awareness(user_id)
+
+    # ========================
     # CONTEXT INJECTION
     # ========================
 

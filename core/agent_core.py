@@ -258,6 +258,9 @@ class AgentCore:
             if roleplay_feature
             else None,
             session_notes=roleplay_feature.session_notes if roleplay_feature else None,
+            user_state_manager=roleplay_feature.user_state
+            if roleplay_feature
+            else None,
         )
 
     def _init_message_processor(self) -> None:

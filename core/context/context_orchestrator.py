@@ -23,6 +23,7 @@ from core.features.roleplay.mode_manager import ModeManager
 from core.features.roleplay.user_masks import UserMaskManager
 from core.features.roleplay.scenario import ScenarioEngine
 from core.features.roleplay.session_notes import SessionNotesManager
+from core.features.roleplay.user_state import UserStateManager
 from core.tool_registry import ToolRegistry
 
 
@@ -55,6 +56,7 @@ class ConversationContextBuilder:
         user_mask_manager: Optional[UserMaskManager] = None,
         scenario_engine: Optional[ScenarioEngine] = None,
         session_notes: Optional[SessionNotesManager] = None,
+        user_state_manager: Optional[UserStateManager] = None,
     ):
         """
         Initialize the conversation context builder.
@@ -73,6 +75,7 @@ class ConversationContextBuilder:
             user_mask_manager: Optional user mask (persona) system
             scenario_engine: Optional scenario/world tree system
             session_notes: Optional session notes manager for silent context injection
+            user_state_manager: Optional user state manager for awareness flags
         """
         self.mode_manager = mode_manager
         self.session_notes = session_notes
@@ -84,6 +87,7 @@ class ConversationContextBuilder:
             user_mask_manager=user_mask_manager,
             scenario_engine=scenario_engine,
             metacognition_engine=metacognition_engine,
+            user_state_manager=user_state_manager,
         )
 
         self.memory_assembler = MemoryAssembler(
