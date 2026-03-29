@@ -200,12 +200,19 @@ class MessageProcessor:
             return response
 
         if mode == "one_line":
-            first_line = next(
-                (line.strip() for line in text.splitlines() if line.strip()), ""
-            )
-            if not first_line:
+            # Collapse to a single line, then keep only the first sentence/chunk.
+            single_line = re.sub(r"\s+", " ", text).strip()
+            if not single_line:
                 return ""
-            return first_line
+
+            sentence_parts = re.split(r"(?<=[.!?])\s+", single_line)
+            first_part = next(
+                (part.strip() for part in sentence_parts if part.strip()), ""
+            )
+            if not first_part:
+                return single_line
+
+            return first_part
 
         normalized = re.sub(r"\s+", " ", text).strip()
 
