@@ -6,7 +6,7 @@ Handles per-user experimental feature toggles and preference management.
 
 import discord
 from discord import app_commands
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from adapters.commands.base import ResponseFormatter
 
@@ -51,9 +51,12 @@ def register_config_commands(bot: "MyriadDiscordBot") -> None:
             f"  └─ Sleep protection threshold: {prefs['autonomy_sleep_threshold']:.2f}\n\n"
             f"📝 **Memory Sharing Mode:** `{prefs.get('default_memory_visibility', 'ISOLATED')}`\n"
             f"  └─ Controls whether memories are shared across personas\n\n"
+            f"📏 **Roleplay Response Length:** `{prefs.get('response_length_mode', 'semi_paragraph')}`\n"
+            f"  └─ Controls how verbose roleplay replies are by default\n\n"
             f"Use `/config toggle <feature>` to enable/disable features.\n"
             f"Use `/config autonomy` to customize autonomy parameters.\n"
             f"Use `/config memory` to change memory sharing mode.\n"
+            f"Use `/config response_length` to tune roleplay response size.\n"
             f"Use `/config reset` to restore defaults."
         )
 
@@ -119,10 +122,100 @@ def register_config_commands(bot: "MyriadDiscordBot") -> None:
                 "✅ Spontaneous Autonomy: ENABLED\n"
                 "  └─ Inactivity threshold: 4.0 hours\n"
                 "  └─ Sleep protection: 0.20\n"
-                "📝 Memory Sharing: ISOLATED"
+                "📝 Memory Sharing: ISOLATED\n"
+                "📏 Roleplay Response Length: semi_paragraph"
             ),
             ephemeral=True,
         )
+
+    @config_group.command(
+        name="response_length", description="Set roleplay response length mode"
+    )
+    @app_commands.describe(
+        mode="Length mode: one_line, semi_paragraph, paragraph, or multi_paragraph"
+    )
+    async def config_response_length(
+        interaction: discord.Interaction,
+        mode: Literal[
+            "one_line", "semi_paragraph", "paragraph", "multi_paragraph"
+        ] = None,
+    ):
+        """Configure roleplay response verbosity/length."""
+        user_id = str(interaction.user.id)
+
+        if mode is not None:
+            bot.agent_core.user_preferences.set_preference(
+                user_id, "response_length_mode", mode
+            )
+
+            mode_descriptions = {
+                "one_line": "Exactly one short line (fragment/emote style allowed).",
+                "semi_paragraph": "A short single paragraph (roughly 2-4 sentences).",
+                "paragraph": "One full paragraph with moderate detail (roughly 4-8 sentences).",
+                "multi_paragraph": "Multiple paragraphs when needed for richer scenes.",
+            }
+
+            message = "✅ **Roleplay Response Length Updated**\n\n"
+            message += f"New mode: **{mode}**\n"
+            message += f"Behavior: {mode_descriptions[mode]}\n\n"
+            message += "This takes effect immediately for new roleplay messages."
+
+            await interaction.response.send_message(message, ephemeral=True)
+        else:
+            prefs = bot.agent_core.user_preferences.get_preferences(user_id)
+            current_mode = prefs.get("response_length_mode", "semi_paragraph")
+
+            mode_descriptions = {
+                "one_line": "Exactly one short line (fragment/emote style allowed).",
+                "semi_paragraph": "A short single paragraph (roughly 2-4 sentences).",
+                "paragraph": "One full paragraph with moderate detail (roughly 4-8 sentences).",
+                "multi_paragraph": "Multiple paragraphs when needed for richer scenes.",
+            }
+
+            message = "**Current Roleplay Response Length:**\n\n"
+            message += f"Mode: **{current_mode}**\n"
+            message += f"Behavior: {mode_descriptions.get(str(current_mode), mode_descriptions['semi_paragraph'])}\n\n"
+            message += "💡 Use `/config response_length mode:<option>` to change it."
+
+            await interaction.response.send_message(message, ephemeral=True)
+
+    @bot.tree.command(
+        name="length",
+        description="Quick alias: set roleplay response length mode",
+    )
+    @app_commands.describe(mode="Length mode: oneline, semi, para, or multi")
+    async def quick_length(
+        interaction: discord.Interaction,
+        mode: Literal["oneline", "semi", "para", "multi"] = "semi",
+    ):
+        """Quick top-level alias for /config response_length."""
+        user_id = str(interaction.user.id)
+
+        mode_mapping = {
+            "oneline": "one_line",
+            "semi": "semi_paragraph",
+            "para": "paragraph",
+            "multi": "multi_paragraph",
+        }
+        normalized_mode = mode_mapping[mode]
+
+        bot.agent_core.user_preferences.set_preference(
+            user_id, "response_length_mode", normalized_mode
+        )
+
+        mode_descriptions = {
+            "oneline": "Exactly one short line (fragment/emote style allowed).",
+            "semi": "A short single paragraph (roughly 2-4 sentences).",
+            "para": "One full paragraph with moderate detail (roughly 4-8 sentences).",
+            "multi": "Multiple paragraphs when needed for richer scenes.",
+        }
+
+        message = "✅ **Response Length Updated**\n\n"
+        message += f"Mode: **{mode}**\n"
+        message += f"Behavior: {mode_descriptions[mode]}\n\n"
+        message += "Use `/config response_length` to view or adjust details."
+
+        await interaction.response.send_message(message, ephemeral=True)
 
     @config_group.command(
         name="autonomy", description="Configure spontaneous autonomy parameters"

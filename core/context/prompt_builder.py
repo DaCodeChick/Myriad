@@ -23,6 +23,30 @@ from core.tool_registry import ToolRegistry
 class PromptBuilder:
     """Builds system prompts with universal rules, persona identity, and tool definitions."""
 
+    RESPONSE_LENGTH_GUIDANCE = {
+        "one_line": (
+            "# [RESPONSE LENGTH MODE]\n"
+            "Length mode: ONE LINE. Keep the visible reply to exactly one short line. "
+            "A fragment or emote-style line is allowed (example style: *gasp* Oh my!). "
+            "No extra sentences, no lists, no extra paragraphs."
+        ),
+        "semi_paragraph": (
+            "# [RESPONSE LENGTH MODE]\n"
+            "Length mode: SEMI PARAGRAPH. Keep the visible reply brief: about 2-4 sentences in a single short paragraph. "
+            "Avoid over-description and keep details focused."
+        ),
+        "paragraph": (
+            "# [RESPONSE LENGTH MODE]\n"
+            "Length mode: PARAGRAPH. Keep the visible reply to one full paragraph, typically 4-8 sentences. "
+            "Include detail, but stay concise and avoid unnecessary expansion."
+        ),
+        "multi_paragraph": (
+            "# [RESPONSE LENGTH MODE]\n"
+            "Length mode: MULTI PARAGRAPH. You may use multiple paragraphs when appropriate, "
+            "but keep them relevant and avoid repetitive elaboration."
+        ),
+    }
+
     def __init__(
         self,
         universal_rules: List[str],
@@ -200,6 +224,13 @@ class PromptBuilder:
         rules = effective_rules if effective_rules else []
         content += "\n".join(f"- {rule}" for rule in rules)
 
+        # Add per-user response length guidance
+        length_mode = user_preferences.get("response_length_mode", "semi_paragraph")
+        length_guidance = self.RESPONSE_LENGTH_GUIDANCE.get(
+            str(length_mode), self.RESPONSE_LENGTH_GUIDANCE["semi_paragraph"]
+        )
+        content += "\n\n" + length_guidance
+
         # Add tool definitions if enabled
         if self.tool_registry and user_preferences.get("tools_enabled", True):
             content += "\n\n# [AVAILABLE TOOLS]\n"
@@ -327,6 +358,13 @@ class PromptBuilder:
         rules = persona.rules_of_engagement if persona.rules_of_engagement else []
         content += "\n".join(f"- {rule}" for rule in rules)
 
+        # Add per-user response length guidance
+        length_mode = user_preferences.get("response_length_mode", "semi_paragraph")
+        length_guidance = self.RESPONSE_LENGTH_GUIDANCE.get(
+            str(length_mode), self.RESPONSE_LENGTH_GUIDANCE["semi_paragraph"]
+        )
+        content += "\n\n" + length_guidance
+
         # Add tool definitions (narrator can use dice, knowledge graph, etc.)
         if self.tool_registry and user_preferences.get("tools_enabled", True):
             content += "\n\n# [NARRATOR TOOLS]\n"
@@ -434,6 +472,13 @@ class PromptBuilder:
             "**[Persona1]:** Their response here.\n\n"
             "**[Persona2]:** Their response here.\n"
         )
+
+        # Add per-user response length guidance
+        length_mode = user_preferences.get("response_length_mode", "semi_paragraph")
+        length_guidance = self.RESPONSE_LENGTH_GUIDANCE.get(
+            str(length_mode), self.RESPONSE_LENGTH_GUIDANCE["semi_paragraph"]
+        )
+        content += "\n\n" + length_guidance
 
         # Add tool definitions
         if self.tool_registry and user_preferences.get("tools_enabled", True):

@@ -45,7 +45,8 @@ class UserPreferences:
                 autonomy_sleep_threshold REAL DEFAULT 0.2,
                 default_memory_visibility TEXT DEFAULT 'ISOLATED',
                 lives_enabled INTEGER DEFAULT 1,
-                universal_rules_enabled INTEGER DEFAULT 1
+                universal_rules_enabled INTEGER DEFAULT 1,
+                response_length_mode TEXT DEFAULT 'semi_paragraph'
             )
         """
         )
@@ -62,6 +63,11 @@ class UserPreferences:
         if "universal_rules_enabled" not in existing_columns:
             cursor.execute(
                 "ALTER TABLE user_preferences ADD COLUMN universal_rules_enabled INTEGER DEFAULT 1"
+            )
+
+        if "response_length_mode" not in existing_columns:
+            cursor.execute(
+                "ALTER TABLE user_preferences ADD COLUMN response_length_mode TEXT DEFAULT 'semi_paragraph'"
             )
 
         # Degradation Profiles Table
@@ -213,7 +219,7 @@ class UserPreferences:
             SELECT limbic_enabled, cadence_degrader_enabled, metacognition_enabled,
                    show_thoughts_inline, autonomy_enabled, autonomy_inactivity_hours,
                    autonomy_sleep_threshold, default_memory_visibility, lives_enabled,
-                   universal_rules_enabled
+                   universal_rules_enabled, response_length_mode
             FROM user_preferences
             WHERE user_id = ?
         """,
@@ -235,6 +241,7 @@ class UserPreferences:
                 "default_memory_visibility": str(row[7]),
                 "lives_enabled": bool(row[8]),
                 "universal_rules_enabled": bool(row[9]),
+                "response_length_mode": str(row[10]),
             }
         else:
             # Return defaults if no preferences found
@@ -249,6 +256,7 @@ class UserPreferences:
                 "default_memory_visibility": "ISOLATED",
                 "lives_enabled": True,
                 "universal_rules_enabled": True,
+                "response_length_mode": "semi_paragraph",
             }
 
     def get_preference(
@@ -278,6 +286,7 @@ class UserPreferences:
             "default_memory_visibility": "ISOLATED",
             "lives_enabled": True,
             "universal_rules_enabled": True,
+            "response_length_mode": "semi_paragraph",
         }
 
         return prefs.get(preference_name, defaults.get(preference_name, True))
@@ -308,6 +317,7 @@ class UserPreferences:
             "default_memory_visibility",
             "lives_enabled",
             "universal_rules_enabled",
+            "response_length_mode",
         ]
 
         if preference_name not in valid_preferences:
@@ -315,6 +325,20 @@ class UserPreferences:
             raise ValueError(f"Invalid preference name: {preference_name}")
 
         # Convert boolean to int for storage, keep floats and strings as-is
+        if preference_name == "response_length_mode":
+            allowed_modes = {
+                "one_line",
+                "semi_paragraph",
+                "paragraph",
+                "multi_paragraph",
+            }
+            if value not in allowed_modes:
+                conn.close()
+                raise ValueError(
+                    f"Invalid response_length_mode: {value}. "
+                    "Expected one of: one_line, semi_paragraph, paragraph, multi_paragraph"
+                )
+
         stored_value = int(value) if isinstance(value, bool) else value
 
         # Insert or update preference
