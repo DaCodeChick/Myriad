@@ -205,7 +205,7 @@ class MessageProcessor:
             )
             if not first_line:
                 return ""
-            return first_line[:140].strip()
+            return first_line
 
         normalized = re.sub(r"\s+", " ", text).strip()
 
