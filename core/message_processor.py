@@ -128,6 +128,7 @@ class MessageProcessor:
                 "cadence_degrader_enabled": True,
                 "metacognition_enabled": True,
                 "show_thoughts_inline": True,
+                "response_length_mode": "semi_paragraph",
             }
 
         # Check for mode overrides
@@ -173,11 +174,54 @@ class MessageProcessor:
                 final_response, user_id, persona.persona_id, user_preferences
             )
 
+        # Enforce response length mode with a hard post-processing clamp.
+        # This provides deterministic output size even when the model ignores prompt guidance.
+        final_response = self._apply_length_mode_clamp(final_response, user_preferences)
+
         # Decrement session note TTL (after successful response generation)
         if self.session_notes:
             self.session_notes.decrement_ttl(user_id)
 
         return final_response
+
+    def _apply_length_mode_clamp(
+        self,
+        response: str,
+        user_preferences: Dict[str, bool],
+    ) -> str:
+        """Apply deterministic response length limits based on user preference."""
+        mode = str(user_preferences.get("response_length_mode", "semi_paragraph"))
+
+        if mode == "multi_paragraph":
+            return response
+
+        text = response.strip()
+        if not text:
+            return response
+
+        if mode == "one_line":
+            first_line = next(
+                (line.strip() for line in text.splitlines() if line.strip()), ""
+            )
+            if not first_line:
+                return ""
+            return first_line[:140].strip()
+
+        normalized = re.sub(r"\s+", " ", text).strip()
+
+        if mode == "paragraph":
+            return normalized
+
+        if mode == "semi_paragraph":
+            # Keep one short paragraph and cap at roughly 4 sentences.
+            sentence_parts = re.split(r"(?<=[.!?])\s+", normalized)
+            trimmed = [part.strip() for part in sentence_parts if part.strip()]
+            if not trimmed:
+                return normalized
+            return " ".join(trimmed[:4]).strip()
+
+        # Unknown mode fallback
+        return normalized
 
     def _execute_tool_loop(
         self,
